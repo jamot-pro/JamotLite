@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+# Company data folders created by the runtime
+data/
+*.db
+*.db-wal
+*.db-shm
+secrets.key
+.DS_Store
