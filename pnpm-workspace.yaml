@@ -1,3 +1,20 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Install scripts we deliberately don't run. pi works without them (RUNTIME
+# D17): esbuild comes in through pi's experimental "chord" package;
+# @google/genai and protobufjs are provider SDKs we don't build.
+allowBuilds:
+  "@google/genai": false
+  esbuild: false
+  protobufjs: false
+
+# pnpm holds back releases younger than a day as supply-chain protection. pi
+# 0.99.1 is newer than that; it is the exact version the O1 spike tested, and it
+# is pinned. Remove these once the release is older than the window.
+minimumReleaseAgeExclude:
+  - "@earendil-works/chord@0.99.1"
+  - "@earendil-works/pi-agent-core@0.99.1"
+  - "@earendil-works/pi-ai@0.99.1"
+  - "@earendil-works/pi-telemetry@0.99.1"

@@ -22,12 +22,23 @@ Never say "zero-human", "autonomous company" or "runs itself".
 
 | Path | What lives there |
 |---|---|
-| `packages/contracts` | Shared types (zod). Change a shape here first. |
+| `packages/contracts` | Shared types (zod): org graph, Dream, company file. Change a shape here first. |
+| `packages/company-file` | Reads and writes `company.yaml` |
+| `packages/ports` | Storage interfaces the domain code uses (async, one company per database) |
+| `packages/sqlite` | SQLite adapters (`node:sqlite`) and migrations |
+| `packages/brain` | The agent brain: the `Brain` port and its pi adapter. pi's types never leave this package |
+| `packages/telegram` | The Telegram channel (grammY): messages in, replies out, owner pairing, approval buttons |
+| `packages/core` | Domain logic: company import/export, message intake, reply agents, approvals, secrets, the job worker |
+| `packages/mcp` | The company as an MCP server (`/mcp`), and MCP tools for agents |
+| `apps/runtime` | One company, one process: wires everything, serves `/api`, `/mcp` and the console; the `jamot` CLI |
+| `apps/web` | The web console (Vite + React), served by the runtime |
+| `scripts/` | `build.mjs` (the bundle) and `install.sh` |
+| `templates/` | The company templates, as `company.yaml` files |
 | `docs/RUNTIME.md` | Design, v0.1 scope, milestones, decision log |
+| `docs/PORTS.md` | Which storage the runtime needs, port by port |
 
-The full layout planned for v0.1 (`apps/runtime`, `apps/web`, `packages/core`,
-`packages/ports`, `packages/sqlite`, `templates/`) is in RUNTIME.md §11. Create
-those folders when a milestone needs them, not before.
+v0.1 is built (RUNTIME.md §11 milestones M0–M6). New work starts from the
+decision log and the "Out" table there.
 
 ## Commands
 
@@ -36,6 +47,8 @@ pnpm install
 pnpm lint          # biome
 pnpm typecheck
 pnpm test          # vitest
+pnpm jamot --help  # the CLI, from source
+pnpm build         # dist/: jamot.mjs, templates, console
 ```
 
 ## Rules you must not break
@@ -58,5 +71,8 @@ pnpm test          # vitest
 7. **Never edit a migration that already exists.** Add a new one.
 8. **Record decisions.** A change that settles an open question updates the
    decision log in RUNTIME.md in the same commit.
-9. **Tests next to code** (`*.test.ts`). Match the surrounding style: biome
+9. **pi stays inside `packages/brain`.** Other packages use the `Brain` types
+   only. Upgrading pi means bumping the pinned version and making the brain
+   tests pass again — never loosening them.
+10. **Tests next to code** (`*.test.ts`). Match the surrounding style: biome
    formatting, plain comments that explain why.

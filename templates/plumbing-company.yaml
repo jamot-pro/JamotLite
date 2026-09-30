@@ -1,0 +1,171 @@
+# A plumbing company — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: plumbing-company
+  name: A plumbing company
+  summary: "Never miss a leak: agents answer and book, plumbers fix, maintenance plans bring customers back."
+  timezone: UTC
+dream:
+  objective: Never leave a customer with a leak and no answer — and keep every home we've fixed working.
+  outcomes:
+    - Every call and message answered, day and night
+    - Urgent leaks reached the same day
+    - Every job photographed, closed and invoiced the same day
+    - Boiler and drain customers on a yearly maintenance plan
+  kpis:
+    - name: Missed calls
+      target: "0"
+      unit: per week
+    - name: Urgent jobs reached the same day
+      target: "90"
+      unit: "%"
+    - name: Customers on a maintenance plan
+      target: "200"
+      unit: homes
+    - name: Average review
+      target: "4.8"
+      unit: stars
+  constraints:
+    - Gas work is done and signed only by a certified gas engineer
+    - Agents tell customers how to shut off the water, never how to repair
+    - No job starts without a price the customer has agreed to
+    - Customers' home access details are stored as secrets, never in messages
+  timeline:
+    - milestone: One Telegram inbox for every customer message
+      by: Week 2
+    - milestone: Night and weekend rota covered
+      by: Month 1
+    - milestone: First 50 maintenance plans
+      by: Month 3
+  requiredCapabilities:
+    - plumbing
+    - gas certification
+    - emergency dispatch
+    - customer service
+    - bookkeeping
+  requiredResponsibilities:
+    - Certified gas engineer
+    - Night and weekend rota
+    - Calls, messages and bookings
+    - Job photos and close-out
+    - Parts and suppliers
+    - Invoices and payments
+    - Maintenance plans and reminders
+    - Reviews and complaints
+founder: founder
+teams:
+  - key: crew
+    name: Plumbers
+    purpose: Fix it, photograph it, leave it clean.
+  - key: desk
+    name: Dispatch
+    purpose: No call goes unanswered.
+  - key: care
+    name: Customer Care
+    purpose: Maintenance plans, invoices, reviews.
+humans:
+  - key: founder
+    name: Founder
+    role: Owner and lead plumber
+agents:
+  - key: dispatcher
+    name: Dispatcher
+    role: Answers every call and message
+    instructions: Answer every enquiry, ask for photos of the problem and the address, explain how to shut off the water, and book the nearest free plumber. Anything with gas, or water near electrics, goes straight to a human. Never promise a price the plumber hasn't approved.
+  - key: care-agent
+    name: Care Agent
+    role: Brings customers back
+    instructions: After each job, send the invoice and ask for a review. Offer a yearly maintenance plan to boiler and drain customers and remind them when their service is due. Pass every complaint to the owner the same day.
+responsibilities:
+  - key: r-gas
+    name: Certified gas engineer
+  - key: r-night
+    name: Night and weekend rota
+  - key: r-bookings
+    name: Calls, messages and bookings
+  - key: r-closeout
+    name: Job photos and close-out
+  - key: r-parts
+    name: Parts and suppliers
+  - key: r-invoices
+    name: Invoices and payments
+  - key: r-plans
+    name: Maintenance plans and reminders
+  - key: r-reviews
+    name: Reviews and complaints
+tools:
+  - key: t-telegram
+    name: Telegram
+    purpose: Calls, messages and photos from customers
+  - key: t-calendar
+    name: Job calendar
+    purpose: Bookings and the rota
+  - key: t-invoices
+    name: Invoicing
+    purpose: Invoices, plans and payments
+heartbeats:
+  - key: h-pulse
+    name: Morning job board
+    schedule: 0 7 * * *
+    monitors:
+      - today's jobs without a plumber
+      - tonight's rota gap
+    actions:
+      - tell the owner what's uncovered
+      - verify every job has a plumber
+  - key: h-desk
+    name: Missed-call sweep
+    schedule: "*/15 * * * *"
+    monitors:
+      - calls and messages without a reply
+    actions:
+      - call or message back
+      - verify the customer has a booking or an answer
+  - key: h-crew
+    name: Job close-out
+    schedule: 0 19 * * *
+    monitors:
+      - finished jobs without photos
+      - parts used today
+    actions:
+      - remind the plumber
+      - verify the job is closed
+  - key: h-care
+    name: Plans and reviews
+    schedule: 0 10 * * 2
+    monitors:
+      - services due next month
+      - unpaid invoices
+      - new reviews
+    actions:
+      - send reminders and thank-yous
+      - verify complaints reached the owner
+links:
+  - founder member_of crew
+  - dispatcher member_of desk
+  - care-agent member_of care
+  - dream requires r-gas
+  - dream requires r-night
+  - dream requires r-bookings
+  - dream requires r-closeout
+  - dream requires r-parts
+  - dream requires r-invoices
+  - dream requires r-plans
+  - dream requires r-reviews
+  - dispatcher responsible_for r-bookings
+  - crew owns r-closeout
+  - founder responsible_for r-parts
+  - care-agent responsible_for r-invoices
+  - care-agent responsible_for r-plans
+  - founder responsible_for r-reviews
+  - desk has_access_to t-telegram
+  - dispatcher uses t-telegram
+  - dispatcher uses t-calendar
+  - crew has_access_to t-calendar
+  - care has_access_to t-invoices
+  - care-agent uses t-invoices
+  - h-pulse monitors dream
+  - h-desk monitors desk
+  - h-crew monitors crew
+  - h-care monitors care
+  - h-desk invokes t-telegram

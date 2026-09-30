@@ -1,0 +1,182 @@
+# An organic farm — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: organic-farm
+  name: An organic farm
+  summary: "Soil sensors, a veg-box agent and the farmers who decide: grow organic, sell direct, waste nothing."
+  timezone: UTC
+dream:
+  objective: Grow organic vegetables profitably and sell them direct to families who know where their food comes from.
+  outcomes:
+    - Organic certification kept, with records ready for every inspection
+    - A weekly veg-box round with a waiting list
+    - Irrigation driven by soil readings, not guesswork
+    - Less than 10% of the harvest wasted
+  kpis:
+    - name: Veg-box subscribers
+      target: "150"
+      unit: families
+    - name: Harvest wasted
+      target: "10"
+      unit: "%"
+    - name: Water used per kilo harvested
+      target: "40"
+      unit: litres
+    - name: Certification findings
+      target: "0"
+      unit: findings
+  constraints:
+    - "Organic rules first: no input is used unless it's on the certifier's allowed list"
+    - An agent may plan watering; a farmer approves before any valve opens
+    - "Jamot coordinates machines, never drives them: their own safety controls stay in charge"
+    - Every input, harvest and sale is recorded the day it happens
+  timeline:
+    - milestone: Field records and the crop plan in one place
+      by: Month 1
+    - milestone: Veg-box round running weekly
+      by: Month 2
+    - milestone: Soil sensors connected to the irrigation heartbeat
+      by: Month 4
+  requiredCapabilities:
+    - organic growing
+    - irrigation
+    - direct sales
+    - certification records
+    - delivery
+  requiredResponsibilities:
+    - Head grower
+    - Crop plan and sowing calendar
+    - Irrigation
+    - Organic certification records
+    - Harvest and packing
+    - Veg-box subscribers
+    - Delivery round
+    - Seeds, inputs and suppliers
+    - Books and grants
+founder: founder
+teams:
+  - key: field
+    name: Field
+    purpose: Soil, crops and water.
+  - key: shop
+    name: Veg Box
+    purpose: From the field to the family's table.
+  - key: office
+    name: Farm Office
+    purpose: Certification, suppliers, books.
+humans:
+  - key: founder
+    name: Founder
+    role: Farmer and owner
+agents:
+  - key: agronomist
+    name: Field Agent
+    role: Reads the field and plans the work
+    instructions: Read soil moisture and the weather forecast, plan irrigation and field work for the week, and send the plan to the farmer for approval. Record every input against the certifier's allowed list. Never open a valve or start a machine without a farmer's approval.
+  - key: box-agent
+    name: Veg-box Agent
+    role: Looks after subscribers
+    instructions: Tell subscribers what's in this week's box, take skips and changes on Telegram, remember preferences, and build the delivery list from the harvest plan.
+responsibilities:
+  - key: r-grower
+    name: Head grower
+  - key: r-plan
+    name: Crop plan and sowing calendar
+  - key: r-water
+    name: Irrigation
+  - key: r-cert
+    name: Organic certification records
+  - key: r-harvest
+    name: Harvest and packing
+  - key: r-subscribers
+    name: Veg-box subscribers
+  - key: r-delivery
+    name: Delivery round
+  - key: r-inputs
+    name: Seeds, inputs and suppliers
+  - key: r-books
+    name: Books and grants
+tools:
+  - key: t-soil
+    name: Soil moisture sensors
+    purpose: Readings from every bed, over MCP
+    status: sensors over MCP (SPEC §78.2)
+  - key: t-weather
+    name: Weather forecast
+    purpose: Rain and frost ahead
+  - key: t-telegram
+    name: Telegram
+    purpose: Subscribers' skips and changes
+  - key: t-records
+    name: Field records
+    purpose: Inputs, harvests and sales for the certifier
+heartbeats:
+  - key: h-pulse
+    name: Weekly farm plan
+    schedule: 0 6 * * 1
+    monitors:
+      - open responsibilities
+      - this week's harvest vs box orders
+    actions:
+      - post the week's plan to the farmers
+      - verify every task has an owner
+  - key: h-field
+    name: Irrigation check
+    schedule: 0 5,17 * * *
+    monitors:
+      - soil moisture per bed
+      - rain forecast
+    actions:
+      - propose watering for approval
+      - verify the soil recovered
+  - key: h-shop
+    name: Box round
+    schedule: 0 9 * * 3
+    monitors:
+      - skips and changes
+      - new subscribers
+      - delivery addresses
+    actions:
+      - build the packing and delivery lists
+      - verify every box was delivered
+  - key: h-office
+    name: Records and inputs review
+    schedule: 0 16 * * 5
+    monitors:
+      - inputs not yet recorded
+      - seed stock for next sowing
+    actions:
+      - draft records and orders for approval
+      - verify the records match the field
+links:
+  - founder member_of field
+  - agronomist member_of field
+  - box-agent member_of shop
+  - dream requires r-grower
+  - dream requires r-plan
+  - dream requires r-water
+  - dream requires r-cert
+  - dream requires r-harvest
+  - dream requires r-subscribers
+  - dream requires r-delivery
+  - dream requires r-inputs
+  - dream requires r-books
+  - founder responsible_for r-grower
+  - agronomist responsible_for r-plan
+  - agronomist responsible_for r-water
+  - office owns r-cert
+  - box-agent responsible_for r-subscribers
+  - office owns r-inputs
+  - founder responsible_for r-books
+  - agronomist uses t-soil
+  - agronomist uses t-weather
+  - field has_access_to t-soil
+  - shop has_access_to t-telegram
+  - box-agent uses t-telegram
+  - office has_access_to t-records
+  - h-pulse monitors dream
+  - h-field monitors field
+  - h-shop monitors shop
+  - h-office monitors office
+  - h-field invokes t-soil
+  - h-field invokes t-weather

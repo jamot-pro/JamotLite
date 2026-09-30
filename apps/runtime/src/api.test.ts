@@ -1,0 +1,246 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+	fakeModel,
+	fauxAssistantMessage,
+	fauxText,
+} from "@jamot/brain/testing";
+import { parseCompanyFile } from "@jamot/company-file";
+import { Bot } from "grammy";
+import type { UserFromGetMe } from "grammy/types";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hashPassword, PASSWORD_SETTING } from "./auth.js";
+import { createRuntime, type Runtime } from "./runtime.js";
+
+const templateText = readFileSync(
+	fileURLToPath(new URL("../../../templates/restaurant.yaml", import.meta.url)),
+	"utf8",
+);
+const restaurant = () => {
+	const parsed = parseCompanyFile(templateText);
+	if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
+	return parsed.file;
+};
+
+let runtime: Runtime;
+let base: string;
+let dataDir: string;
+beforeEach(async () => {
+	dataDir = mkdtempSync(join(tmpdir(), "jamot-api-"));
+	const bot = new Bot("123:TEST", {
+		botInfo: {
+			id: 1,
+			is_bot: true,
+			first_name: "B",
+			username: "b",
+		} as unknown as UserFromGetMe,
+	});
+	bot.api.config.use(async () => ({ ok: true, result: true }) as never);
+	runtime = await createRuntime({
+		dataDir,
+		bot,
+		model: async () => fakeModel(() => fauxAssistantMessage([fauxText("ok")])),
+		log: () => {},
+	});
+	await runtime.importCompany(restaurant(), { refId: "owner", name: "Lucia" });
+	base = await runtime.listen(0);
+});
+afterEach(async () => {
+	await runtime.stop();
+	rmSync(dataDir, { recursive: true, force: true });
+});
+
+async function signIn(): Promise<string> {
+	await runtime.store.settings.set(
+		PASSWORD_SETTING,
+		await hashPassword("a long enough password"),
+	);
+	const res = await fetch(`${base}/api/login`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ password: "a long enough password" }),
+	});
+	expect(res.status).toBe(200);
+	const cookie = res.headers.get("set-cookie") ?? "";
+	expect(cookie).toMatch(/HttpOnly; SameSite=Strict/);
+	return cookie.split(";")[0] as string;
+}
+/** Response bodies in these tests are read loosely, like a browser would. */
+// biome-ignore lint/suspicious/noExplicitAny: test-only JSON reading
+const body = async (res: Response): Promise<any> => res.json();
+const get = (path: string, cookie?: string) =>
+	fetch(`${base}${path}`, { headers: cookie ? { cookie } : {} });
+const send = (method: string, path: string, body: unknown, cookie: string) =>
+	fetch(`${base}${path}`, {
+		method,
+		headers: { cookie, "content-type": "application/json" },
+		body: JSON.stringify(body),
+	});
+
+describe("the console API", () => {
+	it("keeps everything behind the owner's password", async () => {
+		expect((await get("/api/overview")).status).toBe(401);
+		const noPassword = await fetch(`${base}/api/login`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ password: "x" }),
+		});
+		expect(noPassword.status).toBe(409);
+
+		const cookie = await signIn();
+		expect((await get("/api/overview", cookie)).status).toBe(200);
+		expect(
+			(await get("/api/overview", "jamot_session=9999999999999.forged")).status,
+		).toBe(401);
+		expect(await body(await get("/api/me", cookie))).toEqual({
+			signedIn: true,
+			passwordSet: true,
+		});
+	});
+
+	it("slows down password guessing", async () => {
+		await runtime.store.settings.set(
+			PASSWORD_SETTING,
+			await hashPassword("a long enough password"),
+		);
+		const statuses: number[] = [];
+		for (let i = 0; i < 6; i++) {
+			const res = await fetch(`${base}/api/login`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ password: "wrong" }),
+			});
+			statuses.push(res.status);
+		}
+		expect(statuses).toEqual([401, 401, 401, 401, 401, 429]);
+	});
+
+	it("shows how the company is doing, and lets the owner fill a gap", async () => {
+		const cookie = await signIn();
+		const overview = await body(await get("/api/overview", cookie));
+		expect(overview.company.name).toBe("A neighbourhood restaurant");
+		expect(
+			overview.vitals.people.unowned.map((u: { name: string }) => u.name),
+		).toEqual(["Head chef", "Floor manager"]);
+
+		const assigned = await body(
+			await send(
+				"POST",
+				"/api/responsibilities/r-chef/owner",
+				{ ownerKey: "founder" },
+				cookie,
+			),
+		);
+		expect(assigned.message).toBe("Done — Lucia now owns “Head chef”.");
+		const map = await body(await get("/api/map", cookie));
+		expect(map.nodes.length).toBeGreaterThan(20);
+	});
+
+	it("stores the model key encrypted and never shows it again", async () => {
+		const cookie = await signIn();
+		const res = await send(
+			"PUT",
+			"/api/settings/model",
+			{
+				provider: "anthropic",
+				modelId: "claude-sonnet-5",
+				apiKey: "sk-ant-secret",
+			},
+			cookie,
+		);
+		expect(res.status).toBe(200);
+		const settings = await (await get("/api/settings", cookie)).text();
+		expect(settings).toContain("claude-sonnet-5");
+		expect(settings).not.toContain("sk-ant-secret");
+		expect(await runtime.secrets.get("model.apiKey")).toBe("sk-ant-secret");
+		expect(
+			(
+				await send(
+					"PUT",
+					"/api/settings/model",
+					{ provider: "skynet", modelId: "x" },
+					cookie,
+				)
+			).status,
+		).toBe(400);
+	});
+
+	it("gives the owner a pairing code, the MCP address, and the company file", async () => {
+		const cookie = await signIn();
+		const { code } = await body(
+			await send("POST", "/api/pairing", { role: "owner" }, cookie),
+		);
+		expect(code).toMatch(/^[A-Z2-9]{8}$/);
+		const mcp = await body(await get("/api/mcp", cookie));
+		expect(mcp).toEqual({
+			url: `${base}/mcp`,
+			token: await runtime.mcpToken(),
+		});
+
+		const exported = await (await get("/api/company.yaml", cookie)).text();
+		const parsed = parseCompanyFile(exported);
+		expect(parsed.ok && parsed.file.company.id).toBe("restaurant");
+	});
+
+	it("notes memories and shows people with what the company knows", async () => {
+		const cookie = await signIn();
+		const person = await runtime.store.people.create({
+			displayName: "Mrs. Rossi",
+		});
+		await send(
+			"POST",
+			"/api/memory",
+			{ note: "Gluten-free", personId: person.id },
+			cookie,
+		);
+		const profile = await body(await get(`/api/people/${person.id}`, cookie));
+		expect(profile.memories.map((m: { content: string }) => m.content)).toEqual(
+			["Gluten-free"],
+		);
+		expect((await get("/api/people/nobody", cookie)).status).toBe(404);
+	});
+
+	it("serves the console for page routes, and a 404 — not HTML — for missing files", async () => {
+		const { mkdirSync, writeFileSync } = await import("node:fs");
+		const web = join(dataDir, "web");
+		mkdirSync(join(web, "assets"), { recursive: true });
+		writeFileSync(
+			join(web, "index.html"),
+			"<!doctype html><title>Jamot</title>",
+		);
+		writeFileSync(join(web, "assets", "app.js"), "console.log(1)");
+		const bot = new Bot("123:TEST", {
+			botInfo: {
+				id: 1,
+				is_bot: true,
+				first_name: "B",
+				username: "b",
+			} as unknown as UserFromGetMe,
+		});
+		const other = await createRuntime({
+			dataDir: join(dataDir, "second"),
+			bot,
+			webRoot: web,
+			log: () => {},
+		});
+		try {
+			const address = await other.listen(0);
+			expect(await (await fetch(`${address}/map`)).text()).toContain(
+				"<title>Jamot</title>",
+			);
+			expect(
+				(await fetch(`${address}/assets/app.js`)).headers.get("content-type"),
+			).toMatch(/javascript/);
+			const missing = await fetch(`${address}/assets/gone.js`);
+			expect(missing.status).toBe(404);
+			expect(missing.headers.get("content-type")).toMatch(/json/);
+			// Built after start: served without a restart.
+			writeFileSync(join(web, "assets", "later.js"), "console.log(2)");
+			expect((await fetch(`${address}/assets/later.js`)).status).toBe(200);
+		} finally {
+			await other.stop();
+		}
+	});
+});

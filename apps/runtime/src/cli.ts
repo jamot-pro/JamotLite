@@ -1,0 +1,389 @@
+import { join } from "node:path";
+import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import {
+	backup,
+	doctor,
+	exportCompany,
+	importCompany,
+	listTemplates,
+	mcpInfo,
+	pair,
+	serviceInstall,
+	setPassword,
+	setSecret,
+	setup,
+	status,
+	TELEGRAM_TOKEN,
+	VERSION,
+} from "./cli/commands.js";
+import { companyDir, jamotHome, webRoot } from "./cli/paths.js";
+import { createRuntime } from "./runtime.js";
+
+const HELP = `jamot ${VERSION} — one company, one runtime
+
+  jamot setup                 create a company from a template (asks a few questions)
+  jamot start                 run it: Telegram, heartbeats, the console on :3000
+  jamot status                how the company is doing
+  jamot ask "<question>"      ask an agent directly (--agent <key>)
+  jamot doctor [--live]       check everything it needs to run
+  jamot pair [successor]      a new code to link the owner's (or successor's) Telegram
+  jamot mcp                   the address and token for your own AI
+  jamot backup [--to file]    a consistent copy of the data, while it runs
+  jamot export --to <dir>     company.yaml + company.db  (--with-key adds secrets.key)
+  jamot import <dir|yaml>     start a company from an export or a company.yaml
+  jamot secret set <name>     store a secret (e.g. a tool's token), encrypted
+  jamot password              change the console password
+  jamot templates             the companies you can start from
+  jamot service install       start with the machine (writes the service file)
+
+Options: --company <id>  --data <dir>  --port <n>  --host <addr>  --no-telegram
+Companies live in ${jamotHome()} (set JAMOT_HOME to change it).`;
+
+const DEFAULT_MODELS = {
+	anthropic: "claude-sonnet-5",
+	openai: "gpt-5",
+	openrouter: "anthropic/claude-sonnet-5",
+	ollama: "llama3.1",
+} as const;
+
+async function main(argv: string[]): Promise<number> {
+	const { values, positionals } = parseArgs({
+		args: argv,
+		allowPositionals: true,
+		options: {
+			company: { type: "string" },
+			data: { type: "string" },
+			port: { type: "string" },
+			host: { type: "string" },
+			to: { type: "string" },
+			template: { type: "string" },
+			live: { type: "boolean" },
+			"no-telegram": { type: "boolean" },
+			"with-key": { type: "boolean" },
+			yes: { type: "boolean", short: "y" },
+			agent: { type: "string" },
+			help: { type: "boolean", short: "h" },
+			version: { type: "boolean", short: "v" },
+		},
+	});
+	const [command, ...rest] = positionals;
+	if (values.version) return print(VERSION);
+	if (values.help || !command || command === "help") return print(HELP);
+	const where = {
+		...(values.data ? { data: values.data } : {}),
+		...(values.company ? { company: values.company } : {}),
+	};
+
+	switch (command) {
+		case "templates":
+			for (const t of listTemplates())
+				console.log(`  ${t.id.padEnd(22)} ${t.name} — ${t.summary}`);
+			return 0;
+
+		case "setup":
+			return runSetup(values.template, where);
+
+		case "start": {
+			const dir = companyDir(where);
+			const runtime = await createRuntime({
+				dataDir: dir,
+				port: Number(values.port ?? process.env.PORT ?? 3000),
+				host: values.host ?? process.env.HOST ?? "127.0.0.1",
+				...(webRoot() ? { webRoot: webRoot() as string } : {}),
+			});
+			const stop = async () => {
+				console.log("\n[runtime] stopping…");
+				await runtime.stop();
+				process.exit(0);
+			};
+			process.once("SIGINT", stop);
+			process.once("SIGTERM", stop);
+			await runtime.start({ telegram: values["no-telegram"] !== true });
+			return new Promise(() => {}); // runs until stopped
+		}
+
+		case "status":
+			return print(await status(companyDir(where)));
+
+		case "ask": {
+			const question = rest.join(" ").trim();
+			if (!question)
+				throw new Error('usage: jamot ask "<question>" [--agent <key>]');
+			const runtime = await createRuntime({
+				dataDir: companyDir(where),
+				log: () => {},
+			});
+			try {
+				const outcome = await runtime.ask(question, values.agent);
+				if (outcome.status === "done" || outcome.status === "awaiting_approval")
+					return print(outcome.text);
+				throw new Error(outcome.message);
+			} finally {
+				await runtime.stop();
+			}
+		}
+
+		case "doctor": {
+			const checks = await doctor(companyDir(where), {
+				live: values.live === true,
+			});
+			for (const c of checks)
+				console.log(`  ${c.ok ? "✅" : "❌"} ${c.name.padEnd(20)} ${c.detail}`);
+			return checks.every((c) => c.ok) ? 0 : 1;
+		}
+
+		case "pair": {
+			const role = rest[0] === "successor" ? "successor" : "owner";
+			const code = await pair(companyDir(where), role);
+			return print(
+				`Send this to the company's bot on Telegram, from the ${role}'s account, within 24 hours:\n\n  /start ${code}`,
+			);
+		}
+
+		case "mcp": {
+			const info = await mcpInfo(
+				companyDir(where),
+				Number(values.port ?? 3000),
+			);
+			return print(
+				info.token
+					? `URL:   ${info.url}\nToken: ${info.token}\n\nClaude Code:\n  claude mcp add --transport http my-company ${info.url} --header "Authorization: Bearer ${info.token}"`
+					: "No token yet — it's created on the first `jamot start`.",
+			);
+		}
+
+		case "backup":
+			return print(
+				`Backed up to ${await backup(companyDir(where), values.to)}`,
+			);
+
+		case "export": {
+			if (!values.to) throw new Error("say where: jamot export --to <folder>");
+			const files = await exportCompany(companyDir(where), values.to, {
+				withKey: values["with-key"] === true,
+			});
+			return print(
+				`Exported:\n${files.map((f) => `  ${f}`).join("\n")}${values["with-key"] ? "\n\nThis export includes secrets.key: keep it as safe as a password." : "\n\nsecrets.key isn't included, so stored secrets travel unreadable. Add --with-key to move them too."}`,
+			);
+		}
+
+		case "import": {
+			const from = rest[0];
+			if (!from)
+				throw new Error(
+					"say what: jamot import <export folder | company.yaml>",
+				);
+			const dir = values.data ?? join(jamotHome(), values.company ?? "company");
+			const kind = await importCompany(from, dir);
+			return print(
+				kind === "data"
+					? `Imported the company, with its memory, into ${dir}.`
+					: `Started a company from ${from} in ${dir}. Run \`jamot setup\` steps for its model and bot: \`jamot secret set telegram.botToken\`, \`jamot password\`.`,
+			);
+		}
+
+		case "secret": {
+			if (rest[0] !== "set" || !rest[1])
+				throw new Error(
+					"usage: jamot secret set <name>   (the value is asked, not typed on the command line)",
+				);
+			await setSecret(
+				companyDir(where),
+				rest[1],
+				await ask(`Value for ${rest[1]}: `, { hidden: true }),
+			);
+			return print(`Stored ${rest[1]}, encrypted.`);
+		}
+
+		case "password": {
+			const password = await askNewPassword();
+			await setPassword(companyDir(where), password);
+			return print("Console password changed.");
+		}
+
+		case "service": {
+			if (rest[0] !== "install")
+				throw new Error("usage: jamot service install");
+			const { path, enable } = serviceInstall(
+				companyDir(where),
+				fileURLToPath(import.meta.url),
+			);
+			return print(
+				`Wrote ${path}\n\nTo turn it on:\n${enable.map((c) => `  ${c}`).join("\n")}`,
+			);
+		}
+
+		default:
+			console.error(`Unknown command "${command}".\n`);
+			console.log(HELP);
+			return 1;
+	}
+}
+
+async function runSetup(
+	template: string | undefined,
+	where: { data?: string; company?: string },
+): Promise<number> {
+	const env = process.env;
+	const interactive = process.stdin.isTTY && !env.JAMOT_PASSWORD;
+	console.log(`Jamot ${VERSION} — let's set up your company.\n`);
+
+	const templates = listTemplates();
+	let chosen = template ?? env.JAMOT_TEMPLATE;
+	if (!chosen) {
+		if (!interactive) throw new Error("set JAMOT_TEMPLATE or pass --template");
+		for (const [i, t] of templates.entries())
+			console.log(`  ${i + 1}. ${t.name} — ${t.summary}`);
+		const pick = Number(
+			await ask(`\nWhich company? (1-${templates.length}): `),
+		);
+		chosen = templates[pick - 1]?.id;
+		if (!chosen) throw new Error("pick a number from the list");
+	}
+	const base = templates.find((t) => t.id === chosen);
+	const answer = (
+		question: string,
+		fallback: string | undefined,
+		envValue?: string,
+	) =>
+		envValue ??
+		(interactive ? ask(question) : Promise.resolve("")).then(
+			(a) => a.trim() || fallback || "",
+		);
+
+	const name = await answer(
+		`Company name [${base?.name ?? chosen}]: `,
+		base?.name ?? chosen,
+		env.JAMOT_NAME,
+	);
+	const timezone = await answer(
+		`Time zone [${Intl.DateTimeFormat().resolvedOptions().timeZone}]: `,
+		Intl.DateTimeFormat().resolvedOptions().timeZone,
+		env.JAMOT_TIMEZONE,
+	);
+	const ownerName = await answer("Your name: ", "Owner", env.JAMOT_OWNER);
+	const password = env.JAMOT_PASSWORD ?? (await askNewPassword());
+
+	let [provider, modelId] = (env.JAMOT_MODEL ?? "").split("/", 2) as [
+		string?,
+		string?,
+	];
+	if (env.JAMOT_MODEL?.startsWith("openrouter/"))
+		modelId = env.JAMOT_MODEL.slice("openrouter/".length);
+	if (!provider)
+		provider = await answer(
+			"Model provider (anthropic, openai, openrouter, ollama) [anthropic]: ",
+			"anthropic",
+		);
+	if (!(provider in DEFAULT_MODELS))
+		throw new Error(`unknown provider "${provider}"`);
+	const p = provider as keyof typeof DEFAULT_MODELS;
+	if (!modelId)
+		modelId = await answer(`Model [${DEFAULT_MODELS[p]}]: `, DEFAULT_MODELS[p]);
+	const apiKey =
+		p === "ollama"
+			? undefined
+			: (env.JAMOT_MODEL_KEY ??
+				(await ask(`${provider} API key: `, { hidden: true })));
+
+	let telegramToken = env.JAMOT_TELEGRAM_TOKEN ?? "";
+	while (!TELEGRAM_TOKEN.test(telegramToken)) {
+		if (!interactive)
+			throw new Error(
+				"JAMOT_TELEGRAM_TOKEN is missing or doesn't look like a bot token",
+			);
+		telegramToken = await ask(
+			"Telegram bot token (create a bot with @BotFather): ",
+			{ hidden: true },
+		);
+	}
+
+	const dir =
+		where.data ??
+		join(
+			jamotHome(),
+			where.company ?? (chosen.endsWith(".yaml") ? "company" : chosen),
+		);
+	const result = await setup({
+		dir,
+		template: chosen,
+		name,
+		timezone,
+		ownerName,
+		password,
+		model: {
+			provider: p,
+			modelId,
+			...(apiKey ? { apiKey } : {}),
+			...(env.JAMOT_MODEL_URL ? { baseUrl: env.JAMOT_MODEL_URL } : {}),
+		},
+		telegramToken,
+	});
+	return print(`
+${result.companyName} is ready in ${dir}.
+
+  1. Start it:            jamot start${where.data ? ` --data ${dir}` : where.company ? ` --company ${where.company}` : ""}
+  2. On Telegram, send your bot:   /start ${result.pairingCode}
+     (that makes you its owner; the code works once, for 24 hours)
+  3. Open the console:    http://127.0.0.1:3000
+`);
+}
+
+async function ask(
+	question: string,
+	opts: { hidden?: boolean } = {},
+): Promise<string> {
+	const rl = createInterface({
+		input: process.stdin,
+		output: process.stdout,
+		terminal: true,
+	});
+	if (opts.hidden) {
+		// Echo nothing while the secret is typed.
+		const out = rl as unknown as {
+			_writeToOutput: (s: string) => void;
+			output: NodeJS.WriteStream;
+		};
+		out._writeToOutput = (s: string) => {
+			if (s.startsWith(question)) out.output.write(question);
+		};
+	}
+	try {
+		const answer = await rl.question(question);
+		if (opts.hidden) process.stdout.write("\n");
+		return answer;
+	} finally {
+		rl.close();
+	}
+}
+
+async function askNewPassword(): Promise<string> {
+	for (;;) {
+		const first = await ask("Console password (at least 10 characters): ", {
+			hidden: true,
+		});
+		if (first.length < 10) {
+			console.log("Too short.");
+			continue;
+		}
+		if ((await ask("Again: ", { hidden: true })) === first) return first;
+		console.log("They don't match.");
+	}
+}
+
+function print(text: string): number {
+	console.log(text);
+	return 0;
+}
+
+main(process.argv.slice(2)).then(
+	(code) => {
+		if (code !== undefined) process.exitCode = code;
+	},
+	(err: unknown) => {
+		console.error(`jamot: ${err instanceof Error ? err.message : String(err)}`);
+		process.exitCode = 1;
+	},
+);

@@ -1,0 +1,24 @@
+{
+	"name": "@jamot/mcp",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@jamot/brain": "workspace:*",
+		"@jamot/core": "workspace:*",
+		"@jamot/ports": "workspace:*",
+		"@modelcontextprotocol/sdk": "1.31.0",
+		"zod": "^3.25.76"
+	},
+	"devDependencies": {
+		"@jamot/company-file": "workspace:*",
+		"@jamot/sqlite": "workspace:*"
+	}
+}

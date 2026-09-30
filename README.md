@@ -8,27 +8,59 @@ side — it remembers every customer, puts a heartbeat on every responsibility,
 notices the moment something is missing, and is an MCP server your own AI can
 plug into.
 
-> **Status: pre-alpha.** Nothing runs yet. We are building v0.1 in the open —
-> see [docs/RUNTIME.md](docs/RUNTIME.md) for the design, the decisions, and the
-> milestones.
+> **Status: v0.1, pre-release.** Everything below works and is tested
+> (end to end, offline); it hasn't met real customers yet. Design and every
+> decision: [docs/RUNTIME.md](docs/RUNTIME.md).
 
-## What v0.1 will do
+## Start a company
+
+You need Node.js 22.19+ and a Telegram bot token from
+[@BotFather](https://t.me/BotFather).
 
 ```bash
-curl -fsSL https://jamot.pro/install.sh | bash
-jamot setup      # pick a template, paste an LLM key and a Telegram bot token
+curl -fsSL https://jamot.pro/install.sh | sh     # once the first release is out
+jamot setup                                      # pick a company, a model, the bot
 jamot start
 ```
 
-1. Start from a company template — café, restaurant, school, electrician,
-   plumber, farm, online shop.
-2. Customers write to your Telegram bot; an agent answers, and every
-   conversation becomes the company's memory.
-3. Heartbeats watch every responsibility. When one has no owner, you get a
-   message with a proposed fix — approve it in one tap.
-4. Every agent run shows its tokens and cost.
-5. Connect Claude, Cursor or Hermes to your company over MCP.
-6. Export the company — `company.yaml` + `company.db` — and run it anywhere.
+Or with Docker:
+
+```bash
+docker run -it --rm -v jamot:/data ghcr.io/jamot-pro/jamot-lite setup
+docker run -d --name jamot -p 127.0.0.1:3000:3000 -v jamot:/data --restart unless-stopped ghcr.io/jamot-pro/jamot-lite
+```
+
+Then send your bot the `/start <code>` that setup printed — that makes you the
+owner — and open the console at <http://127.0.0.1:3000>.
+
+## What it does
+
+- **Seven companies to fork** — café, restaurant, Montessori school,
+  electrician, plumber, organic farm, online shop — each a readable
+  [`company.yaml`](templates/restaurant.yaml).
+- **Customers write on Telegram; an agent answers**, within the company's rules,
+  and every message in and out becomes the company's memory.
+- **Humans decide.** Payments, refunds, anything irreversible waits for the
+  owner: one tap on Telegram, or in the console.
+- **Heartbeats keep watch** in the company's time zone. When a responsibility
+  has no owner, a team is empty, a customer waits too long or money runs low,
+  the owner hears about it once, with a one-tap fix — and hears when it's fixed.
+- **It survives people.** Name a successor: if the owner goes silent, the
+  company turns to them.
+- **Every agent run shows its tokens and cost.** Budgets tighten when money
+  gets tight.
+- **Your AI can connect** — the company is an MCP server
+  ([recipe](docs/recipes/connect-your-ai.md)); agents can use MCP tools too.
+- **One folder, yours.** `company.db` + `secrets.key`; `jamot backup`,
+  `jamot export`, move it anywhere.
+
+## Commands
+
+```text
+jamot setup | start | status | doctor | ask "<question>" | pair [successor]
+jamot mcp | backup | export --to <dir> | import <dir> | secret set <name>
+jamot password | templates | service install
+```
 
 ## Not zero-human. Best-human.
 
@@ -38,12 +70,13 @@ build a track record doing it.
 
 ## Build it with us
 
-- Read [AGENTS.md](AGENTS.md) — the map and the rules. Your AI reads it too.
-- Pick a milestone in [docs/RUNTIME.md](docs/RUNTIME.md#milestones).
+Read [AGENTS.md](AGENTS.md) — the map and the rules. Your AI reads it too.
 
 ```bash
 pnpm install
 pnpm lint && pnpm typecheck && pnpm test
+pnpm jamot --help        # run the CLI from source
+pnpm build               # dist/: the bundled jamot.mjs, templates, console
 ```
 
 ## Licence

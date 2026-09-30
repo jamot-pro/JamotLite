@@ -1,0 +1,222 @@
+# A community café in Bali — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: bali-cafe
+  name: A community café in Bali
+  summary: 12–20 people open a café together — pledges first, pop-ups next, then the doors.
+  timezone: Asia/Makassar
+dream:
+  objective: Open a community café in Bali, built and owned by a circle of 12–20 people, pop-up first.
+  outcomes:
+    - A circle of founders who each own a responsibility
+    - The founders' capital pledged before any money moves
+    - A legal entity formed at the notary once the pledge goal is reached
+    - 10 market pop-ups with repeat customers before signing a lease
+    - The café open, with a team of baristas and regulars it remembers
+  kpis:
+    - name: Founders in the circle
+      target: "12"
+      unit: people
+    - name: Founders' capital pledged
+      target: "600000000"
+      unit: IDR
+    - name: Coffee Passes reserved
+      target: "300"
+      unit: passes
+    - name: Pop-ups held
+      target: "10"
+      unit: pop-ups
+    - name: Café open
+      target: "1"
+      unit: café
+  constraints:
+    - "Pledges, not payments, until the company exists: no money moves before the notary"
+    - Operating money is in rupiah through the company's bank account — never crypto
+    - Coffee Passes are pre-paid coffee, never shares or a promise of shares
+    - "An agent prepares, a human decides: hiring, contracts and payments are signed by the accountable director"
+    - Foreign founders may own and advise; anyone working in the café needs the right permit
+  timeline:
+    - milestone: "Circle: the founders gather and take their roles"
+      by: Month 1
+    - milestone: "Pledge: capital pledged and Passes reserved; the Dream unlocks at the goal"
+      by: Month 2
+    - milestone: "Incorporate: company formed at the notary, capital paid in"
+      by: Month 3
+    - milestone: "Pop-ups: 10 weekends at the market, Passes redeemed"
+      by: Month 5
+    - milestone: "Open: lease signed, café open"
+      by: Month 8
+  requiredCapabilities:
+    - coffee craft
+    - community building
+    - Indonesian company and permits
+    - food safety
+    - bookkeeping
+  requiredResponsibilities:
+    - Gather the founders' circle
+    - Accountable director (signs for the café)
+    - Legal entity, licences and permits
+    - Founders' capital and pledges
+    - Coffee Passes and Believers
+    - Beans and suppliers
+    - Menu and recipes
+    - Pop-ups at the market
+    - Location and lease
+    - Head barista and shifts
+    - Books and taxes
+    - Keep the Dream's memory and updates
+founder: founder
+teams:
+  - key: circle
+    name: Founders' Circle
+    purpose: Own the Dream together and make the big decisions.
+  - key: coffee
+    name: Coffee & Kitchen
+    purpose: What's in the cup and on the plate.
+  - key: community
+    name: Community & Believers
+    purpose: The people who believe in the café, and the ones who walk in.
+  - key: money
+    name: Money & Legal
+    purpose: Pledges, the company, the books — done properly.
+  - key: place
+    name: Place & Pop-ups
+    purpose: From a market stall to our own four walls.
+humans:
+  - key: founder
+    name: Founder
+    role: Started the Dream
+agents:
+  - key: steward
+    name: Café Steward
+    role: Keeps the Dream alive between meetings
+    instructions: Track every responsibility and heartbeat, prepare decisions for humans, remember every Believer, customer and supplier, and post a weekly update. Never sign, hire, pay or promise anything — propose, and let a human approve.
+responsibilities:
+  - key: r-circle
+    name: Gather the founders' circle
+  - key: r-director
+    name: Accountable director (signs for the café)
+  - key: r-legal
+    name: Legal entity, licences and permits
+  - key: r-capital
+    name: Founders' capital and pledges
+  - key: r-passes
+    name: Coffee Passes and Believers
+  - key: r-beans
+    name: Beans and suppliers
+  - key: r-menu
+    name: Menu and recipes
+  - key: r-popups
+    name: Pop-ups at the market
+  - key: r-lease
+    name: Location and lease
+  - key: r-barista
+    name: Head barista and shifts
+  - key: r-books
+    name: Books and taxes
+  - key: r-memory
+    name: Keep the Dream's memory and updates
+tools:
+  - key: t-telegram
+    name: Telegram Mini App
+    purpose: Where the circle and Believers talk and vote
+  - key: t-ledger
+    name: Treasury ledger
+    purpose: Every pledge, sale and spend, visible to the circle
+  - key: t-pos
+    name: QRIS payments
+    purpose: How customers pay once the company exists
+    status: after incorporation
+heartbeats:
+  - key: h-pulse
+    name: Daily Dream pulse
+    schedule: 0 8 * * *
+    monitors:
+      - open responsibilities
+      - pledge progress
+    actions:
+      - post the day's gaps to the circle
+      - verify each gap was seen
+  - key: h-circle
+    name: Weekly circle check-in
+    schedule: 0 18 * * 1
+    monitors:
+      - founders who went quiet
+      - decisions waiting
+    actions:
+      - ask each founder for their update
+      - verify every role has answered
+  - key: h-coffee
+    name: Supplier and stock check
+    schedule: 0 9 * * 3
+    monitors:
+      - bean stock
+      - supplier replies
+    actions:
+      - draft reorders for approval
+      - verify deliveries arrived
+  - key: h-community
+    name: Believer update
+    schedule: 0 10 * * 5
+    monitors:
+      - new Believers
+      - Passes reserved
+    actions:
+      - draft the weekly update
+      - verify it was sent
+  - key: h-money
+    name: Pledges and books review
+    schedule: 0 17 * * 5
+    monitors:
+      - pledged vs goal
+      - unrecorded spends
+    actions:
+      - prepare the numbers for the circle
+      - verify they match the ledger
+  - key: h-place
+    name: Pop-up readiness
+    schedule: 0 9 * * 4
+    monitors:
+      - next pop-up date
+      - stall, equipment, staff
+    actions:
+      - list what's missing
+      - verify someone owns each item
+links:
+  - founder member_of circle
+  - steward member_of circle
+  - dream requires r-circle
+  - dream requires r-director
+  - dream requires r-legal
+  - dream requires r-capital
+  - dream requires r-passes
+  - dream requires r-beans
+  - dream requires r-menu
+  - dream requires r-popups
+  - dream requires r-lease
+  - dream requires r-barista
+  - dream requires r-books
+  - dream requires r-memory
+  - dream depends_on circle
+  - founder responsible_for r-circle
+  - circle owns r-capital
+  - community owns r-passes
+  - coffee owns r-beans
+  - coffee owns r-menu
+  - place owns r-popups
+  - place owns r-lease
+  - money owns r-books
+  - steward responsible_for r-memory
+  - circle has_access_to t-telegram
+  - community has_access_to t-telegram
+  - money has_access_to t-ledger
+  - coffee has_access_to t-pos
+  - steward uses t-telegram
+  - steward uses t-ledger
+  - h-pulse monitors dream
+  - h-circle monitors circle
+  - h-coffee monitors coffee
+  - h-community monitors community
+  - h-money monitors money
+  - h-place monitors place
+  - h-money invokes t-ledger
