@@ -314,6 +314,10 @@ JamotLite/
 | D24 | **Console sign-in for v0.1 is one owner password** (scrypt) and a signed session cookie keyed from `secrets.key`, instead of Better Auth | One owner per company in v0.1; nothing to run beside the runtime. Better Auth returns with members and roles (Pro) |
 | D25 | **Distribution: one bundled file** (`esbuild` → `jamot.mjs`, with templates and the console beside it), installed from GitHub releases with npm or run from the Docker image; not the npm registry yet | 870 KB to download, no native modules, no `node_modules` at run time; `node:sqlite` is built into Node |
 | D26 | **The overview headline is "responsibilities owned", not the readiness average** | The average hid three missing key roles behind "96%"; who owns what is what the owner must act on |
+| D27 | **Jamot Lite is the home of the first stewards, and Jamot runs as a Jamot company.** Its charter and map are `jamot.company.yaml`; how stewards work is STEWARDS.md; who owns Jamot is PURPOSE.md (renamed from the J-Nesys CHARTER.md draft). J-Nesys stays the hub (Network tier) | A small, green repo new developers can ship in within a week; running Jamot on its own runtime is the proof and the first real user |
+| D28 | **The contribution ledger starts now, in `CONTRIBUTIONS.md`, private and internal while Jamot is private.** Append-only; founding work first; `pnpm ledger` lists merged pull requests without a line | Contribution is recorded from day one so the 45% pool can be allocated fairly once the ownership plan is approved |
+| D29 | **The charter gets an optional `vision`** in `company.yaml` (file format stays 1). The rest of the rename (Mission / Values / Goals labels, templates, console) is FIRST_ISSUES.md #4 | J-Nesys adopted Company + charter on 2026-10-02; Jamot's own company file needs a vision now |
+| D30 | **`jamot start --no-telegram` needs no bot token.** Anything that would reach Telegram fails with a clear error | A new developer can run the console and MCP before creating a bot |
 
 ### Open
 

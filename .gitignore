@@ -11,3 +11,6 @@ data/
 *.db-shm
 secrets.key
 .DS_Store
+
+# Local companies for development (docs/START_HERE.md)
+.dev-companies/

@@ -48,6 +48,9 @@ export interface RuntimeOptions {
 	dataDir: string;
 	/** Tests pass a bot with a fake API; otherwise it's built from the stored token. */
 	bot?: Bot;
+	/** `false` runs without Telegram (`jamot start --no-telegram`): no bot
+	 * token is needed, and anything that would reach Telegram fails loudly. */
+	telegram?: boolean;
 	/** Tests pass a fake model; otherwise it comes from settings and the secret store. */
 	model?: () => Promise<ModelAccess>;
 	/** More tools for agents (tests); MCP tools from the company map are added anyway. */
@@ -117,13 +120,21 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	let bot = opts.bot;
 	if (!bot) {
 		const token = await secrets.get(BOT_TOKEN_SECRET);
-		if (!token) {
+		if (token) {
+			bot = new Bot(token);
+		} else if (opts.telegram === false) {
+			// Console, MCP and heartbeats only (local development). The bot is
+			// never started; a call that would reach Telegram says why it can't.
+			bot = new Bot("0:telegram-off");
+			bot.api.config.use(() => {
+				throw new Error("Telegram is off for this run (--no-telegram)");
+			});
+		} else {
 			store.close();
 			throw new Error(
-				"no Telegram bot token is stored yet — run `jamot setup`",
+				"no Telegram bot token is stored yet — run `jamot setup`, or start with --no-telegram",
 			);
 		}
-		bot = new Bot(token);
 	}
 
 	// `telegram` and `replyDeps` need each other: approvals go to the owner on

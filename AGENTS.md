@@ -34,6 +34,10 @@ Never say "zero-human", "autonomous company" or "runs itself".
 | `apps/web` | The web console (Vite + React), served by the runtime |
 | `scripts/` | `build.mjs` (the bundle) and `install.sh` |
 | `templates/` | The company templates, as `company.yaml` files |
+| `jamot.company.yaml` | Jamot itself, run as a Jamot company: its charter, responsibilities and heartbeats |
+| `STEWARDS.md`, `PURPOSE.md` | How the people who build Jamot work, and who owns it (private) |
+| `CONTRIBUTIONS.md` | The contribution ledger: append-only, one line per merged pull request |
+| `docs/START_HERE.md`, `docs/FIRST_ISSUES.md` | From clone to first pull request; one first issue per responsibility |
 | `docs/RUNTIME.md` | Design, v0.1 scope, milestones, decision log |
 | `docs/PORTS.md` | Which storage the runtime needs, port by port |
 
@@ -76,3 +80,5 @@ pnpm build         # dist/: jamot.mjs, templates, console
    tests pass again — never loosening them.
 10. **Tests next to code** (`*.test.ts`). Match the surrounding style: biome
    formatting, plain comments that explain why.
+11. **Every merged pull request adds its line to `CONTRIBUTIONS.md`.** Never
+   edit an existing line; correct it with a new one.

@@ -70,7 +70,10 @@ build a track record doing it.
 
 ## Build it with us
 
-Read [AGENTS.md](AGENTS.md) — the map and the rules. Your AI reads it too.
+Jamot is built the way it wants every company to work: as a Jamot company, by
+stewards who each own a responsibility. Start with [STEWARDS.md](STEWARDS.md),
+then [docs/START_HERE.md](docs/START_HERE.md) from clone to first pull request.
+[AGENTS.md](AGENTS.md) is the map and the rules — your AI reads it too.
 
 ```bash
 pnpm install

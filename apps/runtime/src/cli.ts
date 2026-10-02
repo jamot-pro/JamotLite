@@ -89,6 +89,7 @@ async function main(argv: string[]): Promise<number> {
 			const dir = companyDir(where);
 			const runtime = await createRuntime({
 				dataDir: dir,
+				telegram: values["no-telegram"] !== true,
 				port: Number(values.port ?? process.env.PORT ?? 3000),
 				host: values.host ?? process.env.HOST ?? "127.0.0.1",
 				...(webRoot() ? { webRoot: webRoot() as string } : {}),

@@ -7,6 +7,9 @@ import { z } from "zod";
  */
 export const DreamConfig = z
 	.object({
+		/** The vision: the world the company builds toward. Optional — older
+		 * company files don't have it, and adding it keeps file format 1. */
+		vision: z.string().min(1).optional(),
 		/** The objective in plain words ("Run the restaurant the neighbourhood comes back to"). */
 		objective: z.string().min(1),
 		/** Measurable outcomes. */
