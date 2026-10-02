@@ -23,6 +23,20 @@ the git workflow on one screen. The founder runs onboarding calls with
 > share them or post about Jamot's ownership until the legal review is done and
 > we go public together.
 
+## Launch — when developers can join and build
+
+Jamot launches when a developer can join and build the product, not on a date
+or a customer count (decision D33). The gate:
+
+- [x] Every responsibility has an owner role and a first issue ([FIRST_ISSUES.md](docs/FIRST_ISSUES.md))
+- [x] Onboarding, the code map and the workflow are written (START_HERE, ARCHITECTURE, CONTRIBUTING)
+- [ ] `main` holds v0.1 and these docs, and `v0.1.0` is tagged (pull requests #1 and #2, first issue 7)
+- [ ] The first steward goes from invite to green tests in under an hour, following START_HERE alone
+- [ ] The first steward's first pull request is reviewed, merged and in the ledger
+- [ ] Jamot runs on its own runtime, with the stewards' Telegram group (first issue 8)
+
+When the first three stewards have each merged a pull request, we've launched.
+
 ## The charter, in one screen
 
 **Vision** — a world where any group of people can start a company that
