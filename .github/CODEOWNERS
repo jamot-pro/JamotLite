@@ -1,0 +1,42 @@
+# Who reviews what. Each area's owner is requested automatically on every pull
+# request that touches it (STEWARDS.md: reviews within 48 hours). When you take
+# a responsibility, replace @electrichains with your handle on its lines, in
+# your first pull request, and add your successor after you.
+
+# Default: the founder, until every area has an owner.
+*                               @electrichains
+
+# Runtime and brain
+/packages/brain/                @electrichains
+/packages/core/src/agents/      @electrichains
+/packages/core/src/jobs/        @electrichains
+
+# Telegram and channels
+/packages/telegram/             @electrichains
+/packages/core/src/channels/    @electrichains
+
+# Survival and heartbeats
+/packages/core/src/heartbeats/  @electrichains
+/packages/core/src/survival/    @electrichains
+/packages/core/src/readiness/   @electrichains
+
+# Console and onboarding
+/apps/web/                      @electrichains
+/apps/runtime/src/api.ts        @electrichains
+/apps/runtime/src/cli/          @electrichains
+
+# Templates and first companies
+/templates/                     @electrichains
+/packages/company-file/         @electrichains
+/packages/contracts/            @electrichains
+
+# Quality and releases
+/.github/                       @electrichains
+/scripts/                       @electrichains
+/Dockerfile                     @electrichains
+
+# Stewardship and the ledger (and anything about ownership)
+/STEWARDS.md                    @electrichains
+/PURPOSE.md                     @electrichains
+/CONTRIBUTIONS.md               @electrichains
+/jamot.company.yaml             @electrichains

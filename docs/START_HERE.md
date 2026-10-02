@@ -27,8 +27,9 @@ you are, and so does whoever works with you next.
 
 > **Status: 🔨 next.** The automated onboarding is being built
 > ([first issue 9](FIRST_ISSUES.md), [GitHub #11](https://github.com/jamot-pro/JamotLite/issues/11)). Until it's live, the founder walks
-> you through the same questions on a short call, and your answers go into
-> your profile the same way.
+> you through the same questions on a short call
+> ([the call kit](ONBOARDING_CALL.md)); your birth details stay in the
+> founder's private notes until they can go into your profile.
 
 **What Jamot Keeper will ask you:**
 
@@ -129,8 +130,11 @@ responsibility on a schedule, and anything irreversible waits for a human. The
 company is also an MCP server, so anyone's own AI can connect to it. Design
 and every decision: [RUNTIME.md](RUNTIME.md).
 
-[AGENTS.md](../AGENTS.md) is the map of the code and its rules. The ones
-people trip on:
+**Read [ARCHITECTURE.md](ARCHITECTURE.md) next** — two minutes: how a
+customer's message, a heartbeat and an approval flow through the packages, a
+"where to look" table, and the code conventions.
+
+[AGENTS.md](../AGENTS.md) holds the rules. The ones people trip on:
 
 - Stay inside v0.1 scope (RUNTIME.md §11, the "Out" table).
 - Domain code goes through `packages/ports`, never SQLite directly.
@@ -145,7 +149,8 @@ and start from your first issue.
 
 1. Pick up your responsibility's issue in [FIRST_ISSUES.md](FIRST_ISSUES.md);
    open it on GitHub and assign yourself.
-2. Branch from `main`, build it with tests next to the code.
+2. Branch from `main` as `<area>/<short-name>`, build it with tests next to
+   the code. The workflow on one screen: [CONTRIBUTING.md](../CONTRIBUTING.md).
 3. Before you push: `pnpm lint && pnpm typecheck && pnpm test`. CI also builds
    the bundle, the Docker image and runs a secret scan.
 4. In the pull request:

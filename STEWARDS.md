@@ -14,8 +14,10 @@ Three files explain all of it:
 | **This file** | How we work day to day, and your first step |
 
 Then [docs/START_HERE.md](docs/START_HERE.md) takes you through your
-onboarding and gets the code running, and [AGENTS.md](AGENTS.md) is the map of
-the code and its rules.
+onboarding and gets the code running, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+is the two-minute map of the code, and [CONTRIBUTING.md](CONTRIBUTING.md) is
+the git workflow on one screen. The founder runs onboarding calls with
+[docs/ONBOARDING_CALL.md](docs/ONBOARDING_CALL.md) until Jamot Keeper does.
 
 > **Private.** This repository, PURPOSE.md and the ledger are internal. Don't
 > share them or post about Jamot's ownership until the legal review is done and
@@ -55,7 +57,7 @@ command, the secret scan in CI. Values that run are the point of Jamot.
 
 | Role | Who | In Jamot today |
 |---|---|---|
-| **Steward** | Owns a responsibility and is the successor on another; votes | You, once you own one |
+| **Steward** | Owns a responsibility and is the successor on another; votes | You, after owning a responsibility for 3 months ([PURPOSE.md](PURPOSE.md) §4) — until then you own it as a contributor, with the same say in your area |
 | **Backer** | Funds Jamot; capped returns, no vote | None yet |
 | **Tasker** | Picks up tasks the agents hand out, and gets credit | Anyone, any time |
 

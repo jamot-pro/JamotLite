@@ -13,16 +13,22 @@ every person it talks to, talks to people through Telegram, and is an MCP
 server. The design, scope and every decision live in
 [docs/RUNTIME.md](docs/RUNTIME.md) — read it before building anything.
 
-Words: **Dream** is the company's mission. **Heartbeat** is a recurring
-Monitor → Evaluate → Act → Verify check. **Memory** is everything the company
-knows about its people. **Operator** is a person who runs agents for a company.
-Never say "zero-human", "autonomous company" or "runs itself".
+Words: a **Company** runs from its **charter** — Vision, Mission, Values,
+Goals. `dream` is only the code name for the charter (the root node,
+`DreamConfig`); never write "Dream" in anything a person reads. People join as
+**Stewards** (responsible; they govern), **Backers** (they fund) or **Taskers**
+(they do tasks agents hand out). **Heartbeat** is a recurring Monitor →
+Evaluate → Act → Verify check. **Memory** is everything the company knows
+about its people. Never say "zero-human", "autonomous company" or "runs itself".
+
+How a message, a heartbeat and an approval flow through the packages, where to
+look for what, and the code conventions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Map
 
 | Path | What lives there |
 |---|---|
-| `packages/contracts` | Shared types (zod): org graph, Dream, company file. Change a shape here first. |
+| `packages/contracts` | Shared types (zod): org graph, the charter (`DreamConfig`), company file. Change a shape here first. |
 | `packages/company-file` | Reads and writes `company.yaml` |
 | `packages/ports` | Storage interfaces the domain code uses (async, one company per database) |
 | `packages/sqlite` | SQLite adapters (`node:sqlite`) and migrations |
@@ -37,7 +43,8 @@ Never say "zero-human", "autonomous company" or "runs itself".
 | `jamot.company.yaml` | Jamot itself, run as a Jamot company: its charter, responsibilities and heartbeats |
 | `STEWARDS.md`, `PURPOSE.md` | How the people who build Jamot work, and who owns it (private) |
 | `CONTRIBUTIONS.md` | The contribution ledger: append-only, one line per merged pull request |
-| `docs/START_HERE.md`, `docs/FIRST_ISSUES.md` | From clone to first pull request; one first issue per responsibility |
+| `docs/START_HERE.md`, `docs/FIRST_ISSUES.md` | Joining as a contributor, from onboarding to first pull request; one first issue per responsibility |
+| `docs/ARCHITECTURE.md` | The two-minute map: the three lifecycles, where to look, conventions |
 | `docs/RUNTIME.md` | Design, v0.1 scope, milestones, decision log |
 | `docs/PORTS.md` | Which storage the runtime needs, port by port |
 
@@ -53,7 +60,12 @@ pnpm typecheck
 pnpm test          # vitest
 pnpm jamot --help  # the CLI, from source
 pnpm build         # dist/: jamot.mjs, templates, console
+pnpm ledger        # merged pull requests missing from CONTRIBUTIONS.md
 ```
+
+Workflow: branch `<area>/<short-name>` from `main`; one pull request per
+change, using the template; commits are a short capitalised sentence, no
+prefix; the area's owner in `.github/CODEOWNERS` reviews; squash-merge.
 
 ## Rules you must not break
 
@@ -82,3 +94,8 @@ pnpm build         # dist/: jamot.mjs, templates, console
    formatting, plain comments that explain why.
 11. **Every merged pull request adds its line to `CONTRIBUTIONS.md`.** Never
    edit an existing line; correct it with a new one.
+12. **Personal data stays with the person.** Birth details, Human Design /
+   Gene Keys readings and personality results live only in that person's
+   profile: never in logs, the repository, exports of the company map, the
+   ledger, or another person's prompt — and never used to decide roles,
+   reviews or allocations (D31). Tests use made-up values.
