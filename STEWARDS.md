@@ -13,8 +13,9 @@ Three files explain all of it:
 | [jamot.company.yaml](jamot.company.yaml) | Jamot's charter and company map, in the format every Jamot company uses |
 | **This file** | How we work day to day, and your first step |
 
-Then [docs/START_HERE.md](docs/START_HERE.md) gets the code running, and
-[AGENTS.md](AGENTS.md) is the map of the code and its rules.
+Then [docs/START_HERE.md](docs/START_HERE.md) takes you through your
+onboarding and gets the code running, and [AGENTS.md](AGENTS.md) is the map of
+the code and its rules.
 
 > **Private.** This repository, PURPOSE.md and the ledger are internal. Don't
 > share them or post about Jamot's ownership until the legal review is done and
@@ -83,9 +84,12 @@ pull request.
 ## Your first step — within 7 days
 
 1. Read PURPOSE.md, this file, and skim `jamot.company.yaml`.
-2. Pick a responsibility in a 30-minute call with the founder. Pick a second
-   one to be the successor for.
-3. Get Jamot Lite running locally: [docs/START_HERE.md](docs/START_HERE.md).
+2. Go through your onboarding ([docs/START_HERE.md](docs/START_HERE.md) §1):
+   who you are, what you're good at, and — if you choose — your birth date,
+   time and place, from which Jamot calculates your Human Design and Gene Keys
+   so its agents know who they're working with. In it you pick a
+   responsibility to own, and a second one to be the successor for.
+3. Get Jamot Lite running locally ([docs/START_HERE.md](docs/START_HERE.md) §2).
 4. Join the stewards' Telegram group, and pair with Jamot's own runtime when it
    goes live (week 4).
 5. Ship your role's first issue, or the first piece of it, as a pull request,

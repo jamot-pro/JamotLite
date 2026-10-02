@@ -1,5 +1,6 @@
 # First issues — one per responsibility
 
+Issues 1–8 are one per responsibility; issue 9 is the stewards' own onboarding.
 Each new steward starts with the first issue of the responsibility they own
 ([STEWARDS.md](../STEWARDS.md)). Each is sized to ship a first pull request in
 a week; the whole issue may take longer. "Done when" is the acceptance test.
@@ -135,3 +136,34 @@ Telegram group, and keeps the ledger honest.
     is posted.
 - **Start in:** `jamot.company.yaml`, `scripts/ledger.mjs`, STEWARDS.md.
 - **Size:** M. Owner today: the founder.
+
+## 9. Console and onboarding — onboarding new stewards, with Human Design and Gene Keys
+
+**Goal.** Everyone who joins Jamot goes through the same onboarding, run by
+Jamot Keeper on Telegram ([START_HERE.md](START_HERE.md) §1), and the agents
+know who they're working with from day one — including each person's Human
+Design and Gene Keys, calculated from their birth details (decision D31).
+
+- **Done when:**
+  - a new person paired on Telegram is walked through the onboarding
+    questions one at a time — you, your work, your role, your design — and
+    every answer lands in their person profile;
+  - the birth date, time and place are optional: the person can skip them or
+    add them later, and is told why they're asked before they answer;
+  - Human Design and Gene Keys are calculated from them with
+    [`natalengine`](https://www.npmjs.com/package/natalengine) (MIT), carrying
+    over J-Nesys `packages/archetype-engine` (the Gene Keys archetypes, the
+    centre themes and the narrative), and stored in the person's profile;
+  - the birth details and the readings are visible to that person and the
+    agents working with them, never in a public page, an export of the
+    company map or the ledger; the person can change or delete them;
+  - agents get the reading as context when they talk with that person, and
+    never use it for roles, reviews or allocations;
+  - a person can add other tests' results themselves (Enneagram, Big Five…)
+    through `remember`, and they show in their profile;
+  - tests next to the code; the founder's manual onboarding call is retired.
+- **Start in:** `packages/core/src/agents/`, `packages/telegram`, the person
+  profile in `packages/ports` / `packages/sqlite`; J-Nesys
+  `packages/archetype-engine` and `apps/console/src/app/p/[token]/OnboardForm.tsx`.
+- **Size:** M–L. First pull request: the questions and the profile fields;
+  the calculation next.

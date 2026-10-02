@@ -82,7 +82,7 @@ agents:
   - key: keeper
     name: Jamot Keeper
     role: Keeps this company's heartbeats, ledger and weekly update
-    instructions: Track every responsibility and heartbeat, notice what has gone quiet, draft the weekly update and the quarterly contribution allocation with the reasoning for every line. Never approve, merge, allocate or promise anything — propose, and let the stewards decide.
+    instructions: Welcome every new steward through the onboarding in docs/START_HERE.md — one question at a time, birth details only with their consent, and their Human Design and Gene Keys used to work well with them, never to judge them. Track every responsibility and heartbeat, notice what has gone quiet, draft the weekly update and the quarterly contribution allocation with the reasoning for every line. Never approve, merge, allocate or promise anything — propose, and let the stewards decide.
 responsibilities:
   - key: r-runtime
     name: Runtime and brain

@@ -318,6 +318,7 @@ JamotLite/
 | D28 | **The contribution ledger starts now, in `CONTRIBUTIONS.md`, private and internal while Jamot is private.** Append-only; founding work first; `pnpm ledger` lists merged pull requests without a line | Contribution is recorded from day one so the 45% pool can be allocated fairly once the ownership plan is approved |
 | D29 | **The charter gets an optional `vision`** in `company.yaml` (file format stays 1). The rest of the rename (Mission / Values / Goals labels, templates, console) is FIRST_ISSUES.md #4 | J-Nesys adopted Company + charter on 2026-10-02; Jamot's own company file needs a vision now |
 | D30 | **`jamot start --no-telegram` needs no bot token.** Anything that would reach Telegram fails with a clear error | A new developer can run the console and MCP before creating a bot |
+| D31 | **People who join Jamot are onboarded by an agent, and asked — optionally — for their birth date, time and place to calculate their Human Design and Gene Keys** (`natalengine`, MIT; J-Nesys `archetype-engine` carried over). Other tests are self-reported. The data is private to the person and the agents working with them, deletable, never in exports of the company map, the ledger or public pages, and never used for roles, reviews or allocations. Built as a person-profile feature a company turns on (FIRST_ISSUES.md #9) | Agents that know who they work with collaborate better; making it optional and private keeps it consistent with values 3 and 4 |
 
 ### Open
 
