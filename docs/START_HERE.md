@@ -26,7 +26,7 @@ it in your profile — so from your first day, the agents you work with know who
 you are, and so does whoever works with you next.
 
 > **Status: 🔨 next.** The automated onboarding is being built
-> ([FIRST_ISSUES.md](FIRST_ISSUES.md) #9). Until it's live, the founder walks
+> ([first issue 9](FIRST_ISSUES.md), [GitHub #11](https://github.com/jamot-pro/JamotLite/issues/11)). Until it's live, the founder walks
 > you through the same questions on a short call, and your answers go into
 > your profile the same way.
 

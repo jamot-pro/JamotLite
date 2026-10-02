@@ -6,12 +6,12 @@ Each new steward starts with the first issue of the responsibility they own
 a week; the whole issue may take longer. "Done when" is the acceptance test.
 They all stay inside v0.1 scope ([RUNTIME.md](RUNTIME.md) §11).
 
-When you take one, open it as a GitHub issue (copy the section), assign
-yourself, and link it from your pull request.
+Each is also a GitHub issue (linked in its heading, labelled `first issue`
+and its area): assign yourself there, and link it from your pull request.
 
 ---
 
-## 1. Runtime and brain — agent skills
+## 1. Runtime and brain — agent skills · [GitHub #3](https://github.com/jamot-pro/JamotLite/issues/3)
 
 **Goal.** A company's know-how survives people leaving: agents use skills in
 the [agentskills.io](https://agentskills.io) format, and propose new ones from
@@ -27,7 +27,7 @@ experience, which a human approves (decision D12, RUNTIME.md §8b).
 - **Start in:** `packages/brain`, `packages/core/src/agents/`.
 - **Size:** L. First pull request: loading and using existing skills.
 
-## 2. Telegram and channels — a live bot, end to end
+## 2. Telegram and channels — a live bot, end to end · [GitHub #4](https://github.com/jamot-pro/JamotLite/issues/4)
 
 **Goal.** Everything Telegram does today is tested offline; prove it with a
 real bot and a real model, and accept voice notes (plumbers and farmers send
@@ -43,7 +43,7 @@ voice).
 - **Start in:** `packages/telegram`, `packages/core/src/channels/`.
 - **Size:** M.
 
-## 3. Survival and heartbeats — a successor for every responsibility
+## 3. Survival and heartbeats — a successor for every responsibility · [GitHub #5](https://github.com/jamot-pro/JamotLite/issues/5)
 
 **Goal.** "Every responsibility has an owner and a successor" is a value of
 Jamot; make it a rule the runtime checks, for every company.
@@ -59,7 +59,7 @@ Jamot; make it a rule the runtime checks, for every company.
   `packages/contracts`.
 - **Size:** M.
 
-## 4. Console and onboarding — the charter, everywhere
+## 4. Console and onboarding — the charter, everywhere · [GitHub #6](https://github.com/jamot-pro/JamotLite/issues/6)
 
 **Goal.** Jamot's words are Company and its **charter**: Vision, Mission,
 Values, Goals. Lite still says "Dream" (J-Nesys has already moved; see its
@@ -78,7 +78,7 @@ Values, Goals. Lite still says "Dream" (J-Nesys has already moved; see its
   `templates/`, `packages/core/src/agents/spec.ts`.
 - **Size:** M. Good first issue.
 
-## 5. Templates and first companies — the Bali café, live
+## 5. Templates and first companies — the Bali café, live · [GitHub #7](https://github.com/jamot-pro/JamotLite/issues/7)
 
 **Goal.** The first real company on Jamot Lite.
 
@@ -92,7 +92,7 @@ Values, Goals. Lite still says "Dream" (J-Nesys has already moved; see its
 - **Start in:** `templates/bali-cafe.yaml`, the README's "Start a company".
 - **Size:** M, mostly not code.
 
-## 6. Hub and network — a public company page (in J-Nesys)
+## 6. Hub and network — a public company page (in J-Nesys) · [GitHub #8](https://github.com/jamot-pro/JamotLite/issues/8)
 
 **Goal.** The thing people share: a public page per company with its
 readiness and the **JAMOT** badge. The hub lives in the J-Nesys repository;
@@ -105,7 +105,7 @@ Lite's "Out" table keeps the marketplace out of Lite.
 - **Start in:** J-Nesys `packages/api/src/routes/discover.ts`, `apps/console`.
 - **Size:** M.
 
-## 7. Quality and releases — v0.1, for real
+## 7. Quality and releases — v0.1, for real · [GitHub #9](https://github.com/jamot-pro/JamotLite/issues/9)
 
 **Goal.** Anyone can install Jamot Lite with one command.
 
@@ -122,7 +122,7 @@ Lite's "Out" table keeps the marketplace out of Lite.
   `apps/runtime/src/cli/commands.ts`.
 - **Size:** S–M.
 
-## 8. Stewardship and the ledger — Jamot runs on Jamot
+## 8. Stewardship and the ledger — Jamot runs on Jamot · [GitHub #10](https://github.com/jamot-pro/JamotLite/issues/10)
 
 **Goal.** Jamot's own runtime runs `jamot.company.yaml` with the stewards'
 Telegram group, and keeps the ledger honest.
@@ -137,7 +137,7 @@ Telegram group, and keeps the ledger honest.
 - **Start in:** `jamot.company.yaml`, `scripts/ledger.mjs`, STEWARDS.md.
 - **Size:** M. Owner today: the founder.
 
-## 9. Console and onboarding — onboarding new stewards, with Human Design and Gene Keys
+## 9. Console and onboarding — onboarding new stewards, with Human Design and Gene Keys · [GitHub #11](https://github.com/jamot-pro/JamotLite/issues/11)
 
 **Goal.** Everyone who joins Jamot goes through the same onboarding, run by
 Jamot Keeper on Telegram ([START_HERE.md](START_HERE.md) §1), and the agents
