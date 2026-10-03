@@ -36,6 +36,8 @@ export interface ApiDeps {
 	mcpToken(): Promise<string>;
 	/** The address the console was reached on, for showing the MCP URL. */
 	version: string;
+	/** Served over HTTPS (behind a proxy): the session cookie is Secure. */
+	secureCookies?: boolean;
 }
 
 export const MODEL_PROVIDERS = [
@@ -49,6 +51,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 	const { store } = deps;
 	const sessions = createSessions(deps.secretKey);
 	const attempts = new Map<string, { count: number; since: number }>();
+	const cookieFlags = `HttpOnly; SameSite=Strict; Path=/${deps.secureCookies ? "; Secure" : ""}`;
 
 	const signedIn = (req: FastifyRequest) =>
 		sessions.valid(readCookie(req.headers.cookie, SESSION_COOKIE));
@@ -80,17 +83,14 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			const { token, maxAgeSeconds } = sessions.issue();
 			reply.header(
 				"set-cookie",
-				`${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSeconds}`,
+				`${SESSION_COOKIE}=${token}; ${cookieFlags}; Max-Age=${maxAgeSeconds}`,
 			);
 			return { ok: true };
 		},
 	);
 
 	app.post("/api/logout", async (_req, reply) => {
-		reply.header(
-			"set-cookie",
-			`${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`,
-		);
+		reply.header("set-cookie", `${SESSION_COOKIE}=; ${cookieFlags}; Max-Age=0`);
 		return { ok: true };
 	});
 

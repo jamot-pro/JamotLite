@@ -23,13 +23,18 @@ export interface HttpOptions {
 	api?: ApiDeps;
 	/** The built web console (`apps/web/dist`), when present. */
 	webRoot?: string;
+	/** One TLS proxy in front: `req.ip` is the client it forwarded for. */
+	behindProxy?: boolean;
 }
 
 export function createHttpServer(opts: HttpOptions): FastifyInstance {
 	const app = Fastify({
 		logger: false,
 		bodyLimit: 1024 * 1024,
-		trustProxy: false,
+		// Behind a proxy, trust only the hop that connected to us: `req.ip` is
+		// the address it appended, never one a client wrote in the header.
+		trustProxy: (_address: string, hop: number) =>
+			opts.behindProxy === true && hop === 0,
 		// Shutting down never waits on idle keep-alive clients.
 		forceCloseConnections: true,
 	});

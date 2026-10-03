@@ -25,3 +25,4 @@ plan is approved by legal counsel.
 | 3 | 2026-10-01 | @electrichains | Templates and first companies | founding | The seven company templates (Bali café, Montessori school, electrical, plumbing, restaurant, organic farm, online shop) | templates/ | @electrichains |
 | 4 | 2026-10-01 | @electrichains | Runtime and brain | founding | Jamot Lite v0.1, milestones M0–M6: the runtime, pi brain, Telegram, heartbeats, survival, MCP, console, installer | [#1](https://github.com/jamot-pro/JamotLite/pull/1) | @electrichains |
 | 5 | 2026-10-02 | @electrichains | Stewardship and the ledger | founding | Jamot as a Jamot company: jamot.company.yaml, STEWARDS.md, this ledger, the steward onboarding | this branch | @electrichains |
+| 6 | 2026-10-03 | @electrichains | Quality and releases | code | Jamot runs on Render: one-hop proxy trust, Secure cookie, first-boot setup in `jamot start`, render.yaml and the recipe | this branch | @electrichains |

@@ -244,3 +244,46 @@ describe("the console API", () => {
 		}
 	});
 });
+
+describe("behind a TLS proxy", () => {
+	let proxied: Runtime;
+	let proxiedBase: string;
+	beforeEach(async () => {
+		proxied = await createRuntime({
+			dataDir: mkdtempSync(join(tmpdir(), "jamot-proxy-")),
+			telegram: false,
+			behindProxy: true,
+			model: async () =>
+				fakeModel(() => fauxAssistantMessage([fauxText("ok")])),
+			log: () => {},
+		});
+		await proxied.importCompany(restaurant(), {
+			refId: "owner",
+			name: "Lucia",
+		});
+		await proxied.store.settings.set(
+			PASSWORD_SETTING,
+			await hashPassword("a long enough password"),
+		);
+		proxiedBase = await proxied.listen(0);
+	});
+	afterEach(() => proxied.stop());
+
+	const login = (password: string, client: string) =>
+		fetch(`${proxiedBase}/api/login`, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"x-forwarded-for": client,
+			},
+			body: JSON.stringify({ password }),
+		});
+
+	it("limits guessing per client, not for everyone behind the proxy", async () => {
+		for (let i = 0; i < 6; i++) await login("wrong", "203.0.113.7");
+		expect((await login("wrong", "203.0.113.7")).status).toBe(429);
+		const owner = await login("a long enough password", "198.51.100.2");
+		expect(owner.status).toBe(200);
+		expect(owner.headers.get("set-cookie")).toContain("; Secure");
+	});
+});

@@ -61,6 +61,9 @@ export interface RuntimeOptions {
 	host?: string;
 	/** The built web console, served at `/`. */
 	webRoot?: string;
+	/** Served behind one TLS proxy (Render, Fly, Caddy): trust its client
+	 * address for the login limit and mark the session cookie Secure. */
+	behindProxy?: boolean;
 	log?: (message: string) => void;
 }
 
@@ -199,6 +202,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				version: VERSION,
 				dataDir: opts.dataDir,
 				...(opts.webRoot ? { webRoot: opts.webRoot } : {}),
+				behindProxy: opts.behindProxy === true,
 				api: {
 					store,
 					secrets,
@@ -206,6 +210,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					telegram,
 					dataDir: opts.dataDir,
 					version: VERSION,
+					secureCookies: opts.behindProxy === true,
 					mcpToken: async () => mcpToken as string,
 					decide: async (approvalId, approved, by, note) => {
 						await decideApproval(replyDeps, {

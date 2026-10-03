@@ -1,0 +1,37 @@
+# Jamot, run as a Jamot company, on Render — one service, one disk.
+#
+# Render dashboard → New → Blueprint → this repository, and fill in the values
+# marked "sync: false". The first boot creates the company on the disk and
+# prints the owner's `/start <code>` in the logs; later boots just start it.
+# Recipe: docs/recipes/deploy-on-render.md
+services:
+  - type: web
+    name: jamot
+    runtime: docker
+    plan: starter # a disk needs a paid plan
+    region: singapore
+    branch: main
+    healthCheckPath: /health
+    disk:
+      name: jamot-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: JAMOT_BEHIND_PROXY
+        value: "1"
+      - key: JAMOT_TEMPLATE
+        value: /app/jamot.company.yaml
+      - key: JAMOT_TIMEZONE
+        value: Asia/Makassar
+      - key: JAMOT_MODEL
+        value: anthropic/claude-sonnet-5
+      # Read only on the first boot, then kept encrypted on the disk.
+      # Delete them in the dashboard once the company is running.
+      - key: JAMOT_OWNER
+        sync: false
+      - key: JAMOT_PASSWORD
+        sync: false
+      - key: JAMOT_MODEL_KEY
+        sync: false
+      - key: JAMOT_TELEGRAM_TOKEN
+        sync: false
