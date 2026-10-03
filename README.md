@@ -165,8 +165,8 @@ pnpm jamot --help        # the CLI, from source
 
 ## Licence
 
-[AGPL-3.0](LICENSE). Free to use, run, change and share. If you run a changed
-Jamot as a service, share your changes.
+[MIT](LICENSE). Free to use, run, change, share and build on — commercially
+too. Your company's data is yours, whatever you build.
 
 <div align="center">
 

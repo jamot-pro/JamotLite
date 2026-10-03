@@ -51,7 +51,7 @@ const pkg = {
 	version: "0.1.0",
 	description:
 		"The organization that doesn't die when people leave. One company, one runtime.",
-	license: "AGPL-3.0-only",
+	license: "MIT",
 	type: "module",
 	bin: { jamot: "./jamot.mjs" },
 	engines: { node: ">=22.19" },

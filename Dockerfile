@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM node:24-slim
 LABEL org.opencontainers.image.source="https://github.com/jamot-pro/JamotLite" \
-      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="The organization that doesn't die when people leave."
 ENV NODE_ENV=production \
     JAMOT_HOME=/data \
