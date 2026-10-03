@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,7 @@ import {
 	exportCompany,
 	importCompany,
 	listTemplates,
+	loadTemplate,
 	mcpInfo,
 	pair,
 	serviceInstall,
@@ -86,6 +88,10 @@ async function main(argv: string[]): Promise<number> {
 			return runSetup(values.template, where);
 
 		case "start": {
+			// A container's first boot: no company yet, and the setup answers
+			// in the environment (JAMOT_TEMPLATE, JAMOT_PASSWORD…).
+			if (process.env.JAMOT_TEMPLATE && !hasCompany(where))
+				await runSetup(undefined, where);
 			const dir = companyDir(where);
 			const runtime = await createRuntime({
 				dataDir: dir,
@@ -93,6 +99,7 @@ async function main(argv: string[]): Promise<number> {
 				port: Number(values.port ?? process.env.PORT ?? 3000),
 				host: values.host ?? process.env.HOST ?? "127.0.0.1",
 				...(webRoot() ? { webRoot: webRoot() as string } : {}),
+				behindProxy: process.env.JAMOT_BEHIND_PROXY === "1",
 			});
 			const stop = async () => {
 				console.log("\n[runtime] stopping…");
@@ -223,6 +230,15 @@ async function main(argv: string[]): Promise<number> {
 	}
 }
 
+function hasCompany(where: { data?: string; company?: string }): boolean {
+	try {
+		return existsSync(join(companyDir(where), "company.db"));
+	} catch (err) {
+		if ((err as Error).message.startsWith("no company")) return false;
+		throw err;
+	}
+}
+
 async function runSetup(
 	template: string | undefined,
 	where: { data?: string; company?: string },
@@ -243,7 +259,10 @@ async function runSetup(
 		chosen = templates[pick - 1]?.id;
 		if (!chosen) throw new Error("pick a number from the list");
 	}
-	const base = templates.find((t) => t.id === chosen);
+	// A template id from the list, or a company.yaml given by its path.
+	const base =
+		templates.find((t) => t.id === chosen) ??
+		(existsSync(chosen) ? loadTemplate(chosen).company : undefined);
 	const answer = (
 		question: string,
 		fallback: string | undefined,

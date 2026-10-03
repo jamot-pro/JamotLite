@@ -22,6 +22,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 # The bundle needs nothing from node_modules: one file, the templates and the console.
 COPY --from=build /src/dist/ /app/
+# Jamot's own company file, so the image can run Jamot as a Jamot company.
+COPY --from=build /src/jamot.company.yaml /app/jamot.company.yaml
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]
