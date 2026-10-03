@@ -263,6 +263,23 @@ describe("a company running on Jamot Lite", () => {
 		);
 	});
 
+	it("runs without Telegram when asked, with no bot token at all", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "jamot-runtime-"));
+		dirs.push(dataDir);
+		const runtime = await createRuntime({
+			dataDir,
+			telegram: false,
+			port: 0,
+			log: () => {},
+		});
+		try {
+			await runtime.start({ telegram: false });
+			expect(await runtime.mcpToken()).toBeTruthy();
+		} finally {
+			await runtime.stop();
+		}
+	});
+
 	it("notices a responsibility nobody owns, and the owner fixes it in one tap", async () => {
 		const dataDir = mkdtempSync(join(tmpdir(), "jamot-runtime-"));
 		dirs.push(dataDir);

@@ -1,0 +1,190 @@
+# Jamot, run as a Jamot company. This is the company that builds Jamot: its
+# charter, its responsibilities and the heartbeats that keep it alive. It is
+# also the first real company on Jamot Lite — run it with `jamot import` and
+# the stewards' Telegram group. Read PURPOSE.md for why, STEWARDS.md for how.
+jamot: 1
+company:
+  id: jamot
+  name: Jamot
+  summary: The company that builds Jamot — steward-owned, run on Jamot, designed to outlive any one of us.
+  timezone: Asia/Makassar
+dream:
+  vision: A world where any group of people can start a company that outlives any one of them.
+  objective: Build the open-source runtime that keeps small companies alive — run by humans and agents together, owned by the people who build it.
+  outcomes:
+    - Jamot Lite v0.1 released and installable with one command
+    - Three real companies running on Jamot Lite, the Bali café first
+    - Every responsibility of this company owned, with a successor
+    - Every contribution recorded in the ledger from day one
+  kpis:
+    - name: Real companies running on Jamot Lite
+      target: "3"
+      unit: companies
+    - name: Responsibilities with an owner and a successor
+      target: "100"
+      unit: "%"
+    - name: Active stewards
+      target: "6"
+      unit: people
+    - name: Pull requests waiting more than 48 hours for review
+      target: "0"
+      unit: pull requests
+  constraints:
+    - "Humans stay accountable: an agent proposes, a person decides — agents never approve"
+    - Every responsibility has an owner and a successor, so nothing depends on one person
+    - "A company's data is its own: export it any time, self-host it any time"
+    - Rewards follow verified contributions in the ledger, never closeness to the founder
+    - "Say what's real: NOW, NEXT or FUTURE — never sell a FUTURE feature as working"
+    - Nothing about ownership is promised outside PURPOSE.md, and nothing is public before legal review
+  timeline:
+    - milestone: "Stewards: the first 4–10 developers join, each owning one responsibility"
+      by: Week 2
+    - milestone: "Release: Jamot Lite v0.1 tagged, installer and Docker image published"
+      by: Week 3
+    - milestone: "Dogfood: this company runs on its own runtime, with weekly updates from its agent"
+      by: Week 4
+    - milestone: "First company: the Bali café runs on Jamot Lite"
+      by: Week 8
+    - milestone: "Three companies, and the first quarterly contribution allocation proposed"
+      by: Week 12
+  requiredCapabilities:
+    - TypeScript and Node.js
+    - agent design (pi)
+    - Telegram bots (grammY)
+    - React
+    - SQLite and Postgres
+    - community building
+  requiredResponsibilities:
+    - Runtime and brain
+    - Telegram and channels
+    - Console and onboarding
+    - Survival and heartbeats
+    - Templates and first companies
+    - Hub and network
+    - Quality and releases
+    - Stewardship and the ledger
+founder: founder
+teams:
+  - key: core
+    name: Core
+    purpose: The runtime itself — the brain, the channels, and the survival kernel that keeps a company alive.
+  - key: companies
+    name: Companies
+    purpose: What a company sees and starts from — the console, onboarding and the templates — and the first real companies.
+  - key: stewardship
+    name: Stewardship
+    purpose: Keeping Jamot itself alive — releases and quality, the hub, the ledger and the stewards.
+humans:
+  - key: founder
+    name: Founder
+    role: Founded Jamot; steward of every responsibility until it has an owner
+agents:
+  - key: keeper
+    name: Jamot Keeper
+    role: Keeps this company's heartbeats, ledger and weekly update
+    instructions: Welcome every new steward through the onboarding in docs/START_HERE.md — one question at a time, birth details only with their consent, and their Human Design and Gene Keys used to work well with them, never to judge them. Track every responsibility and heartbeat, notice what has gone quiet, draft the weekly update and the quarterly contribution allocation with the reasoning for every line. Never approve, merge, allocate or promise anything — propose, and let the stewards decide.
+responsibilities:
+  - key: r-runtime
+    name: Runtime and brain
+    first: Agent skills in the agentskills.io format, written from experience and approved by a human
+  - key: r-telegram
+    name: Telegram and channels
+    first: A live bot tested end to end with a real company, and voice notes transcribed
+  - key: r-console
+    name: Console and onboarding
+    first: The setup wizard asks for the Vision, Mission, Values and Goals, and the console shows them
+  - key: r-survival
+    name: Survival and heartbeats
+    first: A successor for every responsibility, and succession tested in a real company
+  - key: r-templates
+    name: Templates and first companies
+    first: The Bali café running on Jamot Lite, with its founders paired on Telegram
+  - key: r-fleet
+    name: Fleet and isolation
+    first: Two companies on one machine, fully independent — one crashing, filling its disk or spending its budget never touches the other
+  - key: r-hub
+    name: Hub and network
+    first: A public company page with the JAMOT badge, served by the hub
+  - key: r-quality
+    name: Quality and releases
+    first: Jamot Lite v0.1 tagged, with the installer and the Docker image tested on a fresh machine
+  - key: r-stewardship
+    name: Stewardship and the ledger
+    first: Every merged pull request in CONTRIBUTIONS.md, and the first weekly update
+tools:
+  - key: t-github
+    name: GitHub
+    purpose: The repositories, pull requests and reviews
+  - key: t-telegram
+    name: Stewards' Telegram group
+    purpose: Where stewards talk, and where Jamot Keeper posts the heartbeats
+  - key: t-ledger
+    name: Contribution ledger
+    purpose: CONTRIBUTIONS.md — the permanent record of what each person delivered
+heartbeats:
+  - key: h-monday
+    name: Monday — one thing each
+    schedule: 0 9 * * 1
+    monitors:
+      - each steward's plan for the week
+    actions:
+      - ask every responsibility's owner for their one thing this week
+      - verify every owner answered by Tuesday
+  - key: h-reviews
+    name: Pull requests waiting for review
+    schedule: 0 10 * * *
+    monitors:
+      - pull requests open more than 48 hours without a review
+    actions:
+      - remind the reviewer and the owner of the area
+      - verify each one got a review the next day
+  - key: h-quiet
+    name: Quiet responsibilities
+    schedule: 0 9 * * 4
+    monitors:
+      - responsibilities with no activity for 14 days
+      - responsibilities with no owner or no successor
+    actions:
+      - ask the owner, then the successor, then all stewards
+      - verify every responsibility has an owner again
+  - key: h-ledger
+    name: Ledger and weekly update
+    schedule: 0 17 * * 5
+    monitors:
+      - pull requests merged this week
+      - lines missing from the contribution ledger
+    actions:
+      - draft the weekly update and the missing ledger lines
+      - verify a steward reviewed them before they are posted
+links:
+  - founder member_of stewardship
+  - keeper member_of stewardship
+  - core owns r-runtime
+  - core owns r-telegram
+  - core owns r-survival
+  - core owns r-fleet
+  - companies owns r-console
+  - companies owns r-templates
+  - stewardship owns r-hub
+  - stewardship owns r-quality
+  - stewardship owns r-stewardship
+  - keeper uses t-github
+  - keeper uses t-telegram
+  - keeper uses t-ledger
+  - dream requires r-runtime
+  - dream requires r-telegram
+  - dream requires r-console
+  - dream requires r-survival
+  - dream requires r-templates
+  - dream requires r-fleet
+  - dream requires r-hub
+  - dream requires r-quality
+  - dream requires r-stewardship
+  - dream depends_on core
+  - dream depends_on companies
+  - dream depends_on stewardship
+  - h-monday monitors dream
+  - h-reviews monitors core
+  - h-reviews monitors companies
+  - h-quiet monitors dream
+  - h-ledger monitors stewardship

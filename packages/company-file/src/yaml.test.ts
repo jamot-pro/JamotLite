@@ -124,3 +124,33 @@ describe("company.yaml", () => {
 		},
 	);
 });
+
+describe("jamot.company.yaml — Jamot, run as a Jamot company", () => {
+	const JAMOT = fileURLToPath(
+		new URL("../../../jamot.company.yaml", import.meta.url),
+	);
+	const file = parseOk(readFileSync(JAMOT, "utf8"));
+
+	it("parses, and writing it back changes nothing", () => {
+		expect(file.company.id).toBe("jamot");
+		expect(file.dream.vision).toBeTruthy();
+		expect(parseOk(stringifyCompanyFile(file))).toEqual(file);
+	});
+
+	it("has every required responsibility, each owned by a team and with a first step", () => {
+		const byName = new Map(
+			file.nodes
+				.filter((n) => n.kind === "responsibility")
+				.map((n) => [n.name, n]),
+		);
+		for (const name of file.dream.requiredResponsibilities) {
+			const r = byName.get(name);
+			expect(r, name).toBeTruthy();
+			expect(
+				file.edges.some((e) => e.relation === "owns" && e.to === r?.key),
+				`${name} has an owner`,
+			).toBe(true);
+			expect(r?.config.first, `${name} has a first step`).toBeTruthy();
+		}
+	});
+});
