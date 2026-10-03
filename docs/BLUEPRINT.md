@@ -210,6 +210,9 @@ and history.
 
 ## S9 · The founder's business, 30 days
 
+**Status: running since 2026-10-03 — Jamot runs as a Jamot company, until
+2026-11-02. Journal: [S9-JOURNAL.md](S9-JOURNAL.md).**
+
 **Context.** The one thing that 10× Jamot is a real business visibly running
 on it (brief §4). It runs on charter-aware Lite (S2) with backups on (S4).
 **Tasks.**
