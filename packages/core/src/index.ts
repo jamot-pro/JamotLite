@@ -16,6 +16,21 @@ export {
 } from "./channels/intake.js";
 export { exportCompanyFile } from "./company/export.js";
 export { type ImportOptions, importCompanyFile } from "./company/import.js";
+export {
+	addConnection,
+	authenticateMcp,
+	type Connection,
+	type ConnectionAccess,
+	listConnections,
+	type McpCaller,
+	revokeConnection,
+} from "./connections/connections.js";
+export {
+	decideProposal,
+	PROPOSAL_SESSION_PREFIX,
+	type Proposal,
+	propose,
+} from "./connections/proposals.js";
 export { handleOwnerAction } from "./heartbeats/actions.js";
 export {
 	type Notifier,

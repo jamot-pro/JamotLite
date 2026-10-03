@@ -7,6 +7,10 @@ import type {
 } from "@jamot/brain";
 import { DreamConfig } from "@jamot/contracts";
 import type { CompanyStore, Conversation, Person } from "@jamot/ports";
+import {
+	decideProposal,
+	PROPOSAL_SESSION_PREFIX,
+} from "../connections/proposals.js";
 import { memoryTools } from "./memory-tools.js";
 import { agentSpecFromNode, pickChannelAgent } from "./spec.js";
 
@@ -104,6 +108,11 @@ export async function decideApproval(
 	const { store } = deps;
 	const approval = await store.approvals.get(decision.approvalId);
 	if (!approval) throw new Error(`no approval ${decision.approvalId}`);
+	// An outside agent's proposal: no transcript to resume, just the action.
+	if (approval.sessionId.startsWith(PROPOSAL_SESSION_PREFIX)) {
+		await decideProposal(store, approval, decision);
+		return null;
+	}
 
 	// "telegram:<chat id>:<agent key>" → the conversation and its person.
 	const channel = approval.sessionId.slice(0, approval.sessionId.indexOf(":"));

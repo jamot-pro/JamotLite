@@ -1,6 +1,11 @@
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { computeReadiness, computeVitals } from "@jamot/core";
+import {
+	computeReadiness,
+	computeVitals,
+	type McpCaller,
+	PROPOSAL_SESSION_PREFIX,
+	propose,
+} from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -13,7 +18,16 @@ import { z } from "zod";
  * It reads, and it can note things down. It never decides approvals: those
  * stay with a person pressing a button (AGENTS.md rule 3), not with whichever
  * AI holds the token.
+ *
+ * A caller is either the original shared token (everything, as nobody in
+ * particular) or a connection (BLUEPRINT S8): an agent or a human of the
+ * company map, seeing what its access allows — "company", or "people" too —
+ * and only its own runs and proposals. Each of a connection's calls is
+ * recorded as that node's activity: a run on the Runs page and an event.
+ * A connection can `propose`; a proposal waits for a person.
  */
+
+const SHARED: McpCaller = { kind: "shared", access: "people" };
 
 const text = (value: unknown) => ({
 	content: [
@@ -26,14 +40,75 @@ const text = (value: unknown) => ({
 
 export function createCompanyMcpServer(
 	store: CompanyStore,
-	opts: { version: string; dataDir?: string },
+	opts: {
+		version: string;
+		dataDir?: string;
+		caller?: McpCaller;
+		/** Called with new proposals, to ask the owner (Telegram). */
+		onProposal?: (approvalIds: string[]) => Promise<void>;
+	},
 ): McpServer {
+	const caller = opts.caller ?? SHARED;
+	const connection = caller.kind === "connection" ? caller : null;
+	const seesPeople = caller.access === "people";
 	const server = new McpServer({
 		name: "jamot-company",
 		version: opts.version,
 	});
 
-	server.registerTool(
+	/** Registers a tool; a connection's calls become its node's runs and events. */
+	type Result = ReturnType<typeof text> & { isError?: boolean };
+	const tool = <A>(
+		name: string,
+		config: {
+			title: string;
+			description: string;
+			inputSchema?: Record<string, z.ZodTypeAny>;
+		},
+		handler: (args: A, run: { id: string } | null) => Promise<Result>,
+	) => {
+		server.registerTool(
+			name,
+			config as never,
+			(async (args: A) => {
+				if (!connection) return handler(args, null);
+				const run = await store.runs.start({
+					sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
+					agentKey: connection.nodeKey,
+					model: "external (MCP)",
+					trigger: `mcp:${name}`,
+					input: args ? JSON.stringify(args).slice(0, 500) : null,
+				});
+				await store.events.append({
+					type: "mcp.call",
+					source: `mcp/${connection.nodeKey}`,
+					subject: connection.nodeKey,
+					data: {
+						tool: name,
+						connectionId: connection.connectionId,
+						runId: run.id,
+					},
+					idempotencyKey: `mcp-call:${run.id}`,
+				});
+				try {
+					const result = await handler(args, run);
+					await store.runs.finish(run.id, {
+						status: result.isError ? "error" : "done",
+						output: result.content[0]?.text.slice(0, 500) ?? null,
+					});
+					return result;
+				} catch (err) {
+					await store.runs.finish(run.id, {
+						status: "error",
+						error: err instanceof Error ? err.message : String(err),
+					});
+					throw err;
+				}
+			}) as never,
+		);
+	};
+
+	tool(
 		"company_overview",
 		{
 			title: "Company overview",
@@ -64,7 +139,7 @@ export function createCompanyMcpServer(
 		},
 	);
 
-	server.registerTool(
+	tool(
 		"whats_missing",
 		{
 			title: "What's missing",
@@ -108,7 +183,7 @@ export function createCompanyMcpServer(
 		},
 	);
 
-	server.registerTool(
+	tool(
 		"company_map",
 		{
 			title: "Company map",
@@ -153,97 +228,112 @@ export function createCompanyMcpServer(
 		},
 	);
 
-	server.registerTool(
-		"people_search",
-		{
-			title: "Find people",
-			description:
-				"Customers, staff and suppliers the company knows, by name, email or phone. Empty query lists the most recent.",
-			inputSchema: {
-				query: z.string().default(""),
-				limit: z.number().int().min(1).max(50).default(10),
+	// People and their conversations: only with people access.
+	if (seesPeople) {
+		tool(
+			"people_search",
+			{
+				title: "Find people",
+				description:
+					"Customers, staff and suppliers the company knows, by name, email or phone. Empty query lists the most recent.",
+				inputSchema: {
+					query: z.string().default(""),
+					limit: z.number().int().min(1).max(50).default(10),
+				},
 			},
-		},
-		async ({ query, limit }) => {
-			const people = await store.people.list({ search: query, limit });
-			return text(
-				people.map((p) => ({
-					id: p.id,
-					name: p.displayName,
-					lastInteractionAt: p.lastInteractionAt,
-					summary: p.contextSummary,
-				})),
-			);
-		},
-	);
-
-	server.registerTool(
-		"person_profile",
-		{
-			title: "A person's profile",
-			description:
-				"Everything the company remembers about one person, and their recent conversations.",
-			inputSchema: { personId: z.string() },
-		},
-		async ({ personId }) => {
-			const person = await store.people.get(personId);
-			if (!person) return { ...text(`No person ${personId}.`), isError: true };
-			const memories = await store.memory.list({
-				scope: "person",
-				ownerId: personId,
-				limit: 30,
-			});
-			const conversations = await store.conversations.list({
-				personId,
-				limit: 5,
-			});
-			return text({
-				person,
-				identities: (await store.people.listIdentities(personId)).map((i) => ({
-					provider: i.provider,
-					value: i.value,
-				})),
-				remembered: memories.map((m) => ({
-					kind: m.kind,
-					content: m.content,
-					at: m.createdAt,
-				})),
-				conversations: conversations.map((c) => ({
-					id: c.id,
-					channel: c.channel,
-					lastMessageAt: c.lastMessageAt,
-				})),
-			});
-		},
-	);
-
-	server.registerTool(
-		"conversation",
-		{
-			title: "A conversation",
-			description: "The latest messages of one conversation, oldest first.",
-			inputSchema: {
-				conversationId: z.string(),
-				limit: z.number().int().min(1).max(200).default(30),
+			async ({ query, limit }: { query: string; limit: number }) => {
+				const people = await store.people.list({ search: query, limit });
+				return text(
+					people.map((p) => ({
+						id: p.id,
+						name: p.displayName,
+						lastInteractionAt: p.lastInteractionAt,
+						summary: p.contextSummary,
+					})),
+				);
 			},
-		},
-		async ({ conversationId, limit }) => {
-			const messages = await store.conversations.listMessages(conversationId, {
+		);
+
+		tool(
+			"person_profile",
+			{
+				title: "A person's profile",
+				description:
+					"Everything the company remembers about one person, and their recent conversations.",
+				inputSchema: { personId: z.string() },
+			},
+			async ({ personId }: { personId: string }) => {
+				const person = await store.people.get(personId);
+				if (!person)
+					return { ...text(`No person ${personId}.`), isError: true };
+				const memories = await store.memory.list({
+					scope: "person",
+					ownerId: personId,
+					limit: 30,
+				});
+				const conversations = await store.conversations.list({
+					personId,
+					limit: 5,
+				});
+				return text({
+					person,
+					identities: (await store.people.listIdentities(personId)).map(
+						(i) => ({
+							provider: i.provider,
+							value: i.value,
+						}),
+					),
+					remembered: memories.map((m) => ({
+						kind: m.kind,
+						content: m.content,
+						at: m.createdAt,
+					})),
+					conversations: conversations.map((c) => ({
+						id: c.id,
+						channel: c.channel,
+						lastMessageAt: c.lastMessageAt,
+					})),
+				});
+			},
+		);
+
+		tool(
+			"conversation",
+			{
+				title: "A conversation",
+				description: "The latest messages of one conversation, oldest first.",
+				inputSchema: {
+					conversationId: z.string(),
+					limit: z.number().int().min(1).max(200).default(30),
+				},
+			},
+			async ({
+				conversationId,
 				limit,
-			});
-			return text(
-				messages.map((m) => ({
-					direction: m.direction,
-					from: m.agentKey ?? (m.direction === "in" ? "person" : "company"),
-					text: m.text,
-					at: m.createdAt,
-					status: m.status,
-				})),
-			);
-		},
-	);
+			}: {
+				conversationId: string;
+				limit: number;
+			}) => {
+				const messages = await store.conversations.listMessages(
+					conversationId,
+					{
+						limit,
+					},
+				);
+				return text(
+					messages.map((m) => ({
+						direction: m.direction,
+						from: m.agentKey ?? (m.direction === "in" ? "person" : "company"),
+						text: m.text,
+						at: m.createdAt,
+						status: m.status,
+					})),
+				);
+			},
+		);
+	}
 
-	server.registerTool(
+	tool(
 		"memory_search",
 		{
 			title: "Search memory",
@@ -254,9 +344,17 @@ export function createCompanyMcpServer(
 				scope: z.enum(["person", "company"]).optional(),
 			},
 		},
-		async ({ query, scope }) => {
+		async ({
+			query,
+			scope,
+		}: {
+			query: string;
+			scope?: "person" | "company";
+		}) => {
+			// Without people access, only what the company knows about itself.
+			const only = seesPeople ? scope : "company";
 			const found = await store.memory.search(query, {
-				...(scope ? { scope } : {}),
+				...(only ? { scope: only } : {}),
 				limit: 20,
 			});
 			return text(
@@ -271,7 +369,7 @@ export function createCompanyMcpServer(
 		},
 	);
 
-	server.registerTool(
+	tool(
 		"memory_note",
 		{
 			title: "Note something down",
@@ -279,7 +377,14 @@ export function createCompanyMcpServer(
 				"Add something the company should remember — about a person, or about the company itself.",
 			inputSchema: { note: z.string().min(3), personId: z.string().optional() },
 		},
-		async ({ note, personId }) => {
+		async ({ note, personId }: { note: string; personId?: string }) => {
+			if (personId && !seesPeople)
+				return {
+					...text(
+						"This connection can't see people, so it can't note about one.",
+					),
+					isError: true,
+				};
 			if (personId && !(await store.people.get(personId)))
 				return { ...text(`No person ${personId}.`), isError: true };
 			await store.memory.store({
@@ -287,14 +392,14 @@ export function createCompanyMcpServer(
 				ownerId: personId ?? null,
 				kind: "fact",
 				content: note,
-				data: { via: "mcp" },
+				data: { via: "mcp", ...(connection ? { by: connection.nodeKey } : {}) },
 				source: "human",
 			});
 			return text("Noted.");
 		},
 	);
 
-	server.registerTool(
+	tool(
 		"runs_recent",
 		{
 			title: "Recent agent runs",
@@ -302,11 +407,20 @@ export function createCompanyMcpServer(
 				"What the agents did lately, with tokens and cost, and totals for the last 30 days.",
 			inputSchema: { limit: z.number().int().min(1).max(100).default(20) },
 		},
-		async ({ limit }) => {
+		async ({ limit }: { limit: number }) => {
 			const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 			return text({
-				last30Days: await store.runs.totals({ since }),
-				runs: (await store.runs.list({ limit })).map((r) => ({
+				last30Days: await store.runs.totals({
+					since,
+					...(connection ? { agentKey: connection.nodeKey } : {}),
+				}),
+				// A connection sees its own node's runs; the shared token, all.
+				runs: (
+					await store.runs.list({
+						limit,
+						...(connection ? { agentKey: connection.nodeKey } : {}),
+					})
+				).map((r) => ({
 					agent: r.agentKey,
 					status: r.status,
 					trigger: r.trigger,
@@ -321,7 +435,7 @@ export function createCompanyMcpServer(
 		},
 	);
 
-	server.registerTool(
+	tool(
 		"approvals_pending",
 		{
 			title: "Waiting for approval",
@@ -329,7 +443,15 @@ export function createCompanyMcpServer(
 				"Agent actions waiting for the owner. Decide them on Telegram — this surface can't approve anything.",
 		},
 		async () => {
-			const pending = await store.approvals.list({ status: "pending" });
+			const pending = await store.approvals.list({
+				status: "pending",
+				// A connection sees its own proposals.
+				...(connection
+					? {
+							sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
+						}
+					: {}),
+			});
 			return text(
 				pending.map((a) => ({
 					id: a.id,
@@ -342,26 +464,92 @@ export function createCompanyMcpServer(
 		},
 	);
 
+	if (connection) {
+		tool(
+			"propose",
+			{
+				title: "Propose an action",
+				description: `Ask the owner to approve something you, as ${connection.nodeName}, want done: message a person (needs people access) or give a responsibility an owner. Nothing happens until a person approves it.`,
+				inputSchema: {
+					action: z.enum(["message_person", "assign_owner"]),
+					personId: z.string().optional(),
+					text: z.string().min(1).max(2_000).optional(),
+					responsibilityKey: z.string().optional(),
+					ownerKey: z.string().optional(),
+				},
+			},
+			async (
+				args: {
+					action: "message_person" | "assign_owner";
+					personId?: string;
+					text?: string;
+					responsibilityKey?: string;
+					ownerKey?: string;
+				},
+				run,
+			) => {
+				const from = {
+					connectionId: connection.connectionId,
+					nodeKey: connection.nodeKey,
+					runId: (run as { id: string }).id,
+				};
+				const fail = (why: string) => ({ ...text(why), isError: true });
+				try {
+					let approval: Awaited<ReturnType<typeof propose>>;
+					if (args.action === "message_person") {
+						if (!seesPeople)
+							return fail(
+								"This connection can't see people, so it can't message one.",
+							);
+						if (!args.personId || !args.text)
+							return fail("Say who (personId) and what (text).");
+						approval = await propose(store, from, {
+							kind: "message_person",
+							personId: args.personId,
+							text: args.text,
+						});
+					} else {
+						if (!args.responsibilityKey || !args.ownerKey)
+							return fail("Say which responsibility and who should own it.");
+						approval = await propose(store, from, {
+							kind: "assign_owner",
+							responsibilityKey: args.responsibilityKey,
+							ownerKey: args.ownerKey,
+						});
+					}
+					await opts.onProposal?.([approval.id]).catch(() => undefined);
+					return text({
+						proposal: approval.id,
+						status: "waiting for a person to approve",
+					});
+				} catch (err) {
+					return fail(err instanceof Error ? err.message : String(err));
+				}
+			},
+		);
+	}
+
 	return server;
 }
 
-/** Serves one MCP request (stateless: a fresh server per request). Checks the bearer token first. */
+/** Serves one MCP request (stateless: a fresh server per request). Finds the caller first. */
 export async function handleMcpRequest(
 	req: IncomingMessage,
 	res: ServerResponse,
 	body: unknown,
 	opts: {
 		store: CompanyStore;
-		token: string;
+		/** The caller a bearer token stands for, or null (see authenticateMcp). */
+		authenticate: (token: string) => Promise<McpCaller | null>;
+		onProposal?: (approvalIds: string[]) => Promise<void>;
 		version: string;
 		dataDir?: string;
 	},
 ): Promise<void> {
 	const given =
 		/^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1] ?? "";
-	const a = Buffer.from(given);
-	const b = Buffer.from(opts.token);
-	if (a.length !== b.length || !timingSafeEqual(a, b)) {
+	const caller = await opts.authenticate(given);
+	if (!caller) {
 		res.writeHead(401, {
 			"content-type": "application/json",
 			"www-authenticate": "Bearer",
@@ -371,6 +559,8 @@ export async function handleMcpRequest(
 	}
 	const server = createCompanyMcpServer(opts.store, {
 		version: opts.version,
+		caller,
+		...(opts.onProposal ? { onProposal: opts.onProposal } : {}),
 		...(opts.dataDir ? { dataDir: opts.dataDir } : {}),
 	});
 	const transport = new StreamableHTTPServerTransport({
