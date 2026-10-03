@@ -124,8 +124,24 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			const vitals = await computeVitals(store, { dataDir: deps.dataDir });
 			const pending = await store.approvals.list({ status: "pending" });
 			const issues = await openIssues(store);
+			const config = (dream?.config ?? {}) as {
+				vision?: string;
+				objective?: string;
+				constraints?: string[];
+				outcomes?: string[];
+			};
 			return {
 				company,
+				// The charter in its own words; `dream` is the code name, kept
+				// for clients that read it.
+				charter: dream
+					? {
+							vision: config.vision ?? null,
+							mission: config.objective ?? null,
+							values: config.constraints ?? [],
+							goals: config.outcomes ?? [],
+						}
+					: null,
 				dream: dream?.config ?? null,
 				vitals,
 				pendingApprovals: pending.length,

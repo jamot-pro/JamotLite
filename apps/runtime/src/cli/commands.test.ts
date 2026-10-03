@@ -106,8 +106,45 @@ describe("jamot setup", () => {
 		await expect(newCompany()).rejects.toThrow(/already holds a company/);
 	});
 
-	it("lists the seven templates", () => {
-		expect(listTemplates().map((t) => t.id)).toHaveLength(7);
+	it("lists the seven templates, each with a charter in people's words", () => {
+		const templates = listTemplates();
+		expect(templates.map((t) => t.id)).toHaveLength(7);
+		for (const t of templates) {
+			expect(t.file.dream.vision, t.id).toBeTruthy();
+			// `dream` is the code name; no one reads "Dream" or "Believer".
+			const text = readFileSync(join("templates", `${t.id}.yaml`), "utf8");
+			expect(text, t.id).not.toMatch(/\bDream\b|Believer/);
+		}
+	});
+
+	it("takes the owner's own charter at setup", async () => {
+		const dir = join(root, "own-charter");
+		await setup({
+			dir,
+			template: "restaurant",
+			ownerName: "Lucia",
+			password: "a long enough password",
+			charter: {
+				vision: "Nobody in the street eats alone.",
+				values: ["Fresh every day", "No one turned away hungry"],
+			},
+			model: { provider: "ollama", modelId: "llama3.1" },
+			telegramToken: TOKEN,
+		});
+		const c = openCompany(dir);
+		try {
+			const dream = (await c.store.graph.listNodes()).find(
+				(n) => n.kind === "dream",
+			);
+			expect(dream?.config).toMatchObject({
+				vision: "Nobody in the street eats alone.",
+				// The template's mission stays when the owner keeps it.
+				objective: expect.stringContaining("neighbourhood comes back to"),
+				constraints: ["Fresh every day", "No one turned away hungry"],
+			});
+		} finally {
+			c.close();
+		}
 	});
 });
 

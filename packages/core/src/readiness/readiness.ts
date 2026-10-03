@@ -67,9 +67,9 @@ export function computeReadiness(graph: {
 			: "";
 	presence(
 		"dream",
-		"The Dream is written",
+		"The charter is written",
 		objective.length > 0,
-		"Write the Dream's objective",
+		"Write the charter's mission",
 	);
 
 	const owners = (responsibilityId: string) =>
@@ -123,7 +123,7 @@ export function computeReadiness(graph: {
 	const unwatched = watchable.filter((n) => !monitored.has(n.id));
 	dimensions.push({
 		key: "heartbeats",
-		label: "Every team and the Dream have a heartbeat",
+		label: "Every team and the charter have a heartbeat",
 		score: fraction(watchable.length - unwatched.length, watchable.length),
 		missing: unwatched.map(gap),
 	});

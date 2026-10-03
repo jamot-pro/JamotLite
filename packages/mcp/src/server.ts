@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 
 /**
- * The Dream MCP surface: the company as an MCP server, so the owner's own AI —
+ * The company's MCP surface: the company as an MCP server, so the owner's own AI —
  * Claude, Cursor, Hermes — can ask it things ("what's missing in my company?").
  *
  * It reads, and it can note things down. It never decides approvals: those
@@ -139,7 +139,7 @@ export function createCompanyMcpServer(
 		{
 			title: "Company overview",
 			description:
-				"The company, its Dream, how ready it is, and its vital signs: money, people, work, and the runtime.",
+				"The company, its charter (vision, mission, values, goals), how ready it is, and its vital signs: money, people, work, and the runtime.",
 		},
 		async () => {
 			const company = await store.graph.getCompany();
@@ -152,7 +152,15 @@ export function createCompanyMcpServer(
 			);
 			return text({
 				company,
-				dream: dream?.config ?? null,
+				// The charter in its own words (`dream` is only the code name).
+				charter: dream
+					? {
+							vision: dream.config.vision ?? null,
+							mission: dream.config.objective ?? null,
+							values: dream.config.constraints ?? [],
+							goals: dream.config.outcomes ?? [],
+						}
+					: null,
 				covered: vitals.people.readiness.covered,
 				readiness: Math.round(vitals.people.readiness.overall * 100),
 				tier: vitals.tier,

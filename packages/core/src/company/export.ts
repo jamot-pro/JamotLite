@@ -18,7 +18,8 @@ export async function exportCompanyFile(
 
 	const all = await store.listNodes();
 	const dream = all.find((n) => n.kind === "dream");
-	if (!dream) throw new Error("the company has no Dream node");
+	if (!dream)
+		throw new Error("the company has no charter (its dream node is missing)");
 	const keys = new Map(all.map((n) => [n.id, n.key]));
 
 	const edges = (await store.listEdges()).map((e) => ({

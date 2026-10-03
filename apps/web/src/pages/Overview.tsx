@@ -16,7 +16,7 @@ export function OverviewPage({ go }: PageProps) {
 		load();
 	}, [load]);
 	if (!data) return <p className="muted">Loading…</p>;
-	const { company, dream, vitals } = data;
+	const { company, charter, vitals } = data;
 	const readiness = vitals.people.readiness;
 	const money = vitals.money;
 	// The headline is what matters most — who owns what — not the average of
@@ -28,7 +28,7 @@ export function OverviewPage({ go }: PageProps) {
 			<header className="head">
 				<div>
 					<h1>{company.name}</h1>
-					{dream?.objective && <p className="dream">{dream.objective}</p>}
+					{charter?.mission && <p className="dream">{charter.mission}</p>}
 				</div>
 				{readiness.covered && (
 					<span className="badge ok">JAMOT — fully covered</span>
@@ -162,14 +162,41 @@ export function OverviewPage({ go }: PageProps) {
 				</ul>
 			</section>
 
-			{dream?.constraints && dream.constraints.length > 0 && (
+			{charter && (
 				<section className="card">
-					<h2>Rules the company never breaks</h2>
-					<ul className="plain">
-						{dream.constraints.map((c) => (
-							<li key={c}>{c}</li>
-						))}
-					</ul>
+					<h2>The charter</h2>
+					{charter.vision && (
+						<>
+							<h3>Vision</h3>
+							<p>{charter.vision}</p>
+						</>
+					)}
+					{charter.mission && (
+						<>
+							<h3>Mission</h3>
+							<p>{charter.mission}</p>
+						</>
+					)}
+					{charter.values.length > 0 && (
+						<>
+							<h3>Values — rules the company never breaks</h3>
+							<ul className="plain">
+								{charter.values.map((v) => (
+									<li key={v}>{v}</li>
+								))}
+							</ul>
+						</>
+					)}
+					{charter.goals.length > 0 && (
+						<>
+							<h3>Goals</h3>
+							<ul className="plain">
+								{charter.goals.map((g) => (
+									<li key={g}>{g}</li>
+								))}
+							</ul>
+						</>
+					)}
 				</section>
 			)}
 		</>

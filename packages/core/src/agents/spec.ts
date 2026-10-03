@@ -4,8 +4,8 @@ import type { CompanyRecord, StoredEdge, StoredNode } from "@jamot/ports";
 
 /**
  * Agents are graph nodes (RUNTIME D18). This turns one into what the brain
- * runs: its instructions, framed by the company's Dream and the rules the
- * company never breaks — the same rules for every agent, whatever it is.
+ * runs: its instructions, framed by the company's charter — its vision, its
+ * mission, and the values it never breaks — the same for every agent.
  */
 export function agentSpecFromNode(input: {
 	node: StoredNode;
@@ -23,10 +23,12 @@ export function agentSpecFromNode(input: {
 	const lines = [
 		`You are ${node.name}${role ? ` — ${role}` : ""}, at ${company.name}.`,
 	];
-	if (dream?.objective) lines.push(`The company's Dream: ${dream.objective}`);
+	// The charter, in its own words: the code name `dream` is never shown.
+	if (dream?.vision) lines.push(`The company's vision: ${dream.vision}`);
+	if (dream?.objective) lines.push(`Its mission: ${dream.objective}`);
 	if (dream?.constraints.length) {
 		lines.push(
-			"Rules the company never breaks:",
+			"Its values — rules the company never breaks:",
 			...dream.constraints.map((c) => `- ${c}`),
 		);
 	}

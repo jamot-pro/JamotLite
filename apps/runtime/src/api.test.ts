@@ -93,7 +93,13 @@ describe("the console API", () => {
 		expect(noPassword.status).toBe(409);
 
 		const cookie = await signIn();
-		expect((await get("/api/overview", cookie)).status).toBe(200);
+		const overview = await get("/api/overview", cookie);
+		expect(overview.status).toBe(200);
+		// The charter in its own words.
+		expect((await body(overview)).charter).toMatchObject({
+			vision: "A table where the neighbourhood feels at home, year after year.",
+			mission: expect.stringContaining("neighbourhood comes back to"),
+		});
 		expect(
 			(await get("/api/overview", "jamot_session=9999999999999.forged")).status,
 		).toBe(401);

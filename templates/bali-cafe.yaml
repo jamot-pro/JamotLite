@@ -6,6 +6,7 @@ company:
   summary: 12–20 people open a café together — pledges first, pop-ups next, then the doors.
   timezone: Asia/Makassar
 dream:
+  vision: "A café in Bali that belongs to the people who make it, and outlives any one of them."
   objective: Open a community café in Bali, built and owned by a circle of 12–20 people, pop-up first.
   outcomes:
     - A circle of founders who each own a responsibility
@@ -38,7 +39,7 @@ dream:
   timeline:
     - milestone: "Circle: the founders gather and take their roles"
       by: Month 1
-    - milestone: "Pledge: capital pledged and Passes reserved; the Dream unlocks at the goal"
+    - milestone: "Pledge: capital pledged and Passes reserved; the café unlocks at the goal"
       by: Month 2
     - milestone: "Incorporate: company formed at the notary, capital paid in"
       by: Month 3
@@ -57,24 +58,24 @@ dream:
     - Accountable director (signs for the café)
     - Legal entity, licences and permits
     - Founders' capital and pledges
-    - Coffee Passes and Believers
+    - Coffee Passes and Backers
     - Beans and suppliers
     - Menu and recipes
     - Pop-ups at the market
     - Location and lease
     - Head barista and shifts
     - Books and taxes
-    - Keep the Dream's memory and updates
+    - Keep the café's memory and updates
 founder: founder
 teams:
   - key: circle
     name: Founders' Circle
-    purpose: Own the Dream together and make the big decisions.
+    purpose: Own the café together and make the big decisions.
   - key: coffee
     name: Coffee & Kitchen
     purpose: What's in the cup and on the plate.
   - key: community
-    name: Community & Believers
+    name: Community & Backers
     purpose: The people who believe in the café, and the ones who walk in.
   - key: money
     name: Money & Legal
@@ -85,12 +86,12 @@ teams:
 humans:
   - key: founder
     name: Founder
-    role: Started the Dream
+    role: Started the café
 agents:
   - key: steward
     name: Café Steward
-    role: Keeps the Dream alive between meetings
-    instructions: Track every responsibility and heartbeat, prepare decisions for humans, remember every Believer, customer and supplier, and post a weekly update. Never sign, hire, pay or promise anything — propose, and let a human approve.
+    role: Keeps the café alive between meetings
+    instructions: Track every responsibility and heartbeat, prepare decisions for humans, remember every Steward, Backer, customer and supplier, and post a weekly update. Never sign, hire, pay or promise anything — propose, and let a human approve.
 responsibilities:
   - key: r-circle
     name: Gather the founders' circle
@@ -101,7 +102,7 @@ responsibilities:
   - key: r-capital
     name: Founders' capital and pledges
   - key: r-passes
-    name: Coffee Passes and Believers
+    name: Coffee Passes and Backers
   - key: r-beans
     name: Beans and suppliers
   - key: r-menu
@@ -115,11 +116,11 @@ responsibilities:
   - key: r-books
     name: Books and taxes
   - key: r-memory
-    name: Keep the Dream's memory and updates
+    name: Keep the café's memory and updates
 tools:
   - key: t-telegram
     name: Telegram Mini App
-    purpose: Where the circle and Believers talk and vote
+    purpose: Where the Stewards and Backers talk and vote
   - key: t-ledger
     name: Treasury ledger
     purpose: Every pledge, sale and spend, visible to the circle
@@ -129,7 +130,7 @@ tools:
     status: after incorporation
 heartbeats:
   - key: h-pulse
-    name: Daily Dream pulse
+    name: Daily café pulse
     schedule: 0 8 * * *
     monitors:
       - open responsibilities
@@ -156,10 +157,10 @@ heartbeats:
       - draft reorders for approval
       - verify deliveries arrived
   - key: h-community
-    name: Believer update
+    name: Backer update
     schedule: 0 10 * * 5
     monitors:
-      - new Believers
+      - new Backers
       - Passes reserved
     actions:
       - draft the weekly update

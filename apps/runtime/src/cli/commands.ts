@@ -114,6 +114,13 @@ export interface SetupInput {
 	timezone?: string;
 	ownerName: string;
 	password: string;
+	/** The charter, when the owner wrote their own; the template's otherwise. */
+	charter?: {
+		vision?: string;
+		mission?: string;
+		values?: string[];
+		goals?: string[];
+	};
 	model: {
 		provider: "anthropic" | "openai" | "openrouter" | "ollama";
 		modelId: string;
@@ -137,6 +144,11 @@ export async function setup(
 		);
 	const file = loadTemplate(input.template);
 	if (input.name) file.company.name = input.name;
+	const c = input.charter ?? {};
+	if (c.vision) file.dream.vision = c.vision;
+	if (c.mission) file.dream.objective = c.mission;
+	if (c.values?.length) file.dream.constraints = c.values;
+	if (c.goals?.length) file.dream.outcomes = c.goals;
 	if (input.timezone) {
 		new Intl.DateTimeFormat("en", { timeZone: input.timezone }); // throws on an unknown zone
 		file.company.timezone = input.timezone;

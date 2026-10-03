@@ -6,6 +6,7 @@ company:
   summary: Every table booked, every regular remembered, every fridge checked — kitchen, floor and agents together.
   timezone: UTC
 dream:
+  vision: "A table where the neighbourhood feels at home, year after year."
   objective: "Run the restaurant the neighbourhood comes back to: good food, full tables, and every regular remembered."
   outcomes:
     - Every reservation request answered within 10 minutes

@@ -6,6 +6,7 @@ company:
   summary: "A small team and three agents: support answered, stock never runs out, every customer remembered."
   timezone: UTC
 dream:
+  vision: "A shop people trust like a neighbour, even though they've never met us."
   objective: "Run an online shop customers come back to: answered fast, shipped fast, and never out of what they want."
   outcomes:
     - Every customer question answered within 2 hours
