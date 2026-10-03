@@ -43,6 +43,9 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 		reply.header("x-content-type-options", "nosniff");
 		reply.header("referrer-policy", "no-referrer");
 		reply.header("x-frame-options", "DENY");
+		// Behind a TLS proxy the console is only ever served over HTTPS.
+		if (opts.behindProxy)
+			reply.header("strict-transport-security", "max-age=31536000");
 	});
 
 	app.get("/health", async () => {

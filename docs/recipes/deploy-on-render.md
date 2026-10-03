@@ -30,7 +30,9 @@ In the service's **Logs**, find the line
   2. On Telegram, send your bot:   /start <code>
 ```
 
-and send exactly that to your bot within 24 hours. The console is at the
+and send exactly that to your bot within 24 hours. Anyone who can read the
+service's logs in that window could use it first, so keep the Render
+workspace to people you trust. The console is at the
 service's `onrender.com` address; sign in with your password.
 
 If the code expired: **Shell** tab → `node /app/jamot.mjs pair`.
@@ -57,4 +59,9 @@ Render also snapshots disks daily, and keeps the snapshots for seven days.
 
 Render puts its HTTPS proxy in front of the service. With this set, the
 login limit counts each visitor's own address (the one the proxy adds), not
-the proxy's, and the session cookie is marked `Secure` (RUNTIME D36).
+the proxy's, the session cookie is marked `Secure`, and browsers are told
+to use HTTPS only (RUNTIME D36).
+
+It trusts exactly **one** proxy. If you put another in front (Cloudflare, a
+CDN), the login limit would count that proxy's address instead — don't,
+until the runtime learns to trust more hops.

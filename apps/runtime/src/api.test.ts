@@ -285,5 +285,8 @@ describe("behind a TLS proxy", () => {
 		const owner = await login("a long enough password", "198.51.100.2");
 		expect(owner.status).toBe(200);
 		expect(owner.headers.get("set-cookie")).toContain("; Secure");
+		expect(owner.headers.get("strict-transport-security")).toBe(
+			"max-age=31536000",
+		);
 	});
 });
