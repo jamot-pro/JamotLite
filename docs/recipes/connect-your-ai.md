@@ -43,10 +43,43 @@ If the runtime runs on another machine, reach it through a tunnel you trust
 - *What did the agents do today, and what did it cost?* → `runs_recent`
 - *Is anything waiting for me?* → `approvals_pending`
 
+## Connect it as someone in the company
+
+`jamot mcp` gives one shared token that sees everything, as nobody in
+particular. Better: give your AI a place in the company map, so what it does
+shows up under its own name.
+
+```bash
+jamot mcp add ops               # "ops" is an agent (or person) in company.yaml
+jamot mcp add host --people     # --people: it may also see people and conversations
+jamot mcp list
+jamot mcp revoke <id>           # or: jamot mcp revoke shared
+```
+
+The token is printed once (`jmt_…`); only its hash is kept. The console does
+the same under `/api/mcp/connections`.
+
+A connected AI:
+
+- sees the company (map, readiness, its own memory) and, with `--people`, the
+  people it knows and their conversations — nothing more;
+- sees only **its own** runs and proposals;
+- has **every call recorded** as its node's activity: a run on the Runs page
+  and an event, so "Claude, as our Ops agent" has a name and a history;
+- can **`propose`**: message a person, or give a responsibility an owner. A
+  proposal reaches you on Telegram and in the console like any approval, and
+  nothing happens until you approve it.
+- is kept to 30 calls a minute and 5 proposals waiting at once, and without
+  `--people` never sees the words of any run (they can quote customers) —
+  so a leaked token can't flood you or read around its access.
+
+Recipes for particular agents: [Hermes](connect-hermes.md),
+[OpenClaw](connect-openclaw.md).
+
 ## What it can't do
 
-Your AI can read and note things down. It **cannot approve** anything an agent
-is waiting for: approvals stay with a person pressing a button on Telegram, so
+Your AI can read, note things down and propose. It **cannot approve** anything
+— its own proposals or what an agent is waiting for: approvals stay with a person pressing a button on Telegram, so
 a leaked token can't move money.
 
 ## Give your agents MCP tools

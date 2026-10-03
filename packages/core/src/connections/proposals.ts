@@ -97,14 +97,18 @@ export async function decideProposal(
 		});
 		result = "Sent.";
 	} else if (approval.tool === "propose.assign_owner") {
-		// Recorded first, so a second tap can't assign twice; the change is
-		// the same one-tap action a heartbeat offers, in its own transaction.
-		await record(store);
+		// The change first, then the decision: a crash between them leaves it
+		// pending to approve again (assigning twice is harmless), never decided
+		// with nothing done. It's the one-tap action a heartbeat offers.
+		const current = await store.approvals.get(approval.id);
+		if (current?.status !== "pending")
+			throw new Error(`already ${current?.status ?? "gone"}`);
 		result = await handleOwnerAction(
 			store,
 			`assign:${args.responsibilityKey}:${args.ownerKey}`,
 			decision.by,
 		);
+		await record(store);
 	} else {
 		throw new Error(`unknown proposal ${approval.tool}`);
 	}

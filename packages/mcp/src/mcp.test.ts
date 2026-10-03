@@ -432,4 +432,74 @@ describe("bring your own agent: a connection is someone in the company", () => {
 		).rejects.toThrow();
 		expect(await store.conversations.listPending()).toHaveLength(1);
 	});
+
+	it("keeps a leaked token from flooding: calls a minute, open proposals, no run words", async () => {
+		await rossi();
+		const url = await serve();
+		const { token } = await addConnection(store, { nodeKey: "buyer" });
+		const buyer = await connectAs(url, token);
+		// Five proposals may wait; the sixth is refused, and the owner was asked five times.
+		for (let i = 0; i < 6; i++) {
+			const r = await buyer.callTool({
+				name: "propose",
+				arguments: {
+					action: "assign_owner",
+					responsibilityKey: "r-chef",
+					ownerKey: "founder",
+				},
+			});
+			expect(r.isError === true).toBe(i === 5);
+		}
+		expect(asked).toHaveLength(5);
+		// A company-only connection never gets run words, which can quote customers.
+		await store.runs.start({
+			sessionId: "telegram:100:buyer",
+			agentKey: "buyer",
+			model: null,
+			trigger: "message",
+			input: "Mrs. Rossi wrote: I'm allergic to walnuts",
+		});
+		const recent = textOf(
+			await buyer.callTool({ name: "runs_recent", arguments: {} }),
+		);
+		expect(recent).not.toContain("walnuts");
+		// 30 calls a minute, then it has to slow down.
+		let refused = false;
+		for (let i = 0; i < 30 && !refused; i++)
+			refused =
+				(await buyer.callTool({ name: "company_map", arguments: {} }))
+					.isError === true;
+		expect(refused).toBe(true);
+	});
+
+	it("an approved owner change is made, once", async () => {
+		const url = await serve();
+		const { token } = await addConnection(store, { nodeKey: "buyer" });
+		const buyer = await connectAs(url, token);
+		await buyer.callTool({
+			name: "propose",
+			arguments: {
+				action: "assign_owner",
+				responsibilityKey: "r-chef",
+				ownerKey: "founder",
+			},
+		});
+		const [approval] = await store.approvals.list({ status: "pending" });
+		await decideProposal(store, approval as never, {
+			approved: true,
+			by: "Lucia",
+		});
+		const nodes = await store.graph.listNodes();
+		const chef = nodes.find((n) => n.key === "r-chef");
+		const owns = (await store.graph.listEdges()).filter(
+			(e) =>
+				e.toNodeId === chef?.id &&
+				e.relation === "responsible_for" &&
+				!e.validTo,
+		);
+		expect(owns).toHaveLength(1);
+		await expect(
+			decideProposal(store, approval as never, { approved: true, by: "Lucia" }),
+		).rejects.toThrow(/already approved/);
+	});
 });

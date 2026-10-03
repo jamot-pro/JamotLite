@@ -325,8 +325,12 @@ export function createTelegramChannel(
 					continue;
 				}
 				const args = JSON.stringify(approval.args, null, 1);
+				// A proposal from an outside AI connected over MCP says so.
+				const outside = approval.sessionId.startsWith("mcp:")
+					? " (an outside AI, connected over MCP)"
+					: "";
 				const text = [
-					`${approval.agentKey} wants to use ${approval.tool}:`,
+					`${approval.agentKey}${outside} wants to use ${approval.tool}:`,
 					args.length > 800 ? `${args.slice(0, 800)}…` : args,
 					"",
 					"Approve?",

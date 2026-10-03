@@ -29,6 +29,23 @@ import { z } from "zod";
 
 const SHARED: McpCaller = { kind: "shared", access: "people" };
 
+/** What one connection may do, so a leaked token can't flood the company. */
+export const CONNECTION_LIMITS = { callsPerMinute: 30, openProposals: 5 };
+// Across requests: a fresh server is made for each one.
+const recentCalls = new Map<string, number[]>();
+function withinRate(connectionId: string, now = Date.now()): boolean {
+	const recent = (recentCalls.get(connectionId) ?? []).filter(
+		(t) => now - t < 60_000,
+	);
+	if (recent.length >= CONNECTION_LIMITS.callsPerMinute) {
+		recentCalls.set(connectionId, recent);
+		return false;
+	}
+	recent.push(now);
+	recentCalls.set(connectionId, recent);
+	return true;
+}
+
 const text = (value: unknown) => ({
 	content: [
 		{
@@ -72,6 +89,13 @@ export function createCompanyMcpServer(
 			config as never,
 			(async (args: A) => {
 				if (!connection) return handler(args, null);
+				if (!withinRate(connection.connectionId))
+					return {
+						...text(
+							`Slow down: at most ${CONNECTION_LIMITS.callsPerMinute} calls a minute.`,
+						),
+						isError: true,
+					};
 				const run = await store.runs.start({
 					sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
 					agentKey: connection.nodeKey,
@@ -94,7 +118,9 @@ export function createCompanyMcpServer(
 					const result = await handler(args, run);
 					await store.runs.finish(run.id, {
 						status: result.isError ? "error" : "done",
-						output: result.content[0]?.text.slice(0, 500) ?? null,
+						output: seesPeople
+							? (result.content[0]?.text.slice(0, 500) ?? null)
+							: null,
 					});
 					return result;
 				} catch (err) {
@@ -427,7 +453,8 @@ export function createCompanyMcpServer(
 					model: r.model,
 					costMicroUsd: r.costMicroUsd,
 					tokens: r.inputTokens + r.outputTokens,
-					output: r.output,
+					// Run words can quote customers: only with people access.
+					output: seesPeople ? r.output : null,
 					error: r.error,
 					at: r.startedAt,
 				})),
@@ -494,6 +521,14 @@ export function createCompanyMcpServer(
 					runId: (run as { id: string }).id,
 				};
 				const fail = (why: string) => ({ ...text(why), isError: true });
+				const open = await store.approvals.list({
+					status: "pending",
+					sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
+				});
+				if (open.length >= CONNECTION_LIMITS.openProposals)
+					return fail(
+						`${open.length} proposals are already waiting for the owner; wait until they're decided.`,
+					);
 				try {
 					let approval: Awaited<ReturnType<typeof propose>>;
 					if (args.action === "message_person") {
@@ -517,7 +552,15 @@ export function createCompanyMcpServer(
 							ownerKey: args.ownerKey,
 						});
 					}
-					await opts.onProposal?.([approval.id]).catch(() => undefined);
+					await opts.onProposal?.([approval.id]).catch((err: unknown) =>
+						store.events.append({
+							type: "proposal.unrouted",
+							source: `mcp/${connection.nodeKey}`,
+							subject: approval.id,
+							data: { error: err instanceof Error ? err.message : String(err) },
+							idempotencyKey: `proposal-unrouted:${approval.id}`,
+						}),
+					);
 					return text({
 						proposal: approval.id,
 						status: "waiting for a person to approve",
