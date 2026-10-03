@@ -316,3 +316,43 @@ describe("Telegram", () => {
 		expect(decisions).toEqual([[approval.id, true, "Marco"]]);
 	});
 });
+
+describe("connecting to Telegram", () => {
+	const failingBot = (
+		answer: () => { error_code: number; description: string },
+	) => {
+		const b = new Bot("123:TEST", {
+			botInfo: {
+				id: 42,
+				is_bot: true,
+				first_name: "Café",
+				username: "cafe_bot",
+			} as unknown as UserFromGetMe,
+		});
+		b.api.config.use(async () => ({ ok: false, ...answer() }) as never);
+		return b;
+	};
+
+	it("says plainly when Telegram refuses the token", async () => {
+		const c = createTelegramChannel(
+			failingBot(() => ({ error_code: 401, description: "Unauthorized" })),
+			{ store, decide: async () => {}, log: () => {} },
+		);
+		await expect(c.start()).rejects.toThrow("refused the bot token");
+	});
+
+	it("logs why it can't connect instead of waiting in silence", async () => {
+		const logs: string[] = [];
+		const c = createTelegramChannel(
+			failingBot(() => ({ error_code: 502, description: "Bad Gateway" })),
+			{ store, decide: async () => {}, log: (m) => logs.push(m) },
+		);
+		const starting = c.start();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(logs[0]).toMatch(
+			/can't reach Telegram yet .*Bad Gateway.*trying again in 2s/,
+		);
+		await c.stop();
+		await starting; // stopping ends the retries
+	});
+});

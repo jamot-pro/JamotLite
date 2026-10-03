@@ -64,6 +64,7 @@ export function createTelegramChannel(
 ): TelegramChannel {
 	const { store } = deps;
 	const log = deps.log ?? ((m) => console.log(m));
+	let stopped = false;
 	const holder = (role: Role) =>
 		store.settings.get<TelegramOwner>(holderKey(role));
 
@@ -224,12 +225,48 @@ export function createTelegramChannel(
 
 	return {
 		async start() {
+			// grammy retries network errors and Telegram outages silently and
+			// forever; make first contact ourselves so the reason is in the logs.
+			for (let wait = 2_000; ; wait = Math.min(wait * 2, 60_000)) {
+				if (stopped) return;
+				try {
+					await bot.init();
+					await bot.api.deleteWebhook();
+					break;
+				} catch (err) {
+					if (err instanceof GrammyError && err.error_code === 401)
+						throw new Error(
+							"Telegram refused the bot token — store a new one with `jamot secret set telegram.botToken`",
+						);
+					log(
+						`[telegram] can't reach Telegram yet (${err instanceof Error ? err.message : err}); trying again in ${wait / 1000}s`,
+					);
+					await new Promise((r) => setTimeout(r, wait));
+				}
+			}
+			log(`[telegram] connected as @${bot.botInfo.username}`);
 			await new Promise<void>((resolve, reject) => {
-				bot.start({ onStart: () => resolve() }).catch(reject);
+				let started = false;
+				bot
+					.start({
+						onStart: () => {
+							started = true;
+							resolve();
+						},
+					})
+					.catch((err: unknown) => {
+						// After start, polling only ends on an error such as another
+						// program using the same bot token (409): say so.
+						if (!started) return reject(err);
+						log(
+							`[telegram] stopped receiving messages: ${err instanceof Error ? err.message : err}`,
+						);
+					});
 			});
 		},
 
 		async stop() {
+			stopped = true;
 			await bot.stop();
 		},
 
