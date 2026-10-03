@@ -46,6 +46,7 @@ import {
 	LOCK_STALE_MS,
 	type RunLock,
 } from "./lock.js";
+import { type Replication, startReplication } from "./replication.js";
 import { registerWebChat, type WebChat } from "./webchat.js";
 
 /**
@@ -274,6 +275,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	let backups: NodeJS.Timeout | null = null;
 	let webSender: NodeJS.Timeout | null = null;
 	let runLock: RunLock | null = null;
+	let replication: Replication | null = null;
 	let lockBeat: NodeJS.Timeout | null = null;
 	let delivering = false;
 	let sending = false;
@@ -365,6 +367,12 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					);
 			await backupNow();
 			backups = setInterval(backupNow, 3_600_000);
+			replication = await startReplication({
+				dataDir: opts.dataDir,
+				store,
+				secrets,
+				log,
+			});
 			webSender = setInterval(() => {
 				if (delivering) return;
 				delivering = true;
@@ -409,6 +417,8 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await http?.close();
 			await worker.stop();
 			store.close();
+			replication?.stop();
+			replication = null;
 			if (lockBeat) clearInterval(lockBeat);
 			runLock?.release();
 			runLock = null;

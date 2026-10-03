@@ -10,6 +10,10 @@ WORKDIR /src
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm build
+# Litestream, for continuous off-site copies (jamot replicate): the pinned
+# release, refused unless its checksum matches.
+ARG TARGETARCH=amd64
+RUN node scripts/fetch-litestream.mjs "$TARGETARCH" /litestream
 
 FROM node:24-slim
 LABEL org.opencontainers.image.source="https://github.com/jamot-pro/JamotLite" \
@@ -24,6 +28,7 @@ WORKDIR /app
 COPY --from=build /src/dist/ /app/
 # Jamot's own company file, so the image can run Jamot as a Jamot company.
 COPY --from=build /src/jamot.company.yaml /app/jamot.company.yaml
+COPY --from=build /litestream/litestream /usr/local/bin/litestream
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]

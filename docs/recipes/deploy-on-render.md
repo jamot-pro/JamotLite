@@ -49,7 +49,11 @@ fail loudly instead of starting an empty one.
 The company backs itself up every day into `/data/jamot/backups/` and keeps
 the last 7; Render also snapshots the disk daily. Keep a copy of
 `/data/jamot/secrets.key` somewhere else, once. (A company set up before S3
-lives in `/data/company/` instead; it's found either way.) To restore, see
+lives in `/data/company/` instead; it's found either way.)
+
+To survive losing the disk too, replicate to S3-compatible storage — from the
+**Shell** tab: `node /app/jamot.mjs replicate set s3://…`, then restart the
+service ([backups.md](backups.md#copy-every-change-off-the-machine-litestream)). To restore, see
 [backups.md](backups.md).
 
 ## Why `JAMOT_BEHIND_PROXY=1`
