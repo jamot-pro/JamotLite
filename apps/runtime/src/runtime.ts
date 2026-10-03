@@ -321,6 +321,15 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await webchat?.deliver();
 		},
 		async start(startOpts = {}) {
+			// The demo model never meets real people: with it, Telegram doesn't
+			// come up at all — refused before anything starts, not per message.
+			const choice = await store.settings.get<{ provider?: string }>(
+				MODEL_SETTING,
+			);
+			if (choice?.provider === DEMO_PROVIDER && startOpts.telegram !== false)
+				throw new Error(
+					"this company runs on the demo model, which never talks to real people — start it with --no-telegram, or add a real model first (jamot setup / Settings)",
+				);
 			const address = await listen();
 			log(`[runtime] listening on ${address} (MCP at ${address}/mcp)`);
 			await planHeartbeats(store);

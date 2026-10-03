@@ -39,6 +39,7 @@ await until(
 	() => Promise.resolve(output.includes("/chat")),
 	"the demo to start",
 );
+process.on("unhandledRejection", (err) => fail(String(err)));
 const page = await fetch(`${base}/chat`);
 if (page.status !== 200) fail(`/chat answered ${page.status}`);
 const cookie = (page.headers.get("set-cookie") ?? "").split(";")[0];

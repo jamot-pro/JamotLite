@@ -13,8 +13,9 @@ import type { ModelAccess } from "./types.js";
  * words — its name, summary and vision — with scripted replies that always
  * say they're a demo. It costs nothing.
  *
- * It only runs a demo company: the runtime refuses it when Telegram is on,
- * and the console can't select it (RUNTIME D41).
+ * It only runs a demo company: a runtime with it won't start Telegram at
+ * all, the console can't select it (RUNTIME D41), and a reply is refused
+ * too if it ever got that far.
  */
 
 export const DEMO_PROVIDER = "demo";

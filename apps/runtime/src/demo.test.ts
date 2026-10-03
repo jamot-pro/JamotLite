@@ -72,11 +72,21 @@ describe("jamot demo", () => {
 				username: "b",
 			} as unknown as UserFromGetMe,
 		});
-		bot.api.config.use(async () => ({ ok: true, result: true }) as never);
+		const telegramCalls: string[] = [];
+		bot.api.config.use(async (_prev, method) => {
+			telegramCalls.push(method);
+			return { ok: true, result: true } as never;
+		});
 		runtime = await createRuntime({ dataDir: demo.dir, bot, log: () => {} });
 		await expect(runtime.ask("hello")).rejects.toThrow(
 			/demo model only runs a demo company/,
 		);
+		// And Telegram never comes up: start refuses before anything runs,
+		// even if the folder was copied and given a real bot token.
+		await expect(runtime.start({ telegram: true })).rejects.toThrow(
+			/demo model, which never talks to real people/,
+		);
+		expect(telegramCalls).toEqual([]);
 	});
 
 	it("refuses a template that doesn't exist", async () => {
