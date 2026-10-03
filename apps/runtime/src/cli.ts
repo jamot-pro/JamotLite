@@ -17,6 +17,7 @@ import {
 	mcpInfo,
 	pair,
 	prepareDemo,
+	replicate,
 	restore,
 	serviceInstall,
 	setPassword,
@@ -46,6 +47,8 @@ const HELP = `jamot ${VERSION} — one company, one runtime
   jamot backup [--to file]    a consistent copy of the data, while it runs
                               (one is taken every day on its own; the last 7 are kept)
   jamot restore <file|latest> put a backup back on the next start (--dry-run: just look)
+  jamot replicate set <s3 url> copy every change off this machine with Litestream
+                              (replicate off | status | restore)
   jamot export --to <dir>     company.yaml + company.db  (--with-key adds secrets.key)
   jamot import <dir|yaml>     start a company from an export or a company.yaml,
                               in a folder named after its id (--as <id> to rename)
@@ -83,6 +86,7 @@ async function main(argv: string[]): Promise<number> {
 			"dry-run": { type: "boolean" },
 			people: { type: "boolean" },
 			"no-open": { type: "boolean" },
+			"private-network": { type: "boolean" },
 			as: { type: "string" },
 			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
@@ -255,6 +259,29 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 				w.enabled
 					? `Web chat is on at /chat, up to $${w.dailyCapUsd} of replies a day. It's public: read docs/recipes/web-chat.md.`
 					: "Web chat is off: /chat answers 404.",
+			);
+		}
+
+		case "replicate": {
+			const action = rest[0];
+			const env = process.env;
+			const keys =
+				action === "set"
+					? {
+							accessKeyId:
+								env.JAMOT_REPLICA_ACCESS_KEY_ID ??
+								(await ask("Access key id: ")).trim(),
+							secretAccessKey:
+								env.JAMOT_REPLICA_SECRET_ACCESS_KEY ??
+								(await ask("Secret access key: ", { hidden: true })).trim(),
+						}
+					: {};
+			return print(
+				await replicate(companyDir(where), action, {
+					privateNetwork: values["private-network"] === true,
+					...(rest[1] ? { url: rest[1] } : {}),
+					...keys,
+				}),
 			);
 		}
 

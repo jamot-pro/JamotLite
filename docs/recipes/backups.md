@@ -16,9 +16,44 @@ no readable secret, so it's safe to copy anywhere. Keep the key somewhere
 else — a password manager is fine — and only once: it doesn't change.
 
 These snapshots sit on the same disk as the company, so they protect against
-mistakes and damage, not against losing the disk. For that, copy `backups/`
-off the machine (Render also keeps daily disk snapshots for seven days).
-Continuous off-site copies with Litestream come next ([BLUEPRINT](../BLUEPRINT.md) S4).
+mistakes and damage, not against losing the disk. For that, replicate.
+
+## Copy every change off the machine (Litestream)
+
+[Litestream](https://litestream.io) streams each change of `company.db` to
+S3-compatible storage — AWS S3, Cloudflare R2, Backblaze B2, Tigris, MinIO.
+The Docker image has it; elsewhere, install it so `litestream` is on the PATH
+(or point `JAMOT_LITESTREAM` at it).
+
+```bash
+jamot replicate set "s3://my-bucket/jamot?endpoint=<account>.r2.cloudflarestorage.com&region=auto"
+# asks for the bucket's access key id and secret (or JAMOT_REPLICA_ACCESS_KEY_ID
+# and JAMOT_REPLICA_SECRET_ACCESS_KEY when nothing can be typed)
+jamot replicate status
+```
+
+The endpoint is checked like any outbound address: never a loopback,
+link-local or cloud metadata address; a storage server on your own network
+(MinIO on the LAN) only with `--private-network`.
+
+Restart the company and it replicates for as long as it runs, restarting
+Litestream if it stops (and ending one a crash left behind). The keys are kept in the secret store and given to
+Litestream only, never written to a file or a log.
+
+**`secrets.key` is never replicated.** A replica without it holds no readable
+secret, so a leaked bucket gives away no tokens — and a lost key means the
+company's stored tokens and keys are gone. Keep one copy of it somewhere else,
+once.
+
+To bring the company back from the replica — after losing the disk, or on a
+new machine with the same `secrets.key`:
+
+```bash
+jamot replicate restore      # stages the replica's latest copy
+# then restart the company
+```
+
+`jamot replicate off` stops it and forgets the keys.
 
 ## Take one now
 

@@ -45,6 +45,9 @@ jobs:
       - run: docker build -t jamot-lite:ci .
       - name: Container starts and reports its version
         run: docker run --rm jamot-lite:ci --version
+      # The pinned, checksum-verified Litestream is in the image (D43).
+      - name: Litestream is in the image
+        run: docker run --rm --entrypoint litestream jamot-lite:ci version
 
   secrets:
     runs-on: ubuntu-latest

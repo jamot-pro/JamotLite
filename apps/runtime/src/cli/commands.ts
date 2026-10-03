@@ -43,6 +43,15 @@ import {
 	takeBackup,
 } from "../backups.js";
 import {
+	checkReplicaUrl,
+	findLitestream,
+	REPLICA_KEY_ID_SECRET,
+	REPLICA_SECRET_KEY_SECRET,
+	REPLICATION_SETTING,
+	type ReplicationSettings,
+	restoreFromReplica,
+} from "../replication.js";
+import {
 	BOT_TOKEN_SECRET,
 	createRuntime,
 	MCP_TOKEN_SECRET,
@@ -735,6 +744,69 @@ export async function prepareDemo(
 		});
 		const company = await c.store.graph.getCompany();
 		return { dir, password, companyName: company?.name ?? template };
+	} finally {
+		c.close();
+	}
+}
+
+/**
+ * `jamot replicate set <s3 url> | off | status | restore` (BLUEPRINT S4, part
+ * 2): continuous copies to S3-compatible storage with Litestream. The keys go
+ * in the secret store; `restore` stages the replica's latest copy for the
+ * next start.
+ */
+export async function replicate(
+	dir: string,
+	action: string | undefined,
+	opts: {
+		url?: string;
+		accessKeyId?: string;
+		secretAccessKey?: string;
+		privateNetwork?: boolean;
+	} = {},
+): Promise<string> {
+	const c = openCompany(dir);
+	try {
+		const current =
+			await c.store.settings.get<ReplicationSettings>(REPLICATION_SETTING);
+		if (action === "set") {
+			if (!opts.url)
+				throw new Error(
+					"say where: jamot replicate set s3://bucket/path[?endpoint=…&region=…]",
+				);
+			const allowPrivateNetwork = opts.privateNetwork === true;
+			const url = await checkReplicaUrl(opts.url, { allowPrivateNetwork });
+			if (!opts.accessKeyId || !opts.secretAccessKey)
+				throw new Error("the bucket's access key id and secret are needed");
+			await c.secrets.set(REPLICA_KEY_ID_SECRET, opts.accessKeyId);
+			await c.secrets.set(REPLICA_SECRET_KEY_SECRET, opts.secretAccessKey);
+			await c.store.settings.set(REPLICATION_SETTING, {
+				url,
+				...(allowPrivateNetwork ? { allowPrivateNetwork } : {}),
+			});
+			return `Replication set to ${url.split("?")[0]}. It starts with the company (restart it now). Keep secrets.key somewhere else — it's never replicated.`;
+		}
+		if (action === "off") {
+			await c.store.settings.set(REPLICATION_SETTING, null);
+			await c.secrets.delete(REPLICA_KEY_ID_SECRET);
+			await c.secrets.delete(REPLICA_SECRET_KEY_SECRET);
+			return "Replication is off, and its keys are forgotten. The daily copies on this disk go on.";
+		}
+		if (action === "restore") {
+			const { summary: b } = await restoreFromReplica({
+				dataDir: dir,
+				store: c.store,
+				secrets: c.secrets,
+			});
+			return `From the replica: ${b.company ?? "?"} · ${b.people} people · ${b.memories} memories · last message ${b.lastMessageAt ?? "never"}\n\nStaged. Restart the company to put it back; the company as it is now is kept in backups/.`;
+		}
+		if (action === "status" || action === undefined)
+			return current?.url
+				? `Replicating to ${current.url.split("?")[0]}${findLitestream() ? "" : " — but litestream isn't installed here"}.`
+				: "Not replicating: jamot replicate set s3://bucket/path";
+		throw new Error(
+			"usage: jamot replicate set <s3 url> | off | status | restore",
+		);
 	} finally {
 		c.close();
 	}
