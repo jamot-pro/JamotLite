@@ -112,7 +112,14 @@ async function main(argv: string[]): Promise<number> {
 			};
 			process.once("SIGINT", stop);
 			process.once("SIGTERM", stop);
-			await runtime.start({ telegram: values["no-telegram"] !== true });
+			try {
+				await runtime.start({ telegram: values["no-telegram"] !== true });
+			} catch (err) {
+				// Close the port and timers, so the process ends and a supervisor
+				// (Render, systemd) shows the failure instead of a half-alive company.
+				await runtime.stop();
+				throw err;
+			}
 			return new Promise(() => {}); // runs until stopped
 		}
 
