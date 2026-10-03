@@ -114,6 +114,10 @@ export function runOps(db: DatabaseSync): Sync<RunStore> {
 				clauses.push("agent_key = ?");
 				params.push(filter.agentKey);
 			}
+			if (filter.sessionPrefix) {
+				clauses.push("substr(session_id, 1, ?) = ?");
+				params.push(filter.sessionPrefix.length, filter.sessionPrefix);
+			}
 			const w = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 			const row = one(
 				db,
@@ -170,6 +174,15 @@ export function transcriptOps(db: DatabaseSync): Sync<TranscriptStore> {
 			);
 			if (changed === 0)
 				throw new Error(`no message ${seq} in session ${sessionId}`);
+		},
+
+		erase(prefix) {
+			run(
+				db,
+				"DELETE FROM transcript_messages WHERE substr(session_id, 1, ?) = ?",
+				prefix.length,
+				prefix,
+			);
 		},
 	};
 }

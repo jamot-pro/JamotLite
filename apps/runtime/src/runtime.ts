@@ -38,6 +38,7 @@ import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
 import { applyPendingRestore, backupIfDue } from "./backups.js";
 import { createHttpServer } from "./http.js";
+import { registerWebChat, type WebChat } from "./webchat.js";
 
 /**
  * One company, one process (RUNTIME §3). Everything lives in `dataDir`:
@@ -195,6 +196,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		await secrets.set(MCP_TOKEN_SECRET, mcpToken);
 	}
 	let http: FastifyInstance | null = null;
+	let webchat: WebChat | null = null;
 	const listen = async (
 		port = opts.port ?? 3000,
 		host = opts.host ?? "127.0.0.1",
@@ -226,12 +228,22 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					},
 				},
 			});
+		if (!webchat)
+			webchat = registerWebChat(http, {
+				store,
+				secretKey,
+				notifier: telegram,
+				secureCookies: opts.behindProxy === true,
+				log,
+			});
 		return http.listen({ port, host });
 	};
 
 	let sender: NodeJS.Timeout | null = null;
 	let planner: NodeJS.Timeout | null = null;
 	let backups: NodeJS.Timeout | null = null;
+	let webSender: NodeJS.Timeout | null = null;
+	let delivering = false;
 	let sending = false;
 
 	return {
@@ -284,6 +296,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await planHeartbeats(store, now);
 			await worker.tick(now);
 			await telegram.sendPending();
+			await webchat?.deliver();
 		},
 		async start(startOpts = {}) {
 			const address = await listen();
@@ -307,6 +320,19 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					);
 			await backupNow();
 			backups = setInterval(backupNow, 3_600_000);
+			webSender = setInterval(() => {
+				if (delivering) return;
+				delivering = true;
+				(webchat?.deliver() ?? Promise.resolve(0))
+					.catch((err) =>
+						log(
+							`[runtime] web chat delivery failed: ${err instanceof Error ? err.message : err}`,
+						),
+					)
+					.finally(() => {
+						delivering = false;
+					});
+			}, 1000);
 			if (startOpts.telegram === false) {
 				log("[runtime] Telegram is off: no messages in or out");
 			} else {
@@ -333,6 +359,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			if (sender) clearInterval(sender);
 			if (planner) clearInterval(planner);
 			if (backups) clearInterval(backups);
+			if (webSender) clearInterval(webSender);
 			await telegram.stop().catch(() => undefined);
 			await http?.close();
 			await worker.stop();

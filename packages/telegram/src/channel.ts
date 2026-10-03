@@ -280,7 +280,10 @@ export function createTelegramChannel(
 
 		async sendPending() {
 			let sent = 0;
-			for (const message of await store.conversations.listPending(20)) {
+			for (const message of await store.conversations.listPending(
+				20,
+				"telegram",
+			)) {
 				const conversation = await store.conversations.get(
 					message.conversationId,
 				);

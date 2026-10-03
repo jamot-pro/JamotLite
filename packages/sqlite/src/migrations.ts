@@ -2,7 +2,13 @@
  * Schema migrations, applied in order at boot. Never edit one that has
  * shipped — add a new entry (AGENTS.md rule 7).
  */
-export const MIGRATIONS: readonly { id: string; sql: string }[] = [
+export const MIGRATIONS: readonly {
+	id: string;
+	sql: string;
+	/** Rebuilds a table others reference: run with foreign keys off, as SQLite
+	 * prescribes (sqlite.org/lang_altertable.html#otheralter), then checked. */
+	foreignKeysOff?: boolean;
+}[] = [
 	{
 		id: "0001_company_graph",
 		sql: `
@@ -246,6 +252,32 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
         ciphertext TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+    `,
+	},
+	{
+		// A conversation can come from the web chat (BLUEPRINT S5). SQLite can't
+		// change a CHECK, so the table is rebuilt; messages keep pointing at it.
+		id: "0005_web_channel",
+		foreignKeysOff: true,
+		sql: `
+      CREATE TABLE conversations_new (
+        seq                INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                 TEXT NOT NULL UNIQUE,
+        channel            TEXT NOT NULL CHECK (channel IN ('telegram', 'web')),
+        external_thread_id TEXT NOT NULL,
+        person_id          TEXT REFERENCES people(id) ON DELETE SET NULL,
+        title              TEXT,
+        created_at         TEXT NOT NULL,
+        last_message_at    TEXT,
+        UNIQUE (channel, external_thread_id)
+      );
+      INSERT INTO conversations_new
+        (seq, id, channel, external_thread_id, person_id, title, created_at, last_message_at)
+        SELECT seq, id, channel, external_thread_id, person_id, title, created_at, last_message_at
+        FROM conversations;
+      DROP TABLE conversations;
+      ALTER TABLE conversations_new RENAME TO conversations;
+      CREATE INDEX conversations_person ON conversations (person_id);
     `,
 	},
 ];

@@ -15,6 +15,12 @@ import {
 	SESSION_COOKIE,
 	verifyPassword,
 } from "./auth.js";
+import {
+	updateWebChatSettings,
+	WEBCHAT_DEFAULTS,
+	WEBCHAT_SETTING,
+	type WebChatSettings,
+} from "./webchat.js";
 
 /**
  * The console's JSON API, under /api. Every route except sign-in needs the
@@ -286,6 +292,26 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			if (apiKey) await deps.secrets.set("model.apiKey", apiKey);
 			return { ok: true };
 		});
+
+		const webChat = async () => ({
+			...WEBCHAT_DEFAULTS,
+			...((await store.settings.get<Partial<WebChatSettings>>(
+				WEBCHAT_SETTING,
+			)) ?? {}),
+		});
+		owner.get("/api/webchat", webChat);
+		owner.put<{ Body: { enabled?: unknown; dailyCapUsd?: unknown } }>(
+			"/api/webchat",
+			async (req, reply) => {
+				try {
+					const next = updateWebChatSettings(await webChat(), req.body ?? {});
+					await store.settings.set(WEBCHAT_SETTING, next);
+					return next;
+				} catch (err) {
+					return reply.code(400).send({ error: (err as Error).message });
+				}
+			},
+		);
 
 		owner.post<{ Body: { role?: "owner" | "successor" } }>(
 			"/api/pairing",
