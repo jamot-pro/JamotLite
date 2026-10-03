@@ -12,6 +12,7 @@ import {
 	loadTemplate,
 	mcpInfo,
 	pair,
+	restore,
 	serviceInstall,
 	setPassword,
 	setSecret,
@@ -33,6 +34,8 @@ const HELP = `jamot ${VERSION} — one company, one runtime
   jamot pair [successor]      a new code to link the owner's (or successor's) Telegram
   jamot mcp                   the address and token for your own AI
   jamot backup [--to file]    a consistent copy of the data, while it runs
+                              (one is taken every day on its own; the last 7 are kept)
+  jamot restore <file|latest> put a backup back on the next start (--dry-run: just look)
   jamot export --to <dir>     company.yaml + company.db  (--with-key adds secrets.key)
   jamot import <dir|yaml>     start a company from an export or a company.yaml
   jamot secret set <name>     store a secret (e.g. a tool's token), encrypted
@@ -64,6 +67,7 @@ async function main(argv: string[]): Promise<number> {
 			live: { type: "boolean" },
 			"no-telegram": { type: "boolean" },
 			"with-key": { type: "boolean" },
+			"dry-run": { type: "boolean" },
 			yes: { type: "boolean", short: "y" },
 			agent: { type: "string" },
 			help: { type: "boolean", short: "h" },
@@ -173,6 +177,23 @@ async function main(argv: string[]): Promise<number> {
 			return print(
 				`Backed up to ${await backup(companyDir(where), values.to)}`,
 			);
+
+		case "restore": {
+			const from = rest[0];
+			if (!from)
+				throw new Error("say which: jamot restore <backup file | latest>");
+			const dryRun = values["dry-run"] === true;
+			const { file, summary: b } = restore(companyDir(where), from, {
+				dryRun,
+			});
+			return print(
+				`${file}\n  company: ${b.company ?? "?"} · ${b.people} people · ${b.memories} memories · last message ${b.lastMessageAt ?? "never"}\n\n${
+					dryRun
+						? "Nothing changed (dry run)."
+						: "Staged. Restart the company to put it back; the company as it is now is kept in backups/."
+				}`,
+			);
+		}
 
 		case "export": {
 			if (!values.to) throw new Error("say where: jamot export --to <folder>");

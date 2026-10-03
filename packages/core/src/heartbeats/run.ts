@@ -265,7 +265,8 @@ function vitalIssues(v: Awaited<ReturnType<typeof computeVitals>>): Issue[] {
 		issues.push({
 			key: "backup",
 			title: `No backup since ${v.runtime.lastBackupAt.slice(0, 10)}`,
-			proposal: "Run `jamot backup`.",
+			proposal:
+				"Daily backups have stopped: look for `backup failed` in the logs, then run `jamot backup`.",
 		});
 	}
 	if (
