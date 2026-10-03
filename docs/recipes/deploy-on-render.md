@@ -44,16 +44,12 @@ They are stored encrypted on the disk now. In **Environment**, delete
 `JAMOT_TEMPLATE` — without a company on the disk, a boot with it set would
 fail loudly instead of starting an empty one.
 
-## 5. Back it up
+## 5. Backups
 
-Until backups run on their own ([BLUEPRINT](../BLUEPRINT.md) S4), take one
-from the **Shell** tab, and keep `secrets.key` somewhere else:
-
-```bash
-node /app/jamot.mjs backup
-```
-
-Render also snapshots disks daily, and keeps the snapshots for seven days.
+The company backs itself up every day into `/data/company/backups/` and keeps
+the last 7; Render also snapshots the disk daily. Keep a copy of
+`/data/company/secrets.key` somewhere else, once. To restore, see
+[backups.md](backups.md).
 
 ## Why `JAMOT_BEHIND_PROXY=1`
 

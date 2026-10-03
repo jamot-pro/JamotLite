@@ -36,6 +36,7 @@ import { openCompanyStore } from "@jamot/sqlite";
 import { createTelegramChannel, type TelegramChannel } from "@jamot/telegram";
 import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
+import { applyPendingRestore, backupIfDue } from "./backups.js";
 import { createHttpServer } from "./http.js";
 
 /**
@@ -100,6 +101,9 @@ export const VERSION = "0.1.0";
 export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	mkdirSync(opts.dataDir, { recursive: true, mode: 0o700 });
 	const log = opts.log ?? ((m) => console.log(m));
+	const setAside = applyPendingRestore(opts.dataDir);
+	if (setAside)
+		log(`[runtime] restored a backup; the company as it was is in ${setAside}`);
 	const store = openCompanyStore(join(opts.dataDir, "company.db"));
 	const secretKey = loadOrCreateSecretKey(join(opts.dataDir, "secrets.key"));
 	const secrets = createSecrets(store.secrets, createSecretBox(secretKey));
@@ -227,6 +231,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 
 	let sender: NodeJS.Timeout | null = null;
 	let planner: NodeJS.Timeout | null = null;
+	let backups: NodeJS.Timeout | null = null;
 	let sending = false;
 
 	return {
@@ -292,6 +297,16 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				);
 			}, 30_000);
 			worker.start(500);
+			const backupNow = () =>
+				backupIfDue(store, opts.dataDir)
+					.then((file) => file && log(`[runtime] backed up to ${file}`))
+					.catch((err) =>
+						log(
+							`[runtime] backup failed: ${err instanceof Error ? err.message : err}`,
+						),
+					);
+			await backupNow();
+			backups = setInterval(backupNow, 3_600_000);
 			if (startOpts.telegram === false) {
 				log("[runtime] Telegram is off: no messages in or out");
 			} else {
@@ -317,6 +332,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		async stop() {
 			if (sender) clearInterval(sender);
 			if (planner) clearInterval(planner);
+			if (backups) clearInterval(backups);
 			await telegram.stop().catch(() => undefined);
 			await http?.close();
 			await worker.stop();

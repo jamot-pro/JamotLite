@@ -22,9 +22,19 @@ import {
 	type Secrets,
 } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
-import { openCompanyStore } from "@jamot/sqlite";
+import {
+	type DatabaseSummary,
+	inspectCompanyDb,
+	openCompanyStore,
+} from "@jamot/sqlite";
 import { Cron } from "croner";
 import { hashPassword, PASSWORD_SETTING } from "../auth.js";
+import {
+	backupsDir,
+	listBackups,
+	stageRestore,
+	takeBackup,
+} from "../backups.js";
 import {
 	BOT_TOKEN_SECRET,
 	createRuntime,
@@ -359,24 +369,27 @@ export async function doctor(
 export async function backup(dir: string, to?: string): Promise<string> {
 	const c = openCompany(dir);
 	try {
-		const backups = join(dir, "backups");
-		mkdirSync(backups, { recursive: true, mode: 0o700 });
-		const target =
-			to ??
-			join(
-				backups,
-				`company-${new Date().toISOString().replace(/[:.]/g, "-")}.db`,
-			);
-		await c.store.backup(target);
-		chmodSync(target, 0o600);
-		await c.store.settings.set(
-			"runtime.lastBackupAt",
-			new Date().toISOString(),
-		);
-		return target;
+		return await takeBackup(c.store, dir, to ? { to } : {});
 	} finally {
 		c.close();
 	}
+}
+
+/**
+ * Checks a backup and stages it; the next `jamot start` swaps it in.
+ * `latest` is the newest daily snapshot. A dry run only says what's in it.
+ */
+export function restore(
+	dir: string,
+	from: string,
+	opts: { dryRun?: boolean } = {},
+): { file: string; summary: DatabaseSummary } {
+	const file = from === "latest" ? listBackups(dir)[0] : from;
+	if (!file) throw new Error(`no backups in ${backupsDir(dir)} yet`);
+	const summary = opts.dryRun
+		? inspectCompanyDb(file)
+		: stageRestore(dir, file);
+	return { file, summary };
 }
 
 /**
