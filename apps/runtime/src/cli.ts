@@ -53,7 +53,8 @@ const HELP = `jamot ${VERSION} — one company, one runtime
   jamot webchat on|off|status a chat page at /chat for customers (--cap <dollars> a day)
   jamot password              change the console password
   jamot templates             the companies you can start from
-  jamot service install       start with the machine (writes the service file)
+  jamot service install       start with the machine (writes the service file; --port
+                              when several companies share a machine)
 
 Options: --company <id>  --data <dir>  --port <n>  --host <addr>  --no-telegram
 Companies live in ${jamotHome()} (set JAMOT_HOME to change it).`;
@@ -327,6 +328,7 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 			const { path, enable } = serviceInstall(
 				companyDir(where),
 				fileURLToPath(import.meta.url),
+				values.port ? { port: Number(values.port) } : {},
 			);
 			return print(
 				`Wrote ${path}\n\nTo turn it on:\n${enable.map((c) => `  ${c}`).join("\n")}`,

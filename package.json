@@ -18,7 +18,8 @@
 		"build": "pnpm --filter @jamot/web build && node scripts/build.mjs",
 		"ledger": "node scripts/ledger.mjs",
 		"smoke": "node scripts/smoke-bundle.mjs",
-		"demo-check": "node scripts/demo-check.mjs"
+		"demo-check": "node scripts/demo-check.mjs",
+		"isolation-check": "node scripts/isolation-check.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",

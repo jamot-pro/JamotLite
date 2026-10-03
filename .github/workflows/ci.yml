@@ -34,6 +34,8 @@ jobs:
       - run: pnpm smoke
       # One command, no keys: the demo company answers in the web chat (S6).
       - run: pnpm demo-check
+      # Two companies, one machine: independent processes, one start per folder (S7).
+      - run: pnpm isolation-check
 
   docker:
     runs-on: ubuntu-latest

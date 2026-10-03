@@ -40,6 +40,12 @@ import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
 import { applyPendingRestore, backupIfDue } from "./backups.js";
 import { createHttpServer } from "./http.js";
+import {
+	acquireRunLock,
+	LOCK_BEAT_MS,
+	LOCK_STALE_MS,
+	type RunLock,
+} from "./lock.js";
 import { registerWebChat, type WebChat } from "./webchat.js";
 
 /**
@@ -61,6 +67,8 @@ export interface RuntimeOptions {
 	extraTools?: (agentKey: string) => BrainTool[];
 	/** HTTP port for `start()`, default 3000. */
 	port?: number;
+	/** How long `start()` waits for another machine's lock to go quiet. */
+	lockWaitMs?: number;
 	/** Default 127.0.0.1; the Docker image sets 0.0.0.0. */
 	host?: string;
 	/** The built web console, served at `/`. */
@@ -265,6 +273,8 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	let planner: NodeJS.Timeout | null = null;
 	let backups: NodeJS.Timeout | null = null;
 	let webSender: NodeJS.Timeout | null = null;
+	let runLock: RunLock | null = null;
+	let lockBeat: NodeJS.Timeout | null = null;
 	let delivering = false;
 	let sending = false;
 
@@ -330,6 +340,10 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				throw new Error(
 					"this company runs on the demo model, which never talks to real people — start it with --no-telegram, or add a real model first (jamot setup / Settings)",
 				);
+			runLock = await acquireRunLock(opts.dataDir, {
+				waitMs: opts.lockWaitMs ?? LOCK_STALE_MS + 5_000,
+			});
+			lockBeat = setInterval(() => runLock?.beat(), LOCK_BEAT_MS);
 			const address = await listen();
 			log(`[runtime] listening on ${address} (MCP at ${address}/mcp)`);
 			await planHeartbeats(store);
@@ -395,6 +409,9 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await http?.close();
 			await worker.stop();
 			store.close();
+			if (lockBeat) clearInterval(lockBeat);
+			runLock?.release();
+			runLock = null;
 		},
 	};
 }
