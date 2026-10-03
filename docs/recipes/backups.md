@@ -47,7 +47,7 @@ jamot restore latest         # or a file: jamot restore backups/company-….db
 ```
 
 The backup is checked, then left as `restore.db`. On the next start, before
-anything is opened, it takes the company's place; the company as it was moves
+anything is opened, it takes the company's place; the company as it was is copied
 to `backups/before-restore-….db`, so a restore can itself be undone the same
 way. This works from a shell beside a running company — on Render, run it in
 the **Shell** tab, then **Manual Deploy → Restart service**.

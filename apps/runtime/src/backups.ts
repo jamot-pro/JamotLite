@@ -9,7 +9,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { CompanyStore } from "@jamot/ports";
-import { type DatabaseSummary, inspectCompanyDb } from "@jamot/sqlite";
+import {
+	checkpointCompanyDb,
+	type DatabaseSummary,
+	inspectCompanyDb,
+} from "@jamot/sqlite";
 
 /**
  * Backups on by default (BLUEPRINT S4, RUNTIME D37). The runtime takes a
@@ -25,6 +29,8 @@ import { type DatabaseSummary, inspectCompanyDb } from "@jamot/sqlite";
 export const LAST_BACKUP_SETTING = "runtime.lastBackupAt";
 export const BACKUP_EVERY_MS = 24 * 3_600_000;
 export const BACKUPS_KEPT = 7;
+/** Companies set aside by a restore: enough to undo the last few. */
+export const SET_ASIDE_KEPT = 3;
 const PENDING_RESTORE = "restore.db";
 
 export const backupsDir = (dataDir: string) => join(dataDir, "backups");
@@ -81,8 +87,10 @@ export function stageRestore(dataDir: string, file: string): DatabaseSummary {
 }
 
 /**
- * Runs before the database is opened. The company as it was goes into
- * `backups/` first, so a restore can itself be undone.
+ * Runs before the database is opened. The company as it was is copied into
+ * `backups/` first, so a restore can itself be undone. At every step
+ * `company.db` is a whole database — the old one or the restored one — so a
+ * crash halfway leaves something to start from, and the next start finishes.
  */
 export function applyPendingRestore(
 	dataDir: string,
@@ -93,13 +101,20 @@ export function applyPendingRestore(
 	const current = join(dataDir, "company.db");
 	let before: string | null = null;
 	if (existsSync(current)) {
+		// Its write-ahead log goes into the file, so the copy is complete and
+		// no old log is left beside the restored database.
+		checkpointCompanyDb(current);
 		mkdirSync(backupsDir(dataDir), { recursive: true, mode: 0o700 });
 		before = join(backupsDir(dataDir), `before-restore-${stamp(now)}.db`);
-		renameSync(current, before);
-		// The write-ahead log belongs to the database we just set aside.
-		for (const side of ["-wal", "-shm"])
-			if (existsSync(current + side)) renameSync(current + side, before + side);
+		copyFileSync(current, before);
+		chmodSync(before, 0o600);
 	}
-	renameSync(pending, current);
+	renameSync(pending, current); // atomic: replaces the old file in one step
+	const setAside = readdirSync(backupsDir(dataDir))
+		.filter((f) => f.startsWith("before-restore-"))
+		.sort()
+		.reverse();
+	for (const old of setAside.slice(SET_ASIDE_KEPT))
+		rmSync(join(backupsDir(dataDir), old));
 	return before;
 }

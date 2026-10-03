@@ -105,3 +105,53 @@ describe("backups", () => {
 		expect(applyPendingRestore(dataDir)).toBeNull();
 	});
 });
+
+describe("restoring safely", () => {
+	it("refuses a database that still has its write-ahead log beside it", async () => {
+		const store = open(); // open: company.db-wal exists
+		try {
+			await receiveMessage(store, say("1", "hello"));
+			expect(() => stageRestore(dataDir, join(dataDir, "company.db"))).toThrow(
+				"-wal is next to it",
+			);
+		} finally {
+			store.close();
+		}
+	});
+
+	it("keeps company.db whole if it stops between the copy and the swap", async () => {
+		const store = open();
+		await receiveMessage(store, say("1", "I'm allergic to walnuts"));
+		const snapshot = await takeBackup(store, dataDir);
+		await receiveMessage(store, say("2", "Something said after the backup"));
+		store.close();
+		stageRestore(dataDir, snapshot);
+		// As if a first attempt had set the old one aside and then crashed:
+		// company.db is still the old company, restore.db still waits.
+		const again = open();
+		expect(await again.memory.search("after the backup")).toHaveLength(1);
+		again.close();
+		expect(applyPendingRestore(dataDir)).toContain("before-restore-");
+		const restored = open();
+		try {
+			expect(await restored.memory.search("walnuts")).toHaveLength(1);
+			expect(await restored.memory.search("after the backup")).toHaveLength(0);
+		} finally {
+			restored.close();
+		}
+	});
+
+	it("keeps only the last three companies set aside by restores", async () => {
+		const store = open();
+		const snapshot = await takeBackup(store, dataDir);
+		store.close();
+		for (let n = 0; n < 5; n++) {
+			stageRestore(dataDir, snapshot);
+			applyPendingRestore(dataDir, new Date(Date.UTC(2026, 9, 1 + n)));
+		}
+		const setAside = readdirSync(join(dataDir, "backups")).filter((f) =>
+			f.startsWith("before-restore-"),
+		);
+		expect(setAside).toHaveLength(3);
+	});
+});
