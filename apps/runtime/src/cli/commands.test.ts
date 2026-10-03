@@ -245,6 +245,15 @@ describe("jamot service install", () => {
 			);
 			expect(readFileSync(path, "utf8")).toContain("/opt/jamot/jamot.mjs");
 			expect(enable.join(" ")).toMatch(/launchctl|systemctl/);
+			expect(readFileSync(path, "utf8")).not.toContain("--port");
+			// A second company on the same machine gets its own port.
+			const second = serviceInstall(
+				join(root, "bali-cafe"),
+				"/opt/jamot/jamot.mjs",
+				{ port: 3001 },
+			);
+			expect(second.path).not.toBe(path);
+			expect(readFileSync(second.path, "utf8")).toMatch(/--port.*3001/);
 		} finally {
 			process.env.HOME = home;
 		}

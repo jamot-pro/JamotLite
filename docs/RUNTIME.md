@@ -186,7 +186,29 @@ bus-factor risk. Later, operators can publish skills on the hub.
   pg-boss / Temporal / DBOS, in-process events → NATS, local accounts → SSO.
   `jamot migrate --to postgres`.
 - **Out** — many companies, one operator: a fleet control plane (provisioning,
-  upgrades, backups, watchdog, billing).
+  upgrades, backups, watchdog, billing). The first step is proven (S7):
+  two companies on one machine, independent by process, one start per folder
+  ([recipe](recipes/many-companies-one-machine.md), `pnpm isolation-check`).
+
+  **The fleet control plane — designed, not built.** What the check taught
+  us shapes it:
+  - *Each company stays a process with its own folder.* The control plane
+    never opens a company's database; it talks to each through its CLI and
+    `/health`, as the isolation check does, so a bug in it can't corrupt a
+    company.
+  - *Provisioning* = `jamot import` into a new folder, plus a service
+    (systemd, launchd or a container) with its own port, volume and limits.
+    One company, one volume: a shared disk is the one thing the check showed
+    companies still share.
+  - *Upgrades one company at a time:* stop, swap the bundle, start, wait for
+    `/health`; on failure, start the old bundle. The run lock (D42) makes it
+    safe: no double start during a swap, no crashed company locked out.
+  - *Backups* are per company already (D37); the control plane reads their
+    age from each company and ships `backups/` off the machine.
+  - *Watchdog:* `/health` per company on a schedule; a dead one is restarted
+    by its service manager, a repeatedly dying one is reported, never
+    restarted in a loop.
+  - *Billing* stays out until there is a second operator.
 - **Across** — companies working together through the hub, MCP and A2A. A
   large organization can be a parent runtime watching child runtimes.
 
@@ -328,6 +350,7 @@ JamotLite/
 | D38 | **The bundle keeps class names, and CI proves it reaches Telegram** (2026-10-03). `scripts/build-options.mjs` sets `keepNames`; `pnpm smoke` bundles a grammy call with the same options and expects Telegram to refuse a fake token | Found live on Render: node-fetch (under grammy) recognises an abort signal by its class name, esbuild renamed the polyfill's class, and every Telegram call hung without an error. Tests run from source and couldn't see it; only the bundle can |
 | D39 | **The web chat is a public channel, off by default** (2026-10-03). `/chat` answers 404 until the owner turns it on (`jamot webchat on`, or the console). A visitor is a person identified by a cookie signed with its own key (`provider: "web"`), scoped to `/chat`. Limits: 2,000 characters, 6 messages a minute per visitor (who must have opened the page) and 60 for the company, 10 new visitors a minute per address, a daily cost cap counted from the runs of `web:` sessions, after which it pauses until midnight UTC and the owner is told once. "Forget me" erases messages, memories, transcripts, the input and output of the runs, and the person. Lite still binds to 127.0.0.1; a company goes public through an HTTPS proxy or tunnel (`docs/recipes/web-chat.md`) | Many customers won't install Telegram, and a demo needs a browser. Everything public must be safe to leave on overnight: a cap in money, not just in messages, because cost is what can hurt the owner. Forgetting is a person's right and must be one click |
 | D40 | **An outside AI joins as someone in the company, and only proposes** (2026-10-03). Each MCP connection has its own token tied to an agent or human of the company map, with `company` or `people` access; only a hash is kept. Every call is a run and an event under that node; a connection sees only its own runs and proposals. `propose` creates an approval (message a person, assign an owner); a person decides it on Telegram or in the console, and an approved message goes through the outbox like any other. Limits per connection: 30 calls a minute, 5 open proposals; run words only with people access; Telegram marks a proposal as coming from an outside AI. The shared token keeps working until revoked | Owners already have Claude Code, Hermes, OpenClaw; bringing them in is Jamot's answer to “bring your own agent”, but accountable: a name, limits and a history. MCP still never approves (D23) |
+| D42 | **One running company per folder** (2026-10-03). `jamot start` takes `runtime.lock` in the company folder (pid, host, start time) and refuses a second start, naming the process that holds it. A lock from a dead process, another host (a past instance on the same disk) or our own pid (a restarted container) is taken over; short commands beside a running company don't take it. `jamot service install --port` lets companies share a machine | Two runtimes on one SQLite folder would race each other's jobs and outbox; the isolation check (S7) needs a company to be provably one process. A lock must never keep a crashed company down |
 
 ### Open
 

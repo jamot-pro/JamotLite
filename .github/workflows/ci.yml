@@ -32,6 +32,8 @@ jobs:
           node jamot.mjs templates
       # The bundled Telegram client must reach Telegram, not hang (D38).
       - run: pnpm smoke
+      # Two companies, one machine: independent processes, one start per folder (S7).
+      - run: pnpm isolation-check
 
   docker:
     runs-on: ubuntu-latest

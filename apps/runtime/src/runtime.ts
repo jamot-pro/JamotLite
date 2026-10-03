@@ -38,6 +38,7 @@ import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
 import { applyPendingRestore, backupIfDue } from "./backups.js";
 import { createHttpServer } from "./http.js";
+import { acquireRunLock } from "./lock.js";
 import { registerWebChat, type WebChat } from "./webchat.js";
 
 /**
@@ -244,6 +245,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	let planner: NodeJS.Timeout | null = null;
 	let backups: NodeJS.Timeout | null = null;
 	let webSender: NodeJS.Timeout | null = null;
+	let releaseLock: (() => void) | null = null;
 	let delivering = false;
 	let sending = false;
 
@@ -300,6 +302,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await webchat?.deliver();
 		},
 		async start(startOpts = {}) {
+			releaseLock = acquireRunLock(opts.dataDir);
 			const address = await listen();
 			log(`[runtime] listening on ${address} (MCP at ${address}/mcp)`);
 			await planHeartbeats(store);
@@ -365,6 +368,8 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await http?.close();
 			await worker.stop();
 			store.close();
+			releaseLock?.();
+			releaseLock = null;
 		},
 	};
 }

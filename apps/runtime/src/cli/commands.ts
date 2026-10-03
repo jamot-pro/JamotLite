@@ -561,8 +561,11 @@ export async function pair(
 export function serviceInstall(
 	dir: string,
 	cliPath: string,
+	opts: { port?: number } = {},
 ): { path: string; enable: string[] } {
 	const id = basename(dir);
+	// Several companies on one machine each need their own port.
+	const port = opts.port ? ["--port", String(opts.port)] : [];
 	if (process.platform === "darwin") {
 		const label = `pro.jamot.${id}`;
 		const path = join(homedir(), "Library", "LaunchAgents", `${label}.plist`);
@@ -574,7 +577,7 @@ export function serviceInstall(
 <plist version="1.0"><dict>
   <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key><array>
-    <string>${process.execPath}</string><string>${cliPath}</string><string>start</string><string>--data</string><string>${dir}</string>
+    <string>${process.execPath}</string><string>${cliPath}</string><string>start</string><string>--data</string><string>${dir}</string>${port.map((a) => `<string>${a}</string>`).join("")}
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -600,7 +603,7 @@ Description=Jamot Lite — ${id}
 After=network-online.target
 
 [Service]
-ExecStart=${process.execPath} ${cliPath} start --data ${dir}
+ExecStart=${[process.execPath, cliPath, "start", "--data", dir, ...port].join(" ")}
 Restart=always
 RestartSec=5
 
