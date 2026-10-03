@@ -97,7 +97,10 @@ Jamot Lite turns it into a running company:
   company turns to them.
 - **It connects.** The company is an MCP server, so your own AI — Claude,
   Cursor, Hermes — can plug into it ([recipe](docs/recipes/connect-your-ai.md)).
-- **It's yours.** One folder: export it, back it up, move it, self-host it.
+- **It talks where customers are.** Telegram, and a chat page in the browser
+  that you turn on when you're ready ([recipe](docs/recipes/web-chat.md)).
+- **It's yours.** One folder, backed up every day on its own
+  ([recipe](docs/recipes/backups.md)): export it, move it, self-host it.
 
 When every responsibility has an owner and every owner has a heartbeat, the
 company earns its **JAMOT** — *Just A Matter Of Time*. It means *ready to keep

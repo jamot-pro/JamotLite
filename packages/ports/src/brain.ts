@@ -47,6 +47,8 @@ export interface RunStore {
 		input: string | null;
 	}): Promise<Run>;
 	addUsage(runId: string, usage: RunUsage): Promise<void>;
+	/** Blanks the input and output of runs in sessions starting with `prefix`; costs stay. */
+	eraseText(prefix: string): Promise<void>;
 	finish(
 		runId: string,
 		result: {

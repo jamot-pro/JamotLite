@@ -3,8 +3,9 @@ import type { CompanyStore } from "@jamot/ports";
 /**
  * A person asked to be forgotten (the web chat's "forget me"): their
  * memories, their conversations with every message, the agents' transcripts
- * of those conversations, and the person with their identities — in one
- * transaction. Run costs stay, with no words in them; events keep only ids.
+ * of those conversations and the words of their runs, and the person with
+ * their identities — in one transaction. Run costs stay, with no words in
+ * them; events and jobs only ever held ids.
  */
 export async function forgetPerson(
 	store: CompanyStore,
@@ -23,7 +24,9 @@ export async function forgetPerson(
 			});
 			if (conversations.length === 0) break;
 			for (const c of conversations) {
-				await tx.transcripts.erase(`${c.channel}:${c.externalThreadId}:`);
+				const sessions = `${c.channel}:${c.externalThreadId}:`;
+				await tx.transcripts.erase(sessions);
+				await tx.runs.eraseText(sessions);
 				await tx.conversations.erase(c.id);
 			}
 		}

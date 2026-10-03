@@ -103,6 +103,15 @@ export function runOps(db: DatabaseSync): Sync<RunStore> {
 			).map(toRun);
 		},
 
+		eraseText(prefix) {
+			run(
+				db,
+				"UPDATE runs SET input = NULL, output = NULL WHERE substr(session_id, 1, ?) = ?",
+				prefix.length,
+				prefix,
+			);
+		},
+
 		totals(filter = {}) {
 			const clauses: string[] = [];
 			const params: SqlValue[] = [];

@@ -66,6 +66,8 @@ export const LIMITS = {
 	nameChars: 60,
 	perVisitorPerMinute: 6,
 	perCompanyPerMinute: 60,
+	/** New visitor cookies one address may get, so dropping the cookie doesn't escape the limits. */
+	newVisitorsPerAddressPerMinute: 10,
 	streamsPerVisitor: 3,
 	streams: 200,
 } as const;
@@ -137,6 +139,7 @@ export function registerWebChat(
 	const tokens = visitorTokens(deps.secretKey);
 	const visitorLimit = perMinute(LIMITS.perVisitorPerMinute);
 	const companyLimit = perMinute(LIMITS.perCompanyPerMinute);
+	const newVisitorLimit = perMinute(LIMITS.newVisitorsPerAddressPerMinute);
 	const streams = new Map<string, Set<FastifyReply>>();
 	let openStreams = 0;
 
@@ -149,14 +152,25 @@ export function registerWebChat(
 	const cookie = (value: string, maxAge: number) =>
 		`${VISITOR_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/chat; Max-Age=${maxAge}${deps.secureCookies ? "; Secure" : ""}`;
 
-	/** The visitor, or a new one with its cookie set on the reply. */
-	const visitor = (req: FastifyRequest, reply: FastifyReply): string => {
-		const known = tokens.verify(readCookie(req.headers.cookie, VISITOR_COOKIE));
+	const knownVisitor = (req: FastifyRequest): string | null =>
+		tokens.verify(readCookie(req.headers.cookie, VISITOR_COOKIE));
+
+	/** The visitor, or a new one with its cookie set on the reply — at most a
+	 *  few new ones a minute per address (null once that's used up). */
+	const visitor = (req: FastifyRequest, reply: FastifyReply): string | null => {
+		const known = knownVisitor(req);
 		if (known) return known;
+		if (!newVisitorLimit(req.ip)) return null;
 		const { id, token } = tokens.issue();
 		reply.header("set-cookie", cookie(token, 365 * 86_400));
 		return id;
 	};
+	const tooManyNew = (reply: FastifyReply) =>
+		reply
+			.code(429)
+			.send({ error: "too many new visitors — try again in a minute" });
+	const openPageFirst = (reply: FastifyReply) =>
+		reply.code(403).send({ error: "open the chat page first" });
 
 	const visitorConversation = async (visitorId: string) => {
 		const person = await store.people.findByIdentity("web", visitorId);
@@ -205,7 +219,7 @@ export function registerWebChat(
 	app.get(
 		"/chat",
 		whenOn(async (req, reply) => {
-			visitor(req, reply);
+			if (!visitor(req, reply)) return tooManyNew(reply);
 			const company = await store.graph.getCompany();
 			return reply
 				.header(
@@ -231,8 +245,9 @@ export function registerWebChat(
 
 	app.get(
 		"/chat/history",
-		whenOn(async (req, reply) => {
-			const conversation = await visitorConversation(visitor(req, reply));
+		whenOn(async (req) => {
+			const id = knownVisitor(req);
+			const conversation = id ? await visitorConversation(id) : null;
 			if (!conversation) return { messages: [] };
 			const messages = await store.conversations.listMessages(conversation.id, {
 				limit: 100,
@@ -256,7 +271,9 @@ export function registerWebChat(
 			// JSON only: a cross-site form can't send it without asking first.
 			if (!req.headers["content-type"]?.startsWith("application/json"))
 				return reply.code(415).send({ error: "send JSON" });
-			const id = visitor(req, reply);
+			// Only a visitor the page already met: no cookie, no message.
+			const id = knownVisitor(req);
+			if (!id) return openPageFirst(reply);
 			const text =
 				typeof req.body?.text === "string" ? req.body.text.trim() : "";
 			if (!text)
@@ -294,14 +311,14 @@ export function registerWebChat(
 	app.get(
 		"/chat/events",
 		whenOn(async (req, reply) => {
-			const id = visitor(req, reply);
+			const id = knownVisitor(req);
+			if (!id) return openPageFirst(reply);
 			const mine = streams.get(id) ?? new Set<FastifyReply>();
 			if (
 				mine.size >= LIMITS.streamsPerVisitor ||
 				openStreams >= LIMITS.streams
 			)
 				return reply.code(429).send({ error: "too many open pages" });
-			const setCookie = reply.getHeader("set-cookie");
 			reply.hijack();
 			reply.raw.writeHead(200, {
 				"content-type": "text/event-stream; charset=utf-8",
@@ -309,7 +326,6 @@ export function registerWebChat(
 				"x-content-type-options": "nosniff",
 				// Render and nginx would otherwise buffer the stream.
 				"x-accel-buffering": "no",
-				...(setCookie ? { "set-cookie": String(setCookie) } : {}),
 			});
 			reply.raw.write(": open\n\n");
 			mine.add(reply);
@@ -328,7 +344,9 @@ export function registerWebChat(
 	app.post(
 		"/chat/forget",
 		whenOn(async (req, reply) => {
-			const id = tokens.verify(readCookie(req.headers.cookie, VISITOR_COOKIE));
+			if (!req.headers["content-type"]?.startsWith("application/json"))
+				return reply.code(415).send({ error: "send JSON" });
+			const id = knownVisitor(req);
 			if (id) {
 				const person = await store.people.findByIdentity("web", id);
 				if (person) await forgetPerson(store, person.id);
@@ -441,7 +459,11 @@ text.addEventListener("keydown", (e) => {
 });
 document.getElementById("forget").addEventListener("click", async () => {
   if (!confirm("Erase everything you wrote here?")) return;
-  const res = await fetch("/chat/forget", { method: "POST" });
+  const res = await fetch("/chat/forget", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
   const body = await res.json().catch(() => ({}));
   list.replaceChildren();
   status.textContent = body.message || "";

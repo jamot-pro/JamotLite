@@ -67,12 +67,14 @@ function browser() {
 	return {
 		call,
 		cookie: () => cookie,
-		say: (text: string, name = "Mrs. Rossi") =>
-			call("/chat/messages", {
+		say: async (text: string, name = "Mrs. Rossi") => {
+			if (!cookie) await call("/chat"); // a browser opens the page first
+			return call("/chat/messages", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ text, name }),
-			}),
+			});
+		},
 		history: async () =>
 			(
 				(await (await call("/chat/history")).json()) as {
@@ -220,7 +222,7 @@ describe("web chat", () => {
 		});
 		expect(mcp.status).toBe(401);
 		// A forged visitor cookie is a new visitor, not the old one.
-		const forged = await fetch(`${base}/chat/history`, {
+		const forged = await fetch(`${base}/chat`, {
 			headers: { cookie: `${visitor.cookie().split(".")[0]}.forged` },
 		});
 		expect(forged.headers.get("set-cookie")).toMatch(/^jamot_visitor=/);
@@ -242,7 +244,12 @@ describe("web chat", () => {
 		expect(session).toMatch(/^web:/);
 		expect(await runtime.store.transcripts.load(session)).not.toEqual([]);
 
-		const forgot = await visitor.call("/chat/forget", { method: "POST" });
+		expect(run?.input).toContain("walnuts");
+		const forgot = await visitor.call("/chat/forget", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: "{}",
+		});
 		expect(forgot.status).toBe(200);
 		expect(await runtime.store.people.get(person?.id as string)).toBeNull();
 		expect(await runtime.store.memory.search("walnuts")).toHaveLength(0);
@@ -250,6 +257,10 @@ describe("web chat", () => {
 			await runtime.store.conversations.get(conversation?.id as string),
 		).toBeNull();
 		expect(await runtime.store.transcripts.load(session)).toEqual([]);
+		// The run's cost stays; its words don't.
+		const after = await runtime.store.runs.get(run?.id as string);
+		expect(after).toMatchObject({ input: null, output: null });
+		expect(after?.costMicroUsd).toBe(run?.costMicroUsd);
 		// The cookie is gone too: the next visit is someone new.
 		expect(forgot.headers.get("set-cookie")).toContain("Max-Age=0");
 	});
@@ -285,5 +296,22 @@ describe("web chat", () => {
 		expect(await webchat(dataDir, "off")).toMatchObject({ enabled: false });
 		expect((await browser().call("/chat")).status).toBe(404);
 		await expect(webchat(dataDir, "on", "abc")).rejects.toThrow("daily cap");
+	});
+
+	it("won't take a message from a visitor the page never met, nor endless new ones", async () => {
+		await turnOn();
+		const noCookie = await fetch(`${base}/chat/messages`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ text: "hello" }),
+		});
+		expect(noCookie.status).toBe(403);
+		expect((await fetch(`${base}/chat/events`)).status).toBe(403);
+		// Dropping the cookie to start over works ten times a minute, not more.
+		const statuses: number[] = [];
+		for (let i = 0; i < 11; i++)
+			statuses.push((await fetch(`${base}/chat`)).status);
+		expect(statuses.filter((s) => s === 200)).toHaveLength(10);
+		expect(statuses.at(-1)).toBe(429);
 	});
 });
