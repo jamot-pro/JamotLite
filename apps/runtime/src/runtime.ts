@@ -5,6 +5,8 @@ import {
 	type BrainTool,
 	connectModel,
 	createPiBrain,
+	DEMO_PROVIDER,
+	demoModel,
 	type ModelAccess,
 	type ModelChoice,
 	type RunOutcome,
@@ -38,7 +40,12 @@ import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
 import { applyPendingRestore, backupIfDue } from "./backups.js";
 import { createHttpServer } from "./http.js";
-import { acquireRunLock } from "./lock.js";
+import {
+	acquireRunLock,
+	LOCK_BEAT_MS,
+	LOCK_STALE_MS,
+	type RunLock,
+} from "./lock.js";
 import { registerWebChat, type WebChat } from "./webchat.js";
 
 /**
@@ -60,6 +67,8 @@ export interface RuntimeOptions {
 	extraTools?: (agentKey: string) => BrainTool[];
 	/** HTTP port for `start()`, default 3000. */
 	port?: number;
+	/** How long `start()` waits for another machine's lock to go quiet. */
+	lockWaitMs?: number;
 	/** Default 127.0.0.1; the Docker image sets 0.0.0.0. */
 	host?: string;
 	/** The built web console, served at `/`. */
@@ -122,6 +131,25 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				await store.settings.get<Omit<ModelChoice, "apiKey">>(MODEL_SETTING);
 			if (!choice)
 				throw new Error("no model is configured yet — run `jamot setup`");
+			// The demo model runs demo companies only: never with real people on Telegram.
+			if ((choice.provider as string) === DEMO_PROVIDER) {
+				if (opts.telegram !== false)
+					throw new Error(
+						"the demo model only runs a demo company (no Telegram) — add a real model in Settings",
+					);
+				const company = await store.graph.getCompany();
+				const dream = (await store.graph.listNodes()).find(
+					(n) => n.kind === "dream",
+				);
+				return demoModel({
+					name: company?.name ?? "this company",
+					summary: company?.summary ?? "",
+					vision:
+						typeof dream?.config.vision === "string"
+							? dream.config.vision
+							: null,
+				});
+			}
 			const apiKey = await secrets.get(MODEL_KEY_SECRET);
 			return connectModel({ ...choice, ...(apiKey ? { apiKey } : {}) });
 		});
@@ -245,7 +273,8 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 	let planner: NodeJS.Timeout | null = null;
 	let backups: NodeJS.Timeout | null = null;
 	let webSender: NodeJS.Timeout | null = null;
-	let releaseLock: (() => void) | null = null;
+	let runLock: RunLock | null = null;
+	let lockBeat: NodeJS.Timeout | null = null;
 	let delivering = false;
 	let sending = false;
 
@@ -302,7 +331,19 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await webchat?.deliver();
 		},
 		async start(startOpts = {}) {
-			releaseLock = acquireRunLock(opts.dataDir);
+			// The demo model never meets real people: with it, Telegram doesn't
+			// come up at all — refused before anything starts, not per message.
+			const choice = await store.settings.get<{ provider?: string }>(
+				MODEL_SETTING,
+			);
+			if (choice?.provider === DEMO_PROVIDER && startOpts.telegram !== false)
+				throw new Error(
+					"this company runs on the demo model, which never talks to real people — start it with --no-telegram, or add a real model first (jamot setup / Settings)",
+				);
+			runLock = await acquireRunLock(opts.dataDir, {
+				waitMs: opts.lockWaitMs ?? LOCK_STALE_MS + 5_000,
+			});
+			lockBeat = setInterval(() => runLock?.beat(), LOCK_BEAT_MS);
 			const address = await listen();
 			log(`[runtime] listening on ${address} (MCP at ${address}/mcp)`);
 			await planHeartbeats(store);
@@ -368,8 +409,9 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await http?.close();
 			await worker.stop();
 			store.close();
-			releaseLock?.();
-			releaseLock = null;
+			if (lockBeat) clearInterval(lockBeat);
+			runLock?.release();
+			runLock = null;
 		},
 	};
 }

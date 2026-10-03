@@ -1,15 +1,18 @@
+import { randomBytes } from "node:crypto";
 import {
 	chmodSync,
 	copyFileSync,
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { DEMO_PROVIDER } from "@jamot/brain";
 import { parseCompanyFile, stringifyCompanyFile } from "@jamot/company-file";
 import type { CompanyFile } from "@jamot/contracts";
 import {
@@ -680,6 +683,46 @@ export async function mcpConnections(
 			connections: await listConnections(c.store),
 			...(token ? { token } : {}),
 		};
+	} finally {
+		c.close();
+	}
+}
+
+/**
+ * `jamot demo [template]` (BLUEPRINT S6): a throwaway company that answers in
+ * the browser with no keys — the template imported into a temporary folder,
+ * the scripted demo model, web chat on, and a console password made up for
+ * this run. Nothing here can reach real people: there's no Telegram.
+ */
+export async function prepareDemo(
+	template = "bali-cafe",
+	opts: { root?: string } = {},
+): Promise<{ dir: string; password: string; companyName: string }> {
+	const yaml = existsSync(template)
+		? template
+		: join(templatesDir(), `${template}.yaml`);
+	if (!existsSync(yaml))
+		throw new Error(
+			`no template "${template}" — pick one of: ${listTemplates()
+				.map((t) => t.id)
+				.join(", ")}`,
+		);
+	const dir = mkdtempSync(join(opts.root ?? tmpdir(), "jamot-demo-"));
+	await importCompany(yaml, dir);
+	const password = randomBytes(9).toString("base64url");
+	const c = openCompany(dir);
+	try {
+		await c.store.settings.set(MODEL_SETTING, {
+			provider: DEMO_PROVIDER,
+			modelId: "demo",
+		});
+		await c.store.settings.set(PASSWORD_SETTING, await hashPassword(password));
+		await c.store.settings.set(WEBCHAT_SETTING, {
+			...WEBCHAT_DEFAULTS,
+			enabled: true,
+		});
+		const company = await c.store.graph.getCompany();
+		return { dir, password, companyName: company?.name ?? template };
 	} finally {
 		c.close();
 	}

@@ -107,6 +107,10 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 	app.get("/api/me", async (req) => ({
 		signedIn: signedIn(req),
 		passwordSet: (await store.settings.get(PASSWORD_SETTING)) !== null,
+		// A demo company (jamot demo) runs on scripted replies: the console says so.
+		demo:
+			(await store.settings.get<{ provider?: string }>("model"))?.provider ===
+			"demo",
 	}));
 
 	app.register(async (owner) => {
