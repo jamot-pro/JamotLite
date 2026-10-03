@@ -1,8 +1,12 @@
 import { stringifyCompanyFile } from "@jamot/company-file";
 import {
+	addConnection,
+	type Connection,
 	computeVitals,
 	exportCompanyFile,
 	handleOwnerAction,
+	listConnections,
+	revokeConnection,
 	type Secrets,
 } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
@@ -309,6 +313,38 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 					return next;
 				} catch (err) {
 					return reply.code(400).send({ error: (err as Error).message });
+				}
+			},
+		);
+
+		// Outside agents connected as someone in the map (BLUEPRINT S8). The
+		// token is shown once, here; only its hash is kept.
+		const publicConnection = ({ tokenHash: _h, ...c }: Connection) => c;
+		owner.get("/api/mcp/connections", async () => ({
+			connections: (await listConnections(store)).map(publicConnection),
+		}));
+		owner.post<{ Body: { nodeKey?: unknown; people?: unknown } }>(
+			"/api/mcp/connections",
+			async (req, reply) => {
+				try {
+					const { connection, token } = await addConnection(store, {
+						nodeKey: String(req.body?.nodeKey ?? ""),
+						access: req.body?.people === true ? "people" : "company",
+					});
+					return { connection: publicConnection(connection), token };
+				} catch (err) {
+					return reply.code(400).send({ error: (err as Error).message });
+				}
+			},
+		);
+		owner.delete<{ Params: { id: string } }>(
+			"/api/mcp/connections/:id",
+			async (req, reply) => {
+				try {
+					await revokeConnection(store, req.params.id);
+					return { ok: true };
+				} catch (err) {
+					return reply.code(404).send({ error: (err as Error).message });
 				}
 			},
 		);

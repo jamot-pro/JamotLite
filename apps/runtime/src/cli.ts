@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import type { Connection } from "@jamot/core";
 import {
 	backup,
 	doctor,
@@ -11,6 +12,7 @@ import {
 	importTarget,
 	listTemplates,
 	loadTemplate,
+	mcpConnections,
 	mcpInfo,
 	pair,
 	restore,
@@ -35,6 +37,8 @@ const HELP = `jamot ${VERSION} — one company, one runtime
   jamot doctor [--live]       check everything it needs to run
   jamot pair [successor]      a new code to link the owner's (or successor's) Telegram
   jamot mcp                   the address and token for your own AI
+  jamot mcp add <key>         connect an outside agent as an agent/person of the map
+                              (--people lets it see people); mcp list, mcp revoke <id>
   jamot backup [--to file]    a consistent copy of the data, while it runs
                               (one is taken every day on its own; the last 7 are kept)
   jamot restore <file|latest> put a backup back on the next start (--dry-run: just look)
@@ -72,6 +76,7 @@ async function main(argv: string[]): Promise<number> {
 			"no-telegram": { type: "boolean" },
 			"with-key": { type: "boolean" },
 			"dry-run": { type: "boolean" },
+			people: { type: "boolean" },
 			as: { type: "string" },
 			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
@@ -168,6 +173,29 @@ async function main(argv: string[]): Promise<number> {
 		}
 
 		case "mcp": {
+			if (rest[0] === "add" || rest[0] === "list" || rest[0] === "revoke") {
+				const { connections, token } = await mcpConnections(
+					companyDir(where),
+					rest[0],
+					rest[1],
+					{ people: values.people === true },
+				);
+				const lines = connections.map(
+					(c) =>
+						`  ${c.id}  ${c.nodeName} (${c.nodeKey}) · ${c.access}${c.revokedAt ? ` · revoked ${c.revokedAt.slice(0, 10)}` : ""}`,
+				);
+				if (token) {
+					const added = connections.at(-1) as Connection;
+					return print(
+						`${added.nodeName} can now connect, as ${added.nodeKey}, with ${added.access} access.\n\nToken (shown once — keep it like a password):\n  ${token}\n\nClaude Code:\n  claude mcp add --transport http ${added.nodeKey} <your company address>/mcp --header "Authorization: Bearer ${token}"`,
+					);
+				}
+				return print(
+					lines.length
+						? lines.join("\n")
+						: "No connections yet: jamot mcp add <agent or person key>",
+				);
+			}
 			const info = await mcpInfo(
 				companyDir(where),
 				Number(values.port ?? 3000),

@@ -3,7 +3,14 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { parseCompanyFile } from "@jamot/company-file";
-import { importCompanyFile } from "@jamot/core";
+import {
+	addConnection,
+	authenticateMcp,
+	decideProposal,
+	importCompanyFile,
+	receiveMessage,
+	revokeConnection,
+} from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import { openCompanyStore } from "@jamot/sqlite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -64,9 +71,11 @@ const textOf = (result: unknown) =>
 		.join("");
 
 let store: CompanyStore;
+let asked: string[] = [];
 const closers: (() => void)[] = [];
 beforeEach(async () => {
 	store = openCompanyStore(":memory:");
+	asked = [];
 	await importCompanyFile(store.graph, restaurant());
 });
 afterEach(() => {
@@ -79,7 +88,10 @@ describe("the company as an MCP server", () => {
 		const server = await listen(async (req, res) => {
 			await handleMcpRequest(req, res, await readJson(req), {
 				store,
-				token: "owner-token",
+				authenticate: (token) => authenticateMcp(store, token, "owner-token"),
+				onProposal: async (ids) => {
+					asked.push(...ids);
+				},
 				version: "0.1.0",
 			});
 		});
@@ -248,5 +260,246 @@ describe("MCP tools for agents", () => {
 			(await company.events.list({ type: "tool.unreachable" }))[0]?.data.error,
 		).toMatch(/loopback/);
 		expect(stock.calls).toEqual([]);
+	});
+});
+
+describe("bring your own agent: a connection is someone in the company", () => {
+	async function serve() {
+		const server = await listen(async (req, res) => {
+			await handleMcpRequest(req, res, await readJson(req), {
+				store,
+				authenticate: (token) => authenticateMcp(store, token, "owner-token"),
+				onProposal: async (ids) => {
+					asked.push(...ids);
+				},
+				version: "0.1.0",
+			});
+		});
+		closers.push(server.close);
+		return server.url;
+	}
+	const rossi = async () =>
+		receiveMessage(store, {
+			channel: "telegram",
+			threadId: "100",
+			messageId: "1",
+			from: { userId: "100", displayName: "Mrs. Rossi" },
+			text: "Is the terrace open tonight? I'm allergic to walnuts.",
+		});
+
+	it("sees only what its access allows, and only its own runs", async () => {
+		await rossi();
+		const url = await serve();
+		const { token } = await addConnection(store, { nodeKey: "buyer" });
+		const buyer = await connectAs(url, token);
+		const names = (await buyer.listTools()).tools.map((t) => t.name);
+		expect(names).not.toContain("people_search");
+		expect(names).not.toContain("person_profile");
+		expect(names).not.toContain("conversation");
+		expect(names).toContain("propose");
+		// Memory: only what the company knows about itself.
+		expect(
+			textOf(
+				await buyer.callTool({
+					name: "memory_search",
+					arguments: { query: "walnuts" },
+				}),
+			),
+		).not.toContain("walnuts");
+
+		const people = await addConnection(store, {
+			nodeKey: "host",
+			access: "people",
+		});
+		const host = await connectAs(url, people.token);
+		expect((await host.listTools()).tools.map((t) => t.name)).toContain(
+			"people_search",
+		);
+		expect(
+			textOf(
+				await host.callTool({
+					name: "memory_search",
+					arguments: { query: "walnuts" },
+				}),
+			),
+		).toContain("walnuts");
+	});
+
+	it("records every call as its node's activity", async () => {
+		const url = await serve();
+		const { token, connection } = await addConnection(store, {
+			nodeKey: "buyer",
+		});
+		const buyer = await connectAs(url, token);
+		await buyer.callTool({ name: "company_map", arguments: {} });
+		const runs = await store.runs.list({ agentKey: "buyer" });
+		expect(runs.map((r) => r.trigger)).toContain("mcp:company_map");
+		expect(runs[0]?.sessionId).toBe(`mcp:${connection.id}`);
+		const calls = await store.events.list({ type: "mcp.call" });
+		expect(calls[0]?.subject).toBe("buyer");
+		// runs_recent shows the buyer its own runs, not the others'.
+		await store.runs.start({
+			sessionId: "telegram:100:host",
+			agentKey: "host",
+			model: null,
+			trigger: "message",
+			input: null,
+		});
+		const recent = textOf(
+			await buyer.callTool({ name: "runs_recent", arguments: {} }),
+		);
+		expect(recent).toContain('"agent": "buyer"');
+		expect(recent).not.toContain('"agent": "host"');
+	});
+
+	it("refuses a revoked token, and the shared one once it's revoked", async () => {
+		const url = await serve();
+		const { token, connection } = await addConnection(store, {
+			nodeKey: "buyer",
+		});
+		await revokeConnection(store, connection.id);
+		await expect(connectAs(url, token)).rejects.toThrow();
+		// A made-up token with a real id is refused too.
+		const { connection: other } = await addConnection(store, {
+			nodeKey: "host",
+		});
+		await expect(
+			connectAs(url, `jmt_${other.id}_not-the-real-secret`),
+		).rejects.toThrow();
+		// The shared token works until the owner revokes it.
+		await connectAs(url, "owner-token");
+		await revokeConnection(store, "shared");
+		await expect(connectAs(url, "owner-token")).rejects.toThrow();
+		await expect(addConnection(store, { nodeKey: "nobody" })).rejects.toThrow(
+			/no agent or person "nobody"/,
+		);
+	});
+
+	it("proposes: an approval for a person, and nothing else until it's approved", async () => {
+		const intake = await rossi();
+		const url = await serve();
+		const { token } = await addConnection(store, {
+			nodeKey: "host",
+			access: "people",
+		});
+		const host = await connectAs(url, token);
+		const answer = textOf(
+			await host.callTool({
+				name: "propose",
+				arguments: {
+					action: "message_person",
+					personId: intake.personId,
+					text: "Yes, the terrace is open from 7.",
+				},
+			}),
+		);
+		expect(answer).toContain("waiting for a person to approve");
+		const [approval] = await store.approvals.list({ status: "pending" });
+		expect(approval).toMatchObject({
+			agentKey: "host",
+			tool: "propose.message_person",
+		});
+		expect(asked).toEqual([approval?.id]);
+		// Nothing was sent or queued.
+		expect(await store.conversations.listPending()).toEqual([]);
+
+		// A company-access connection can't propose messaging a person.
+		const buyer = await connectAs(
+			url,
+			(await addConnection(store, { nodeKey: "buyer" })).token,
+		);
+		const refused = await buyer.callTool({
+			name: "propose",
+			arguments: {
+				action: "message_person",
+				personId: intake.personId,
+				text: "hi",
+			},
+		});
+		expect(refused.isError).toBe(true);
+
+		// The owner approves: now the message waits in the outbox, once.
+		await decideProposal(store, approval as never, {
+			approved: true,
+			by: "Lucia",
+		});
+		const pending = await store.conversations.listPending();
+		expect(pending.map((m) => [m.text, m.agentKey])).toEqual([
+			["Yes, the terrace is open from 7.", "host"],
+		]);
+		await expect(
+			decideProposal(store, approval as never, { approved: true, by: "Lucia" }),
+		).rejects.toThrow();
+		expect(await store.conversations.listPending()).toHaveLength(1);
+	});
+
+	it("keeps a leaked token from flooding: calls a minute, open proposals, no run words", async () => {
+		await rossi();
+		const url = await serve();
+		const { token } = await addConnection(store, { nodeKey: "buyer" });
+		const buyer = await connectAs(url, token);
+		// Five proposals may wait; the sixth is refused, and the owner was asked five times.
+		for (let i = 0; i < 6; i++) {
+			const r = await buyer.callTool({
+				name: "propose",
+				arguments: {
+					action: "assign_owner",
+					responsibilityKey: "r-chef",
+					ownerKey: "founder",
+				},
+			});
+			expect(r.isError === true).toBe(i === 5);
+		}
+		expect(asked).toHaveLength(5);
+		// A company-only connection never gets run words, which can quote customers.
+		await store.runs.start({
+			sessionId: "telegram:100:buyer",
+			agentKey: "buyer",
+			model: null,
+			trigger: "message",
+			input: "Mrs. Rossi wrote: I'm allergic to walnuts",
+		});
+		const recent = textOf(
+			await buyer.callTool({ name: "runs_recent", arguments: {} }),
+		);
+		expect(recent).not.toContain("walnuts");
+		// 30 calls a minute, then it has to slow down.
+		let refused = false;
+		for (let i = 0; i < 30 && !refused; i++)
+			refused =
+				(await buyer.callTool({ name: "company_map", arguments: {} }))
+					.isError === true;
+		expect(refused).toBe(true);
+	});
+
+	it("an approved owner change is made, once", async () => {
+		const url = await serve();
+		const { token } = await addConnection(store, { nodeKey: "buyer" });
+		const buyer = await connectAs(url, token);
+		await buyer.callTool({
+			name: "propose",
+			arguments: {
+				action: "assign_owner",
+				responsibilityKey: "r-chef",
+				ownerKey: "founder",
+			},
+		});
+		const [approval] = await store.approvals.list({ status: "pending" });
+		await decideProposal(store, approval as never, {
+			approved: true,
+			by: "Lucia",
+		});
+		const nodes = await store.graph.listNodes();
+		const chef = nodes.find((n) => n.key === "r-chef");
+		const owns = (await store.graph.listEdges()).filter(
+			(e) =>
+				e.toNodeId === chef?.id &&
+				e.relation === "responsible_for" &&
+				!e.validTo,
+		);
+		expect(owns).toHaveLength(1);
+		await expect(
+			decideProposal(store, approval as never, { approved: true, by: "Lucia" }),
+		).rejects.toThrow(/already approved/);
 	});
 });

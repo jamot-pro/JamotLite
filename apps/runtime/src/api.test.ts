@@ -8,6 +8,9 @@ import {
 	fauxText,
 } from "@jamot/brain/testing";
 import { parseCompanyFile } from "@jamot/company-file";
+import { receiveMessage } from "@jamot/core";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Bot } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -288,5 +291,104 @@ describe("behind a TLS proxy", () => {
 		expect(owner.headers.get("strict-transport-security")).toBe(
 			"max-age=31536000",
 		);
+	});
+});
+
+describe("an outside agent in the company", () => {
+	it("connects from the console, proposes, and acts only once the owner approves", async () => {
+		const cookie = await signIn();
+		const { personId } = await receiveMessage(runtime.store, {
+			channel: "telegram",
+			threadId: "100",
+			messageId: "1",
+			from: { userId: "100", displayName: "Mrs. Rossi" },
+			text: "Do you have a table for four on Friday?",
+		});
+
+		const added = await body(
+			await send(
+				"POST",
+				"/api/mcp/connections",
+				{ nodeKey: "host", people: true },
+				cookie,
+			),
+		);
+		expect(added.connection).toMatchObject({
+			nodeKey: "host",
+			access: "people",
+		});
+		expect(added.connection.tokenHash).toBeUndefined();
+		expect(added.token).toMatch(/^jmt_/);
+		// Only the owner can connect someone.
+		expect(
+			(await send("POST", "/api/mcp/connections", { nodeKey: "host" }, ""))
+				.status,
+		).toBe(401);
+
+		const ai = new Client({ name: "claude-code", version: "1" });
+		await ai.connect(
+			new StreamableHTTPClientTransport(new URL(`${base}/mcp`), {
+				requestInit: { headers: { authorization: `Bearer ${added.token}` } },
+			}),
+		);
+		await ai.callTool({
+			name: "propose",
+			arguments: {
+				action: "message_person",
+				personId,
+				text: "Yes — a table for four on Friday at 8 is yours.",
+			},
+		});
+		await runtime.tick();
+		// The proposed message went nowhere: not sent, not even queued. (The
+		// company's own agent has answered her message in the meantime.)
+		const before = await runtime.store.conversations.list({ personId });
+		expect(
+			(
+				await runtime.store.conversations.listMessages(before[0]?.id as string)
+			).filter((m) => m.text.includes("Friday at 8")),
+		).toEqual([]);
+
+		const { pending } = await body(await get("/api/approvals", cookie));
+		expect(pending).toHaveLength(1);
+		expect(pending[0]).toMatchObject({
+			agentKey: "host",
+			tool: "propose.message_person",
+		});
+		expect(
+			(
+				await send(
+					"POST",
+					`/api/approvals/${pending[0].id}`,
+					{ approved: true },
+					cookie,
+				)
+			).status,
+		).toBe(200);
+		await runtime.tick();
+		const [conversation] = await runtime.store.conversations.list({ personId });
+		const messages = await runtime.store.conversations.listMessages(
+			conversation?.id as string,
+		);
+		expect(messages.at(-1)).toMatchObject({
+			direction: "out",
+			status: "sent",
+			agentKey: "host",
+			text: "Yes — a table for four on Friday at 8 is yours.",
+		});
+		// The person's memory has it, like every message (rule 2).
+		const memories = await runtime.store.memory.search("Friday");
+		expect(memories.some((m) => m.data?.direction === "out")).toBe(true);
+
+		// Revoked from the console: the agent is out.
+		await send(
+			"DELETE",
+			`/api/mcp/connections/${added.connection.id}`,
+			{},
+			cookie,
+		);
+		await expect(
+			ai.callTool({ name: "company_map", arguments: {} }),
+		).rejects.toThrow();
 	});
 });

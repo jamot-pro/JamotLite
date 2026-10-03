@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import fastifyStatic from "@fastify/static";
+import { authenticateMcp } from "@jamot/core";
 import { handleMcpRequest } from "@jamot/mcp";
 import type { CompanyStore } from "@jamot/ports";
 import Fastify, {
@@ -23,6 +24,8 @@ export interface HttpOptions {
 	api?: ApiDeps;
 	/** The built web console (`apps/web/dist`), when present. */
 	webRoot?: string;
+	/** New proposals from outside agents, to ask the owner (Telegram). */
+	onProposal?: (approvalIds: string[]) => Promise<void>;
 	/** One TLS proxy in front: `req.ip` is the client it forwarded for. */
 	behindProxy?: boolean;
 }
@@ -58,7 +61,9 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 		reply.hijack();
 		await handleMcpRequest(request.raw, reply.raw, request.body, {
 			store: opts.store,
-			token: opts.mcpToken,
+			authenticate: (token) =>
+				authenticateMcp(opts.store, token, opts.mcpToken),
+			...(opts.onProposal ? { onProposal: opts.onProposal } : {}),
 			version: opts.version,
 			dataDir: opts.dataDir,
 		});

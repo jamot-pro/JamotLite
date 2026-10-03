@@ -13,12 +13,16 @@ import { basename, join, resolve } from "node:path";
 import { parseCompanyFile, stringifyCompanyFile } from "@jamot/company-file";
 import type { CompanyFile } from "@jamot/contracts";
 import {
+	addConnection,
+	type Connection,
 	computeVitals,
 	createSecretBox,
 	createSecrets,
 	exportCompanyFile,
 	importCompanyFile,
+	listConnections,
 	loadOrCreateSecretKey,
+	revokeConnection,
 	type Secrets,
 } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
@@ -639,6 +643,40 @@ export async function webchat(
 		});
 		await c.store.settings.set(WEBCHAT_SETTING, next);
 		return next;
+	} finally {
+		c.close();
+	}
+}
+
+/**
+ * `jamot mcp add <node> [--people]`, `list`, `revoke <id|shared>`: outside
+ * agents connect as someone in the company map (BLUEPRINT S8).
+ */
+export async function mcpConnections(
+	dir: string,
+	action: "add" | "list" | "revoke",
+	arg?: string,
+	opts: { people?: boolean } = {},
+): Promise<{ connections: Connection[]; token?: string }> {
+	const c = openCompany(dir);
+	try {
+		let token: string | undefined;
+		if (action === "add") {
+			if (!arg) throw new Error("say who: jamot mcp add <agent or person key>");
+			token = (
+				await addConnection(c.store, {
+					nodeKey: arg,
+					access: opts.people ? "people" : "company",
+				})
+			).token;
+		} else if (action === "revoke") {
+			if (!arg) throw new Error("say which: jamot mcp revoke <id | shared>");
+			await revokeConnection(c.store, arg);
+		}
+		return {
+			connections: await listConnections(c.store),
+			...(token ? { token } : {}),
+		};
 	} finally {
 		c.close();
 	}

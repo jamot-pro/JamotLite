@@ -209,6 +209,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				dataDir: opts.dataDir,
 				...(opts.webRoot ? { webRoot: opts.webRoot } : {}),
 				behindProxy: opts.behindProxy === true,
+				onProposal: (ids) => telegram.askOwnerToApprove(ids),
 				api: {
 					store,
 					secrets,
