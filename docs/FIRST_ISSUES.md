@@ -117,8 +117,8 @@ Lite's "Out" table keeps the marketplace out of Lite.
     a fresh Mac, with the transcripts in the pull request;
   - the installer works while the repository is private, or the README says
     how to install until it's public;
-  - `jamot import` names the company's folder after the file's company id
-    (today an imported `jamot.company.yaml` lands in `company/`).
+  - ~~`jamot import` names the company's folder after the file's company id~~
+    — done in S3 ([#14](https://github.com/jamot-pro/JamotLite/issues/14)).
 - **Start in:** `.github/workflows/release.yml`, `scripts/install.sh`,
   `apps/runtime/src/cli/commands.ts`.
 - **Size:** S–M.

@@ -8,6 +8,17 @@ export function jamotHome(): string {
 	return resolve(process.env.JAMOT_HOME ?? join(homedir(), ".jamot"));
 }
 
+/** The companies in a JAMOT_HOME: the folders that hold a company.db. */
+export function companiesIn(home: string): string[] {
+	if (!existsSync(home)) return [];
+	return readdirSync(home, { withFileTypes: true })
+		.filter(
+			(d) => d.isDirectory() && existsSync(join(home, d.name, "company.db")),
+		)
+		.map((d) => d.name)
+		.sort();
+}
+
 /**
  * The company folder a command works on: `--data <dir>`, else `--company <id>`
  * under JAMOT_HOME, else the only company there is.
@@ -15,15 +26,15 @@ export function jamotHome(): string {
 export function companyDir(opts: { data?: string; company?: string }): string {
 	if (opts.data) return resolve(opts.data);
 	const home = jamotHome();
-	if (opts.company) return join(home, opts.company);
-	const companies = existsSync(home)
-		? readdirSync(home, { withFileTypes: true })
-				.filter(
-					(d) =>
-						d.isDirectory() && existsSync(join(home, d.name, "company.db")),
-				)
-				.map((d) => d.name)
-		: [];
+	if (opts.company) {
+		const dir = join(home, opts.company);
+		if (existsSync(join(dir, "company.db"))) return dir;
+		const there = companiesIn(home);
+		throw new Error(
+			`no company "${opts.company}" in ${home}${there.length ? ` — there is ${there.join(", ")}` : " yet — run `jamot setup`"}`,
+		);
+	}
+	const companies = companiesIn(home);
 	if (companies.length === 1) return join(home, companies[0] as string);
 	if (companies.length === 0)
 		throw new Error(`no company in ${home} yet — run \`jamot setup\``);

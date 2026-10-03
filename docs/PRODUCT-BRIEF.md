@@ -130,7 +130,7 @@ Measured on 2026-10-01 from a clean clone, following START_HERE §2.
 | Step | Friction found | Status |
 |---|---|---|
 | Install Node 22.19 + pnpm | Needs a specific Node; corepack | Documented |
-| `jamot import` a template | Lands in `company/` instead of its id | First issue 7 |
+| `jamot import` a template | ~~Lands in `company/` instead of its id~~ — fixed in S3 | First issue 7 |
 | `jamot start` without a bot | Required a Telegram token | ✅ Fixed (`--no-telegram`, D30) |
 | First agent answer | Needs a model key before anything answers | Open |
 | One-line installer | Fails while the repository is private | First issue 7 |

@@ -46,9 +46,10 @@ fail loudly instead of starting an empty one.
 
 ## 5. Backups
 
-The company backs itself up every day into `/data/company/backups/` and keeps
+The company backs itself up every day into `/data/jamot/backups/` and keeps
 the last 7; Render also snapshots the disk daily. Keep a copy of
-`/data/company/secrets.key` somewhere else, once. To restore, see
+`/data/jamot/secrets.key` somewhere else, once. (A company set up before S3
+lives in `/data/company/` instead; it's found either way.) To restore, see
 [backups.md](backups.md).
 
 ## Why `JAMOT_BEHIND_PROXY=1`

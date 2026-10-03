@@ -8,6 +8,7 @@ import {
 	doctor,
 	exportCompany,
 	importCompany,
+	importTarget,
 	listTemplates,
 	loadTemplate,
 	mcpInfo,
@@ -38,7 +39,8 @@ const HELP = `jamot ${VERSION} — one company, one runtime
                               (one is taken every day on its own; the last 7 are kept)
   jamot restore <file|latest> put a backup back on the next start (--dry-run: just look)
   jamot export --to <dir>     company.yaml + company.db  (--with-key adds secrets.key)
-  jamot import <dir|yaml>     start a company from an export or a company.yaml
+  jamot import <dir|yaml>     start a company from an export or a company.yaml,
+                              in a folder named after its id (--as <id> to rename)
   jamot secret set <name>     store a secret (e.g. a tool's token), encrypted
   jamot webchat on|off|status a chat page at /chat for customers (--cap <dollars> a day)
   jamot password              change the console password
@@ -70,6 +72,7 @@ async function main(argv: string[]): Promise<number> {
 			"no-telegram": { type: "boolean" },
 			"with-key": { type: "boolean" },
 			"dry-run": { type: "boolean" },
+			as: { type: "string" },
 			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
 			agent: { type: "string" },
@@ -223,7 +226,10 @@ async function main(argv: string[]): Promise<number> {
 				throw new Error(
 					"say what: jamot import <export folder | company.yaml>",
 				);
-			const dir = values.data ?? join(jamotHome(), values.company ?? "company");
+			const dir = importTarget(from, {
+				...(values.as ? { as: values.as } : {}),
+				...(values.data ? { data: values.data } : {}),
+			});
 			const kind = await importCompany(from, dir);
 			return print(
 				kind === "data"
@@ -364,7 +370,8 @@ async function runSetup(
 		where.data ??
 		join(
 			jamotHome(),
-			where.company ?? (chosen.endsWith(".yaml") ? "company" : chosen),
+			where.company ??
+				(chosen.endsWith(".yaml") ? loadTemplate(chosen).company.id : chosen),
 		);
 	const result = await setup({
 		dir,
