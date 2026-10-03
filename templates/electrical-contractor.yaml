@@ -1,0 +1,176 @@
+# An electrical company — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: electrical-contractor
+  name: An electrical company
+  summary: "Licensed electricians on site, agents on the phone: every call booked, every job certified."
+  timezone: UTC
+dream:
+  objective: "Be the electricians people call first: safe work, on time, and every customer remembered."
+  outcomes:
+    - Every enquiry answered and booked the same day
+    - Every emergency call reaches an on-call electrician within 15 minutes
+    - Every job certified and invoiced within 48 hours
+    - Vans stocked before the job, not during it
+  kpis:
+    - name: Enquiries answered the same day
+      target: "100"
+      unit: "%"
+    - name: Emergency response time
+      target: "15"
+      unit: minutes
+    - name: Jobs certified within 48 hours
+      target: "95"
+      unit: "%"
+    - name: Invoices unpaid after 30 days
+      target: "5"
+      unit: "%"
+  constraints:
+    - Only a licensed electrician signs off work and issues certificates
+    - Agents never give safety advice beyond 'switch off at the mains and wait for us'
+    - Quotes are drafted by an agent and approved by an electrician before they are sent
+    - Every emergency call is passed to the on-call human, never handled by an agent alone
+  timeline:
+    - milestone: Every call and message goes through one inbox
+      by: Week 2
+    - milestone: On-call rota covered every night and weekend
+      by: Month 1
+    - milestone: Certificates and invoices out within 48 hours
+      by: Month 2
+  requiredCapabilities:
+    - electrical installation
+    - inspection and testing
+    - scheduling
+    - quoting
+    - bookkeeping
+  requiredResponsibilities:
+    - Qualified supervisor (signs certificates)
+    - On-call emergency rota
+    - Enquiries and bookings
+    - Quotes
+    - Scheduling and routes
+    - Van stock and suppliers
+    - Certificates and compliance
+    - Invoices and payments
+    - Reviews and repeat customers
+founder: founder
+teams:
+  - key: field
+    name: Field Electricians
+    purpose: Safe work, done right the first time.
+  - key: desk
+    name: Front Desk
+    purpose: Every call answered, every job booked.
+  - key: back
+    name: Back Office
+    purpose: Certificates, stock, invoices.
+humans:
+  - key: founder
+    name: Founder
+    role: Master electrician and owner
+agents:
+  - key: dispatcher
+    name: Dispatcher
+    role: Answers calls and messages, books jobs
+    instructions: Answer enquiries on Telegram, ask for photos and the address, book a visit in the calendar and draft a quote for an electrician to approve. For anything that sounds dangerous — burning smell, sparks, water near power — tell the customer to switch off at the mains and call the on-call electrician immediately.
+  - key: bookkeeper
+    name: Back-office Agent
+    role: Keeps certificates, stock and invoices moving
+    instructions: After each job, draft the invoice and remind the electrician to upload the certificate. Track van stock against next week's jobs and draft supplier orders for approval. Chase unpaid invoices politely. Never send money.
+responsibilities:
+  - key: r-supervisor
+    name: Qualified supervisor (signs certificates)
+  - key: r-oncall
+    name: On-call emergency rota
+  - key: r-enquiries
+    name: Enquiries and bookings
+  - key: r-quotes
+    name: Quotes
+  - key: r-schedule
+    name: Scheduling and routes
+  - key: r-stock
+    name: Van stock and suppliers
+  - key: r-certs
+    name: Certificates and compliance
+  - key: r-invoices
+    name: Invoices and payments
+  - key: r-reviews
+    name: Reviews and repeat customers
+tools:
+  - key: t-telegram
+    name: Telegram
+    purpose: Customer calls and messages
+  - key: t-calendar
+    name: Job calendar
+    purpose: Visits, routes and the on-call rota
+  - key: t-invoices
+    name: Invoicing
+    purpose: Quotes, invoices and payments
+heartbeats:
+  - key: h-pulse
+    name: Morning job board
+    schedule: 0 7 * * 1-6
+    monitors:
+      - today's jobs without an electrician
+      - tonight's on-call gap
+    actions:
+      - tell the owner what's uncovered
+      - verify every job has a name on it
+  - key: h-desk
+    name: Enquiry sweep
+    schedule: 0 * * * *
+    monitors:
+      - enquiries without a reply
+      - quotes waiting for approval over 24 hours
+    actions:
+      - reply or escalate
+      - verify every enquiry has a next step
+  - key: h-field
+    name: Job close-out
+    schedule: 0 18 * * 1-6
+    monitors:
+      - finished jobs without a certificate
+      - materials used vs van stock
+    actions:
+      - remind the electrician
+      - verify certificates are uploaded
+  - key: h-back
+    name: Money and stock review
+    schedule: 0 9 * * 1
+    monitors:
+      - invoices unpaid after 14 days
+      - stock needed for next week
+    actions:
+      - draft reminders and orders for approval
+      - verify they were approved or rejected
+links:
+  - founder member_of field
+  - dispatcher member_of desk
+  - bookkeeper member_of back
+  - dream requires r-supervisor
+  - dream requires r-oncall
+  - dream requires r-enquiries
+  - dream requires r-quotes
+  - dream requires r-schedule
+  - dream requires r-stock
+  - dream requires r-certs
+  - dream requires r-invoices
+  - dream requires r-reviews
+  - founder responsible_for r-supervisor
+  - dispatcher responsible_for r-enquiries
+  - founder responsible_for r-quotes
+  - dispatcher responsible_for r-schedule
+  - bookkeeper responsible_for r-stock
+  - bookkeeper responsible_for r-invoices
+  - desk owns r-reviews
+  - desk has_access_to t-telegram
+  - dispatcher uses t-telegram
+  - dispatcher uses t-calendar
+  - field has_access_to t-calendar
+  - back has_access_to t-invoices
+  - bookkeeper uses t-invoices
+  - h-pulse monitors dream
+  - h-desk monitors desk
+  - h-field monitors field
+  - h-back monitors back
+  - h-back invokes t-invoices

@@ -16,12 +16,29 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
+      # The bundle must run on its own, with no node_modules next to it.
+      - name: Bundle runs standalone
+        run: |
+          cp -R dist "$RUNNER_TEMP/jamot"
+          cd "$RUNNER_TEMP/jamot"
+          node jamot.mjs --version
+          node jamot.mjs templates
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t jamot-lite:ci .
+      - name: Container starts and reports its version
+        run: docker run --rm jamot-lite:ci --version
 
   secrets:
     runs-on: ubuntu-latest

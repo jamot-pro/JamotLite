@@ -1,0 +1,21 @@
+{
+	"name": "@jamot/telegram",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@jamot/core": "workspace:*",
+		"@jamot/ports": "workspace:*",
+		"grammy": "^1.38.0"
+	},
+	"devDependencies": {
+		"@jamot/sqlite": "workspace:*"
+	}
+}

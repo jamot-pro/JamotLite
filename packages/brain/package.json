@@ -1,0 +1,23 @@
+{
+	"name": "@jamot/brain",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./testing": "./src/testing.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@earendil-works/pi-agent-core": "0.99.1",
+		"@earendil-works/pi-ai": "0.99.1",
+		"@jamot/ports": "workspace:*",
+		"typebox": "*"
+	},
+	"devDependencies": {
+		"@jamot/sqlite": "workspace:*"
+	}
+}

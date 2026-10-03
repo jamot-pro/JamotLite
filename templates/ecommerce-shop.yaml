@@ -1,0 +1,191 @@
+# An online shop — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: ecommerce-shop
+  name: An online shop
+  summary: "A small team and three agents: support answered, stock never runs out, every customer remembered."
+  timezone: UTC
+dream:
+  objective: "Run an online shop customers come back to: answered fast, shipped fast, and never out of what they want."
+  outcomes:
+    - Every customer question answered within 2 hours
+    - Orders shipped within one working day
+    - Best-sellers never out of stock
+    - Returns handled kindly and quickly
+  kpis:
+    - name: Support first reply
+      target: "2"
+      unit: hours
+    - name: Orders shipped within one working day
+      target: "98"
+      unit: "%"
+    - name: Repeat customers
+      target: "35"
+      unit: "%"
+    - name: Best-seller stock-outs
+      target: "0"
+      unit: per month
+  constraints:
+    - Refunds above the agreed limit are approved by a human
+    - Customers' payment details never leave the shop platform
+    - No marketing message goes to anyone who hasn't opted in
+    - Supplier orders are drafted by an agent and approved by a human
+  timeline:
+    - milestone: Support inbox, shop and stock connected
+      by: Week 2
+    - milestone: Reorder points set for every best-seller
+      by: Month 1
+    - milestone: Weekly numbers review running
+      by: Month 1
+  requiredCapabilities:
+    - customer support
+    - inventory
+    - fulfilment
+    - email marketing
+    - analytics
+  requiredResponsibilities:
+    - Product and range
+    - Customer support
+    - Returns and refunds
+    - Stock and reorders
+    - Packing and shipping
+    - Newsletter and campaigns
+    - Product photos and listings
+    - Weekly numbers
+founder: founder
+teams:
+  - key: product
+    name: Product
+    purpose: What we sell and how it looks.
+  - key: support
+    name: Customer Care
+    purpose: Every customer answered, every return handled.
+  - key: ops
+    name: Operations
+    purpose: Stock in, parcels out.
+  - key: growth
+    name: Growth
+    purpose: New customers and the ones who come back.
+humans:
+  - key: founder
+    name: Founder
+    role: Owner
+agents:
+  - key: support-agent
+    name: Support Agent
+    role: Answers customers
+    instructions: "Answer customers on Telegram: order status, sizes, shipping, returns. Look up the order in the shop. Approve returns within the policy; send refunds above the limit to a human. Remember each customer's history."
+  - key: stock-agent
+    name: Stock Agent
+    role: Keeps best-sellers in stock
+    instructions: Watch sales velocity and stock levels, draft purchase orders when an item nears its reorder point, and send them for approval. Flag slow movers.
+  - key: growth-agent
+    name: Growth Agent
+    role: Prepares campaigns and the weekly numbers
+    instructions: "Draft the newsletter from new arrivals and best-sellers, only for customers who opted in, and prepare the weekly numbers: revenue, orders, repeat rate, returns. A human approves every send."
+responsibilities:
+  - key: r-range
+    name: Product and range
+  - key: r-support
+    name: Customer support
+  - key: r-returns
+    name: Returns and refunds
+  - key: r-stock
+    name: Stock and reorders
+  - key: r-shipping
+    name: Packing and shipping
+  - key: r-newsletter
+    name: Newsletter and campaigns
+  - key: r-listings
+    name: Product photos and listings
+  - key: r-numbers
+    name: Weekly numbers
+tools:
+  - key: t-shop
+    name: Shop platform
+    purpose: Products, orders and customers (Shopify, WooCommerce, Medusa…)
+  - key: t-inbox
+    name: Support inbox
+    purpose: Every customer message, on Telegram
+  - key: t-shipping
+    name: Shipping labels
+    purpose: Labels and tracking
+  - key: t-email
+    name: Newsletter
+    purpose: Opted-in customers only
+heartbeats:
+  - key: h-pulse
+    name: Morning shop pulse
+    schedule: 0 8 * * 1-6
+    monitors:
+      - open responsibilities
+      - yesterday's orders not shipped
+    actions:
+      - post today's gaps to the team
+      - verify each gap was seen
+  - key: h-support
+    name: Support sweep
+    schedule: 0 9-19 * * *
+    monitors:
+      - tickets older than 2 hours
+      - refunds waiting for approval
+    actions:
+      - reply or escalate
+      - verify every ticket has an answer
+  - key: h-ops
+    name: Stock and shipping check
+    schedule: 0 7 * * *
+    monitors:
+      - items below reorder point
+      - orders older than one working day
+    actions:
+      - draft purchase orders for approval
+      - verify parcels have tracking
+  - key: h-product
+    name: Listings review
+    schedule: 0 11 * * 3
+    monitors:
+      - products without photos or sizes
+      - items with many returns
+    actions:
+      - list what needs fixing
+      - verify each listing has an owner
+  - key: h-growth
+    name: Weekly numbers
+    schedule: 0 9 * * 1
+    monitors:
+      - revenue, orders, repeat rate, returns
+    actions:
+      - prepare the numbers and next newsletter draft
+      - verify the owner read them
+links:
+  - founder member_of product
+  - support-agent member_of support
+  - stock-agent member_of ops
+  - growth-agent member_of growth
+  - dream requires r-range
+  - dream requires r-support
+  - dream requires r-returns
+  - dream requires r-stock
+  - dream requires r-shipping
+  - dream requires r-newsletter
+  - dream requires r-listings
+  - dream requires r-numbers
+  - founder responsible_for r-range
+  - support-agent responsible_for r-support
+  - support owns r-returns
+  - stock-agent responsible_for r-stock
+  - growth-agent responsible_for r-newsletter
+  - growth-agent responsible_for r-numbers
+  - product has_access_to t-shop
+  - support-agent uses t-inbox
+  - support-agent uses t-shop
+  - stock-agent uses t-shop
+  - ops has_access_to t-shipping
+  - growth-agent uses t-email
+  - h-pulse monitors dream
+  - h-support monitors support
+  - h-ops monitors ops
+  - h-product monitors product
+  - h-growth monitors growth
+  - h-ops invokes t-shop

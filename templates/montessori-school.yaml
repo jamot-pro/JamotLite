@@ -1,0 +1,180 @@
+# A Montessori school — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: montessori-school
+  name: A Montessori school
+  summary: Guides, parents and two agents keep a small school calm, safe and in touch.
+  timezone: UTC
+dream:
+  objective: Run a Montessori school where every child is known, every parent is heard, and no guide burns out.
+  outcomes:
+    - Every classroom has a lead guide and an assistant
+    - Every parent message answered within a school day
+    - Enrolment full, with a waiting list
+    - Safety checks, first aid and permits never lapse
+    - Guides spend their time with children, not paperwork
+  kpis:
+    - name: Enrolment
+      target: "60"
+      unit: children
+    - name: Parent messages answered within a school day
+      target: "100"
+      unit: "%"
+    - name: Families who re-enrol
+      target: "90"
+      unit: "%"
+    - name: Safety checks overdue
+      target: "0"
+      unit: checks
+  constraints:
+    - Children's information is shared only with their own parents and the guides who teach them
+    - "Agents never make a decision about a child: they prepare, a guide decides"
+    - Photos of children are published only with written parental consent
+    - Every adult working with children has a valid background check
+  timeline:
+    - milestone: Guides and assistants assigned to every classroom
+      by: Month 1
+    - milestone: Open days and enrolment for the next year
+      by: Month 3
+    - milestone: Full enrolment and a waiting list
+      by: Month 6
+  requiredCapabilities:
+    - Montessori pedagogy
+    - child safeguarding
+    - parent communication
+    - school administration
+  requiredResponsibilities:
+    - Head of school
+    - Lead guide, Children's House
+    - Lead guide, Elementary
+    - Safeguarding lead
+    - Parent communication
+    - Enrolment and open days
+    - Fees and invoices
+    - Materials and classroom supplies
+    - Safety checks, first aid and permits
+    - Keep the school's memory and weekly letter
+founder: founder
+teams:
+  - key: classrooms
+    name: Classrooms
+    purpose: The guides and the children's days.
+  - key: families
+    name: Families
+    purpose: Every parent heard, every family welcomed.
+  - key: office
+    name: School Office
+    purpose: Enrolment, fees, supplies and permits.
+humans:
+  - key: founder
+    name: Founder
+    role: Head of school
+agents:
+  - key: parent-agent
+    name: Parent Liaison
+    role: Answers parents on Telegram
+    instructions: Answer parents' questions about schedules, fees, events and pick-ups. Speak only about the parent's own child. Anything about a child's wellbeing, learning or behaviour goes to the child's guide. Never share photos without consent on file.
+  - key: office-agent
+    name: Office Assistant
+    role: Keeps the paperwork moving
+    instructions: Track enrolment, fees, supply orders and permit renewals. Draft invoices and orders for the office to approve. Never send a payment or sign anything.
+responsibilities:
+  - key: r-head
+    name: Head of school
+  - key: r-guide-ch
+    name: Lead guide, Children's House
+  - key: r-guide-el
+    name: Lead guide, Elementary
+  - key: r-safeguarding
+    name: Safeguarding lead
+  - key: r-parents
+    name: Parent communication
+  - key: r-enrolment
+    name: Enrolment and open days
+  - key: r-fees
+    name: Fees and invoices
+  - key: r-materials
+    name: Materials and classroom supplies
+  - key: r-safety
+    name: Safety checks, first aid and permits
+  - key: r-memory
+    name: Keep the school's memory and weekly letter
+tools:
+  - key: t-telegram
+    name: Telegram
+    purpose: Where parents write to the school
+  - key: t-calendar
+    name: School calendar
+    purpose: Terms, events, open days
+  - key: t-invoices
+    name: Invoicing
+    purpose: Fees and receipts
+heartbeats:
+  - key: h-pulse
+    name: Morning school pulse
+    schedule: 30 7 * * 1-5
+    monitors:
+      - classrooms without a guide today
+      - unanswered parent messages
+    actions:
+      - tell the head of school what's missing
+      - verify every classroom is covered
+  - key: h-classrooms
+    name: Weekly guides' check-in
+    schedule: 0 16 * * 5
+    monitors:
+      - guides' observations due
+      - materials running low
+    actions:
+      - collect each guide's notes
+      - verify every classroom answered
+  - key: h-families
+    name: Parent inbox sweep
+    schedule: 0 12,17 * * 1-5
+    monitors:
+      - parent messages older than a school day
+      - questions only a guide can answer
+    actions:
+      - answer or hand over to the guide
+      - verify each parent got a reply
+  - key: h-office
+    name: Office and permits review
+    schedule: 0 9 * * 1
+    monitors:
+      - unpaid fees
+      - permits and background checks expiring in 60 days
+      - open enrolment enquiries
+    actions:
+      - draft reminders and renewals for approval
+      - verify nothing has lapsed
+links:
+  - founder member_of office
+  - parent-agent member_of families
+  - office-agent member_of office
+  - dream requires r-head
+  - dream requires r-guide-ch
+  - dream requires r-guide-el
+  - dream requires r-safeguarding
+  - dream requires r-parents
+  - dream requires r-enrolment
+  - dream requires r-fees
+  - dream requires r-materials
+  - dream requires r-safety
+  - dream requires r-memory
+  - founder responsible_for r-head
+  - parent-agent responsible_for r-parents
+  - office owns r-enrolment
+  - office-agent responsible_for r-fees
+  - office owns r-materials
+  - office owns r-safety
+  - office-agent responsible_for r-memory
+  - families has_access_to t-telegram
+  - parent-agent uses t-telegram
+  - classrooms has_access_to t-calendar
+  - office has_access_to t-invoices
+  - office-agent uses t-invoices
+  - h-pulse monitors dream
+  - h-classrooms monitors classrooms
+  - h-families monitors families
+  - h-office monitors office
+  - h-families invokes t-telegram

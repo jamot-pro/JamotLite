@@ -1,0 +1,176 @@
+# A neighbourhood restaurant — a Jamot company template. Fork it: copy this file and change it.
+jamot: 1
+company:
+  id: restaurant
+  name: A neighbourhood restaurant
+  summary: Every table booked, every regular remembered, every fridge checked — kitchen, floor and agents together.
+  timezone: UTC
+dream:
+  objective: "Run the restaurant the neighbourhood comes back to: good food, full tables, and every regular remembered."
+  outcomes:
+    - Every reservation request answered within 10 minutes
+    - Allergies and preferences remembered for every regular
+    - Food-safety checks logged every day, no exceptions
+    - Food cost kept under a third of revenue
+  kpis:
+    - name: Covers per week
+      target: "600"
+      unit: covers
+    - name: Reservation replies within 10 minutes
+      target: "95"
+      unit: "%"
+    - name: Food cost
+      target: "30"
+      unit: "% of revenue"
+    - name: Food-safety checks missed
+      target: "0"
+      unit: checks
+  constraints:
+    - Allergy information is always confirmed by a human in the kitchen, never by an agent alone
+    - Food-safety records are kept by the kitchen and never edited after the fact
+    - Agents book tables and take messages; they never offer discounts without the manager
+    - Staff rotas follow local working-time rules
+  timeline:
+    - milestone: All reservations in one place
+      by: Week 1
+    - milestone: Daily food-safety log running
+      by: Week 2
+    - milestone: Regulars' preferences on file
+      by: Month 2
+  requiredCapabilities:
+    - cooking
+    - food safety
+    - hospitality
+    - purchasing
+    - rota planning
+  requiredResponsibilities:
+    - Head chef
+    - Floor manager
+    - Reservations and messages
+    - Regulars and allergies
+    - Food-safety log
+    - Purchasing and suppliers
+    - Staff rota
+    - Reviews and social media
+    - Daily takings and books
+founder: founder
+teams:
+  - key: kitchen
+    name: Kitchen
+    purpose: Good food, safely made.
+  - key: floor
+    name: Floor
+    purpose: Every guest welcomed, every regular known.
+  - key: office
+    name: Office
+    purpose: Suppliers, rota, takings.
+humans:
+  - key: founder
+    name: Founder
+    role: Owner
+agents:
+  - key: host
+    name: Host
+    role: Takes reservations and messages
+    instructions: Answer reservation requests on Telegram. Remember each guest's preferences and allergies, and pass allergies to the kitchen before the service. Never confirm a dish is safe for an allergy — the kitchen does. No discounts without the manager.
+  - key: buyer
+    name: Purchasing Agent
+    role: Keeps the walk-in stocked
+    instructions: Compare stock counts with the week's bookings, draft supplier orders for the head chef to approve, and flag price rises. Never place an order without approval.
+responsibilities:
+  - key: r-chef
+    name: Head chef
+  - key: r-floor
+    name: Floor manager
+  - key: r-reservations
+    name: Reservations and messages
+  - key: r-regulars
+    name: Regulars and allergies
+  - key: r-safety
+    name: Food-safety log
+  - key: r-purchasing
+    name: Purchasing and suppliers
+  - key: r-rota
+    name: Staff rota
+  - key: r-reviews
+    name: Reviews and social media
+  - key: r-books
+    name: Daily takings and books
+tools:
+  - key: t-telegram
+    name: Telegram
+    purpose: Reservations and guest messages
+  - key: t-bookings
+    name: Reservation book
+    purpose: Tables and covers
+  - key: t-pos
+    name: Till / POS
+    purpose: Daily takings
+heartbeats:
+  - key: h-pulse
+    name: Pre-service briefing
+    schedule: 0 11,17 * * *
+    monitors:
+      - tonight's covers and allergies
+      - shifts without a name
+    actions:
+      - brief the kitchen and floor
+      - verify the allergies were read
+  - key: h-kitchen
+    name: Food-safety check
+    schedule: 0 10,22 * * *
+    monitors:
+      - fridge and freezer temperatures logged
+      - deliveries checked in
+    actions:
+      - remind the kitchen of missing entries
+      - verify the log is complete
+  - key: h-floor
+    name: Reservations sweep
+    schedule: "*/10 9-22 * * *"
+    monitors:
+      - unanswered booking requests
+      - new reviews
+    actions:
+      - reply or hand over
+      - verify every request got an answer
+  - key: h-office
+    name: Stock, rota and takings
+    schedule: 0 15 * * 1
+    monitors:
+      - stock vs this week's bookings
+      - next week's rota gaps
+      - takings vs till
+    actions:
+      - draft orders and the rota for approval
+      - verify takings match the till
+links:
+  - founder member_of office
+  - host member_of floor
+  - buyer member_of office
+  - dream requires r-chef
+  - dream requires r-floor
+  - dream requires r-reservations
+  - dream requires r-regulars
+  - dream requires r-safety
+  - dream requires r-purchasing
+  - dream requires r-rota
+  - dream requires r-reviews
+  - dream requires r-books
+  - host responsible_for r-reservations
+  - host responsible_for r-regulars
+  - kitchen owns r-safety
+  - buyer responsible_for r-purchasing
+  - founder responsible_for r-rota
+  - floor owns r-reviews
+  - founder responsible_for r-books
+  - floor has_access_to t-telegram
+  - host uses t-telegram
+  - host uses t-bookings
+  - floor has_access_to t-bookings
+  - office has_access_to t-pos
+  - h-pulse monitors dream
+  - h-kitchen monitors kitchen
+  - h-floor monitors floor
+  - h-office monitors office
+  - h-office invokes t-pos
