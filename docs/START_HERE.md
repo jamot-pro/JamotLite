@@ -1,7 +1,9 @@
 # Join Jamot as a contributor
 
-Welcome. Jamot is a company built to outlive any one of the people who carry
-it, and it is run that way itself: on its own runtime, with every
+Welcome. Hermes and OpenClaw are your assistant; Paperclip manages your
+agents; **Jamot runs a business** — its customers, its people, and a charter
+that outlives all of them. Jamot is also a company built to outlive any one of
+the people who carry it, and it is run that way itself: on its own runtime, with every
 responsibility owned by a steward and every contribution recorded. Joining
 means becoming one of the people who keep it alive.
 
