@@ -133,8 +133,20 @@ version, is in [docs/RUNTIME.md](docs/RUNTIME.md).
 > **Status: v0.1, pre-release.** Everything below works and is tested end to
 > end, offline. It hasn't met real customers yet.
 
-You need Node.js 22.19+ and a Telegram bot token from
-[@BotFather](https://t.me/BotFather).
+**Try it first — one command, no keys, nothing real.** A throwaway company
+answers you in the browser on a scripted demo model:
+
+```bash
+git clone https://github.com/jamot-pro/JamotLite && cd JamotLite
+pnpm install && pnpm build
+node dist/jamot.mjs demo            # or: demo restaurant, demo montessori-school…
+```
+
+It opens its chat page and prints the console's address and a password. (Once
+the first release is out, the installer below gives you `jamot demo` directly.)
+
+**Then start a real one.** You need Node.js 22.19+ and a Telegram bot token
+from [@BotFather](https://t.me/BotFather).
 
 ```bash
 curl -fsSL https://jamot.pro/install.sh | sh     # once the first release is out
@@ -157,8 +169,10 @@ change: a community café in Bali, a restaurant, a Montessori school, an
 electrician, a plumber, an organic farm, an online shop.
 
 ```text
-jamot setup | start | status | doctor | ask "<question>" | pair [successor]
-jamot mcp | backup | export --to <dir> | import <dir|yaml> | secret set <name>
+jamot demo [template] | setup | start | status | doctor | ask "<question>"
+jamot pair [successor] | webchat on|off | restore <file|latest>
+jamot mcp [add|list|revoke] | backup | export --to <dir> | import <dir|yaml>
+jamot secret set <name>
 jamot password | templates | service install
 ```
 

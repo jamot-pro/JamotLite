@@ -5,6 +5,8 @@ import {
 	type BrainTool,
 	connectModel,
 	createPiBrain,
+	DEMO_PROVIDER,
+	demoModel,
 	type ModelAccess,
 	type ModelChoice,
 	type RunOutcome,
@@ -121,6 +123,25 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				await store.settings.get<Omit<ModelChoice, "apiKey">>(MODEL_SETTING);
 			if (!choice)
 				throw new Error("no model is configured yet — run `jamot setup`");
+			// The demo model runs demo companies only: never with real people on Telegram.
+			if ((choice.provider as string) === DEMO_PROVIDER) {
+				if (opts.telegram !== false)
+					throw new Error(
+						"the demo model only runs a demo company (no Telegram) — add a real model in Settings",
+					);
+				const company = await store.graph.getCompany();
+				const dream = (await store.graph.listNodes()).find(
+					(n) => n.kind === "dream",
+				);
+				return demoModel({
+					name: company?.name ?? "this company",
+					summary: company?.summary ?? "",
+					vision:
+						typeof dream?.config.vision === "string"
+							? dream.config.vision
+							: null,
+				});
+			}
 			const apiKey = await secrets.get(MODEL_KEY_SECRET);
 			return connectModel({ ...choice, ...(apiKey ? { apiKey } : {}) });
 		});

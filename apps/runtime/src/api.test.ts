@@ -100,6 +100,7 @@ describe("the console API", () => {
 		expect(await body(await get("/api/me", cookie))).toEqual({
 			signedIn: true,
 			passwordSet: true,
+			demo: false,
 		});
 	});
 
