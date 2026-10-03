@@ -396,6 +396,44 @@ async function runSetup(
 		env.JAMOT_TIMEZONE,
 	);
 	const ownerName = await answer("Your name: ", "Owner", env.JAMOT_OWNER);
+
+	// The charter: the template's, unless the owner writes their own.
+	const file = loadTemplate(chosen);
+	if (interactive)
+		console.log(
+			"\nYour company's charter — press Enter to keep the template's.\n",
+		);
+	const list = (s: string) =>
+		s
+			.split(";")
+			.map((x) => x.trim())
+			.filter(Boolean);
+	const charter = {
+		vision: await answer(
+			`Vision — the world you're building toward\n  [${file.dream.vision ?? "none yet"}]: `,
+			file.dream.vision ?? "",
+			env.JAMOT_VISION,
+		),
+		mission: await answer(
+			`Mission — what the company does\n  [${file.dream.objective}]: `,
+			file.dream.objective,
+			env.JAMOT_MISSION,
+		),
+		values: list(
+			await answer(
+				`Values — rules it never breaks, separated by ";"\n  [${file.dream.constraints.join("; ")}]: `,
+				file.dream.constraints.join(";"),
+				env.JAMOT_VALUES,
+			),
+		),
+		goals: list(
+			await answer(
+				`Goals — what success looks like, separated by ";"\n  [${file.dream.outcomes.join("; ")}]: `,
+				file.dream.outcomes.join(";"),
+				env.JAMOT_GOALS,
+			),
+		),
+	};
 	const password = env.JAMOT_PASSWORD ?? (await askNewPassword());
 
 	let [provider, modelId] = (env.JAMOT_MODEL ?? "").split("/", 2) as [
@@ -445,6 +483,12 @@ async function runSetup(
 		name,
 		timezone,
 		ownerName,
+		charter: {
+			...(charter.vision ? { vision: charter.vision } : {}),
+			...(charter.mission ? { mission: charter.mission } : {}),
+			values: charter.values,
+			goals: charter.goals,
+		},
 		password,
 		model: {
 			provider: p,

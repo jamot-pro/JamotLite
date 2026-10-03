@@ -61,10 +61,11 @@ export interface Overview {
 		timezone: string;
 		founderKey: string | null;
 	};
-	dream: {
-		objective?: string;
-		outcomes?: string[];
-		constraints?: string[];
+	charter: {
+		vision: string | null;
+		mission: string | null;
+		values: string[];
+		goals: string[];
 	} | null;
 	vitals: Vitals;
 	pendingApprovals: number;
