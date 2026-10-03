@@ -417,7 +417,8 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await http?.close();
 			await worker.stop();
 			store.close();
-			replication?.stop();
+			// Litestream must be gone before the lock is: never two on one replica.
+			await replication?.stop();
 			replication = null;
 			if (lockBeat) clearInterval(lockBeat);
 			runLock?.release();

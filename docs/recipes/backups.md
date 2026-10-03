@@ -32,8 +32,12 @@ jamot replicate set "s3://my-bucket/jamot?endpoint=<account>.r2.cloudflarestorag
 jamot replicate status
 ```
 
+The endpoint is checked like any outbound address: never a loopback,
+link-local or cloud metadata address; a storage server on your own network
+(MinIO on the LAN) only with `--private-network`.
+
 Restart the company and it replicates for as long as it runs, restarting
-Litestream if it stops. The keys are kept in the secret store and given to
+Litestream if it stops (and ending one a crash left behind). The keys are kept in the secret store and given to
 Litestream only, never written to a file or a log.
 
 **`secrets.key` is never replicated.** A replica without it holds no readable

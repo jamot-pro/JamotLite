@@ -758,7 +758,12 @@ export async function prepareDemo(
 export async function replicate(
 	dir: string,
 	action: string | undefined,
-	opts: { url?: string; accessKeyId?: string; secretAccessKey?: string } = {},
+	opts: {
+		url?: string;
+		accessKeyId?: string;
+		secretAccessKey?: string;
+		privateNetwork?: boolean;
+	} = {},
 ): Promise<string> {
 	const c = openCompany(dir);
 	try {
@@ -769,12 +774,16 @@ export async function replicate(
 				throw new Error(
 					"say where: jamot replicate set s3://bucket/path[?endpoint=…&region=…]",
 				);
-			const url = checkReplicaUrl(opts.url);
+			const allowPrivateNetwork = opts.privateNetwork === true;
+			const url = await checkReplicaUrl(opts.url, { allowPrivateNetwork });
 			if (!opts.accessKeyId || !opts.secretAccessKey)
 				throw new Error("the bucket's access key id and secret are needed");
 			await c.secrets.set(REPLICA_KEY_ID_SECRET, opts.accessKeyId);
 			await c.secrets.set(REPLICA_SECRET_KEY_SECRET, opts.secretAccessKey);
-			await c.store.settings.set(REPLICATION_SETTING, { url });
+			await c.store.settings.set(REPLICATION_SETTING, {
+				url,
+				...(allowPrivateNetwork ? { allowPrivateNetwork } : {}),
+			});
 			return `Replication set to ${url.split("?")[0]}. It starts with the company (restart it now). Keep secrets.key somewhere else — it's never replicated.`;
 		}
 		if (action === "off") {

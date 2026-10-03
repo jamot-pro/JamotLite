@@ -86,6 +86,7 @@ async function main(argv: string[]): Promise<number> {
 			"dry-run": { type: "boolean" },
 			people: { type: "boolean" },
 			"no-open": { type: "boolean" },
+			"private-network": { type: "boolean" },
 			as: { type: "string" },
 			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
@@ -277,6 +278,7 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 					: {};
 			return print(
 				await replicate(companyDir(where), action, {
+					privateNetwork: values["private-network"] === true,
 					...(rest[1] ? { url: rest[1] } : {}),
 					...keys,
 				}),

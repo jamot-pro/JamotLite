@@ -80,7 +80,7 @@ describe("replication with Litestream", () => {
 
 	it("replicates company.db with the keys from the secret store, and nothing else of ours", async () => {
 		await replicate(dir, "set", {
-			url: "s3://my-bucket/jamot?endpoint=s3.example.com&region=auto",
+			url: "s3://my-bucket/jamot?endpoint=93.184.215.14&region=auto",
 			accessKeyId: "AKIDEXAMPLE",
 			secretAccessKey: "not-a-real-secret",
 		});
@@ -100,7 +100,7 @@ describe("replication with Litestream", () => {
 			expect(call.cmd).toBe("replicate");
 			expect(call.args).toEqual([
 				join(dir, "company.db"),
-				"s3://my-bucket/jamot?endpoint=s3.example.com&region=auto",
+				"s3://my-bucket/jamot?endpoint=93.184.215.14&region=auto",
 			]);
 			expect(call.env.LITESTREAM_ACCESS_KEY_ID).toBe("AKIDEXAMPLE");
 			expect(call.env.LITESTREAM_SECRET_ACCESS_KEY).toBe("not-a-real-secret");
@@ -109,7 +109,7 @@ describe("replication with Litestream", () => {
 			expect(logs.join("\n")).not.toContain("not-a-real-secret");
 			expect(logs.join("\n")).toContain("s3://my-bucket/jamot");
 			expect(logs.join("\n")).not.toContain("endpoint=");
-			replication?.stop();
+			await replication?.stop();
 		} finally {
 			delete process.env.JAMOT_PASSWORD;
 			c.close();
@@ -137,7 +137,7 @@ describe("replication with Litestream", () => {
 			expect(logs.join("\n")).toMatch(
 				/litestream stopped \(exit 3\); starting it again in 2s/,
 			);
-			replication?.stop();
+			await replication?.stop();
 		} finally {
 			c.close();
 		}
@@ -190,11 +190,29 @@ describe("replication with Litestream", () => {
 	});
 
 	it("takes only an s3:// URL with no credentials in it, and forgets the keys when off", async () => {
-		expect(() => checkReplicaUrl("https://example.com/x")).toThrow(/s3:\/\//);
-		expect(() => checkReplicaUrl("s3://key:secret@bucket/x")).toThrow(
+		await expect(checkReplicaUrl("https://example.com/x")).rejects.toThrow(
+			/s3:\/\//,
+		);
+		await expect(checkReplicaUrl("s3://key:secret@bucket/x")).rejects.toThrow(
 			/credentials in the URL/,
 		);
-		expect(() => checkReplicaUrl("not a url")).toThrow(/isn't a URL/);
+		await expect(checkReplicaUrl("not a url")).rejects.toThrow(/isn't a URL/);
+		// The endpoint gets the whole company: never a metadata or loopback
+		// address, and a private one only when the owner says so.
+		await expect(
+			checkReplicaUrl("s3://b/x?endpoint=169.254.169.254"),
+		).rejects.toThrow(/endpoint isn't safe/);
+		await expect(
+			checkReplicaUrl("s3://b/x?endpoint=http://127.0.0.1:9000"),
+		).rejects.toThrow(/endpoint isn't safe/);
+		await expect(
+			checkReplicaUrl("s3://b/x?endpoint=http://192.168.1.20:9000"),
+		).rejects.toThrow(/--private-network/);
+		await expect(
+			checkReplicaUrl("s3://b/x?endpoint=http://192.168.1.20:9000", {
+				allowPrivateNetwork: true,
+			}),
+		).resolves.toContain("192.168.1.20");
 		await replicate(dir, "set", {
 			url: "s3://my-bucket/jamot",
 			accessKeyId: "AKIDEXAMPLE",
@@ -205,6 +223,59 @@ describe("replication with Litestream", () => {
 		try {
 			expect(await c.store.settings.get(REPLICATION_SETTING)).toBeNull();
 			expect(await c.secrets.list()).not.toContain("replication.accessKeyId");
+		} finally {
+			c.close();
+		}
+	});
+
+	it("waits for litestream to exit on stop, and ends one a crash left running", async () => {
+		await replicate(dir, "set", {
+			url: "s3://my-bucket/jamot",
+			accessKeyId: "AKIDEXAMPLE",
+			secretAccessKey: "s",
+		});
+		const c = openCompany(dir);
+		try {
+			const first = await startReplication({
+				dataDir: dir,
+				store: c.store,
+				secrets: c.secrets,
+				log: () => {},
+				binary: fake,
+			});
+			await until(() => existsSync(join(dir, "litestream.pid")));
+			const pid = Number(readFileSync(join(dir, "litestream.pid"), "utf8"));
+			const alive = (p: number) => {
+				try {
+					process.kill(p, 0);
+					return true;
+				} catch {
+					return false;
+				}
+			};
+			// As if the runtime had crashed: its litestream is still running,
+			// and the next start finds its pid and ends it before starting anew.
+			const logs: string[] = [];
+			const second = await startReplication({
+				dataDir: dir,
+				store: c.store,
+				secrets: c.secrets,
+				log: (m) => logs.push(m),
+				binary: fake,
+			});
+			expect(logs.join("\n")).toContain(`ending litestream ${pid}`);
+			// (It's this test's own child, so Node reaps it a moment later.)
+			await until(() => !alive(pid));
+			expect(alive(pid)).toBe(false);
+			await first?.stop();
+			// stop() resolves only once litestream has exited.
+			await until(() => existsSync(join(dir, "litestream.pid")));
+			const secondPid = Number(
+				readFileSync(join(dir, "litestream.pid"), "utf8"),
+			);
+			await second?.stop();
+			await until(() => !alive(secondPid));
+			expect(alive(secondPid)).toBe(false);
 		} finally {
 			c.close();
 		}
