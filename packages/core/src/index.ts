@@ -6,6 +6,7 @@ export {
 	sessionIdFor,
 } from "./agents/reply.js";
 export { agentSpecFromNode, pickChannelAgent } from "./agents/spec.js";
+export { forgetPerson } from "./channels/forget.js";
 export {
 	type InboundMessage,
 	type Intake,

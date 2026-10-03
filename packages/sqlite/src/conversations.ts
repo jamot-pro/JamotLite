@@ -139,10 +139,19 @@ export function conversationOps(db: DatabaseSync): Sync<ConversationStore> {
 			return getMessage(id) as Message;
 		},
 
-		listPending(limit = 50) {
+		listPending(limit = 50, channel) {
+			if (!channel)
+				return all(
+					db,
+					`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE status = 'pending' ORDER BY seq LIMIT ?`,
+					limit,
+				).map(toMessage);
 			return all(
 				db,
-				`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE status = 'pending' ORDER BY seq LIMIT ?`,
+				`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE status = 'pending'
+				 AND conversation_id IN (SELECT id FROM conversations WHERE channel = ?)
+				 ORDER BY seq LIMIT ?`,
+				channel,
 				limit,
 			).map(toMessage);
 		},
@@ -167,6 +176,11 @@ export function conversationOps(db: DatabaseSync): Sync<ConversationStore> {
 		},
 
 		getMessage,
+
+		erase(conversationId) {
+			// Its messages go with it (ON DELETE CASCADE).
+			run(db, "DELETE FROM conversations WHERE id = ?", conversationId);
+		},
 
 		listMessages(conversationId, opts = {}) {
 			const rows = all(

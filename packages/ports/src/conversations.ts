@@ -4,7 +4,7 @@
  * same table as `pending` until the channel worker sends them — the outbox.
  */
 
-export type Channel = "telegram";
+export type Channel = "telegram" | "web";
 
 export interface Conversation {
 	id: string;
@@ -60,11 +60,13 @@ export interface ConversationStore {
 		agentKey?: string | null;
 		personId?: string | null;
 	}): Promise<Message>;
-	/** Oldest first. */
-	listPending(limit?: number): Promise<Message[]>;
+	/** Oldest first; only `channel`'s when given, so one channel never waits behind another. */
+	listPending(limit?: number, channel?: Channel): Promise<Message[]>;
 	markSent(messageId: string, externalId?: string | null): Promise<void>;
 	markFailed(messageId: string, error: string): Promise<void>;
 	getMessage(messageId: string): Promise<Message | null>;
+	/** Deletes the conversation and all its messages (a person asked to be forgotten). */
+	erase(conversationId: string): Promise<void>;
 	/** Oldest first; `limit` keeps the most recent ones. */
 	listMessages(
 		conversationId: string,
