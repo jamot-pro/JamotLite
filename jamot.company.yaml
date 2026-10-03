@@ -99,6 +99,9 @@ responsibilities:
   - key: r-templates
     name: Templates and first companies
     first: The Bali café running on Jamot Lite, with its founders paired on Telegram
+  - key: r-fleet
+    name: Fleet and isolation
+    first: Two companies on one machine, fully independent — one crashing, filling its disk or spending its budget never touches the other
   - key: r-hub
     name: Hub and network
     first: A public company page with the JAMOT badge, served by the hub
@@ -159,6 +162,7 @@ links:
   - core owns r-runtime
   - core owns r-telegram
   - core owns r-survival
+  - core owns r-fleet
   - companies owns r-console
   - companies owns r-templates
   - stewardship owns r-hub
@@ -172,6 +176,7 @@ links:
   - dream requires r-console
   - dream requires r-survival
   - dream requires r-templates
+  - dream requires r-fleet
   - dream requires r-hub
   - dream requires r-quality
   - dream requires r-stewardship

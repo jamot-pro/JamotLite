@@ -20,6 +20,10 @@
 /packages/core/src/survival/    @electrichains
 /packages/core/src/readiness/   @electrichains
 
+# Fleet and isolation
+/apps/runtime/src/runtime.ts    @electrichains
+/docs/recipes/                  @electrichains
+
 # Console and onboarding
 /apps/web/                      @electrichains
 /apps/runtime/src/api.ts        @electrichains

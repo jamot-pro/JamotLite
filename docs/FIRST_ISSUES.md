@@ -1,6 +1,7 @@
 # First issues — one per responsibility
 
-Issues 1–8 are one per responsibility; issue 9 is the stewards' own onboarding.
+Issues 1–8 and 10 are one per responsibility; issue 9 is the stewards' own
+onboarding.
 Each new steward starts with the first issue of the responsibility they own
 ([STEWARDS.md](../STEWARDS.md)). Each is sized to ship a first pull request in
 a week; the whole issue may take longer. "Done when" is the acceptance test.
@@ -167,3 +168,29 @@ Design and Gene Keys, calculated from their birth details (decision D31).
   `packages/archetype-engine` and `apps/console/src/app/p/[token]/OnboardForm.tsx`.
 - **Size:** M–L. First pull request: the questions and the profile fields;
   the calculation next.
+
+## 10. Fleet and isolation — two companies, one machine, fully independent · [GitHub #12](https://github.com/jamot-pro/JamotLite/issues/12)
+
+**Goal.** One operator runs many companies on their own infrastructure, and no
+company can cause a problem for another: separate processes, data, secrets,
+bots and budgets (decision D1: "isolation by process"; D35). Prove it with two
+companies before building any fleet tooling.
+
+- **Done when:**
+  - a recipe, `docs/recipes/many-companies-one-machine.md`, runs two companies
+    side by side — each with its own `JAMOT_HOME`, port, Telegram bot, model
+    key and spending cap — as two services (systemd or launchd), and as two
+    containers with memory and CPU limits;
+  - an isolation check (`scripts/isolation-check.mjs`, run in CI) starts two
+    runtimes with `--no-telegram`, kills one, and shows the other still
+    answers `/health` and runs its heartbeats;
+  - a second runtime refuses to start on a `JAMOT_HOME` that is already in
+    use, with a sentence saying which process holds it;
+  - one company reaching its spending cap, or its disk filling, is shown not
+    to affect the other — results in the pull request;
+  - the next step, a fleet control plane (provisioning, upgrades one company
+    at a time, backups, watchdog), is designed in RUNTIME.md §9 from what this
+    check taught us — designed, not built.
+- **Start in:** `apps/runtime/src/runtime.ts`, `apps/runtime/src/cli/`,
+  `Dockerfile`, RUNTIME.md §9 ("Out — many companies, one operator").
+- **Size:** M.

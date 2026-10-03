@@ -87,6 +87,7 @@ owner, the founder holds it.
 | Runtime and brain | Core | Agent skills in the agentskills.io format, written from experience and approved by a human | *open* | *open* |
 | Telegram and channels | Core | A live bot tested end to end with a real company; voice notes transcribed | *open* | *open* |
 | Survival and heartbeats | Core | A successor for every responsibility, and succession tested in a real company | *open* | *open* |
+| Fleet and isolation | Core | Two companies on one machine, fully independent: one crashing, filling its disk or spending its budget never touches the other | *open* | *open* |
 | Console and onboarding | Companies | The setup wizard asks for the Vision, Mission, Values and Goals; the console shows them | *open* | *open* |
 | Templates and first companies | Companies | The Bali café running on Jamot Lite, its founders paired on Telegram | *open* | *open* |
 | Hub and network | Stewardship | A public company page with the JAMOT badge, served by the hub (J-Nesys) | *open* | *open* |
