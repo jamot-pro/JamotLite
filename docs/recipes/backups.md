@@ -36,7 +36,7 @@ jamot restore latest --dry-run
 ```
 
 ```text
-/data/company/backups/company-2026-10-03T02-00-00-000Z.db
+/data/jamot/backups/company-2026-10-03T02-00-00-000Z.db
   company: Jamot · 3 people · 41 memories · last message 2026-10-03T01:58:12.000Z
 ```
 

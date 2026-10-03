@@ -13,6 +13,7 @@ import {
 	doctor,
 	exportCompany,
 	importCompany,
+	importTarget,
 	listTemplates,
 	openCompany,
 	serviceInstall,
@@ -20,6 +21,7 @@ import {
 	setup,
 	status,
 } from "./commands.js";
+import { companyDir } from "./paths.js";
 
 const TOKEN = "123456789:AAH-this-is-a-test-token-not-real_xyz"; // gitleaks:allow — a made-up test token
 let root: string;
@@ -178,6 +180,57 @@ describe("jamot export and import", () => {
 		const fresh = openCompany(join(root, "fresh"));
 		expect(await fresh.store.people.list()).toEqual([]);
 		fresh.close();
+	});
+});
+
+describe("one folder per company", () => {
+	let before: string | undefined;
+	beforeEach(() => {
+		before = process.env.JAMOT_HOME;
+		process.env.JAMOT_HOME = join(root, "home");
+	});
+	afterEach(() => {
+		if (before === undefined) delete process.env.JAMOT_HOME;
+		else process.env.JAMOT_HOME = before;
+	});
+	const template = (id: string) => join("templates", `${id}.yaml`);
+
+	it("names the folder after the company, so two imports make two companies", async () => {
+		for (const id of ["restaurant", "bali-cafe"]) {
+			const dir = importTarget(template(id));
+			expect(dir).toBe(join(root, "home", id));
+			expect(await importCompany(template(id), dir)).toBe("structure");
+		}
+		expect(companyDir({ company: "bali-cafe" })).toBe(
+			join(root, "home", "bali-cafe"),
+		);
+		// Two companies and no --company: it says which ones there are.
+		expect(() => companyDir({})).toThrow(/bali-cafe, restaurant/);
+		expect(() => companyDir({ company: "bakery" })).toThrow(
+			/no company "bakery" .* there is bali-cafe, restaurant/,
+		);
+	});
+
+	it("refuses to import over a company, and says how to keep both", async () => {
+		const dir = importTarget(template("restaurant"));
+		await importCompany(template("restaurant"), dir);
+		await expect(importCompany(template("restaurant"), dir)).rejects.toThrow(
+			/already holds a company.*--as <id>/,
+		);
+		const second = importTarget(template("restaurant"), { as: "trattoria-2" });
+		await importCompany(template("restaurant"), second);
+		expect(existsSync(join(root, "home", "trattoria-2", "company.db"))).toBe(
+			true,
+		);
+	});
+
+	it("only takes an id that can name a folder", () => {
+		expect(() =>
+			importTarget(template("restaurant"), { as: "../elsewhere" }),
+		).toThrow(/can't name a company folder/);
+		expect(() => importTarget(join(root, "nothing-here"))).toThrow(
+			/no company.yaml.*--as <id>/,
+		);
 	});
 });
 

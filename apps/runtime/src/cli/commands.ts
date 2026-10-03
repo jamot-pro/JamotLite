@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseCompanyFile, stringifyCompanyFile } from "@jamot/company-file";
 import type { CompanyFile } from "@jamot/contracts";
 import {
@@ -43,7 +43,7 @@ import {
 	MODEL_SETTING,
 	VERSION,
 } from "../runtime.js";
-import { templatesDir } from "./paths.js";
+import { jamotHome, templatesDir } from "./paths.js";
 
 /**
  * What the `jamot` commands do, as plain functions: the CLI (cli.ts) only
@@ -426,12 +426,43 @@ export async function exportCompany(
 }
 
 /** Brings an export (or a bare company.yaml) into a new company folder. */
+/** A company id that can name its folder: lowercase letters, digits, dashes. */
+export const COMPANY_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/**
+ * Where an import goes: `--data <dir>`, else `$JAMOT_HOME/<id>`, the id being
+ * `--as <id>` or the company's own (from its company.yaml) — one folder per
+ * company, so several can live side by side (BLUEPRINT S3).
+ */
+export function importTarget(
+	from: string,
+	opts: { as?: string; data?: string } = {},
+): string {
+	if (opts.data) return resolve(opts.data);
+	let id = opts.as;
+	if (!id) {
+		const yaml = from.endsWith(".yaml") ? from : join(from, "company.yaml");
+		if (!existsSync(yaml))
+			throw new Error(
+				`${from} has no company.yaml to name it by — add --as <id>`,
+			);
+		id = loadTemplate(yaml).company.id;
+	}
+	if (!COMPANY_ID.test(id))
+		throw new Error(
+			`"${id}" can't name a company folder — use lowercase letters, digits and dashes (--as <id>)`,
+		);
+	return join(jamotHome(), id);
+}
+
 export async function importCompany(
 	from: string,
 	dir: string,
 ): Promise<"data" | "structure"> {
 	if (existsSync(join(dir, "company.db")))
-		throw new Error(`${dir} already holds a company`);
+		throw new Error(
+			`${dir} already holds a company. To keep both, import under another name with --as <id>; to replace it, move that folder away first.`,
+		);
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	if (existsSync(join(from, "company.db"))) {
 		copyFileSync(join(from, "company.db"), join(dir, "company.db"));
