@@ -1,4 +1,11 @@
 export {
+	DEMO_NOTE,
+	DEMO_PROVIDER,
+	type DemoCompany,
+	demoModel,
+	demoReply,
+} from "./demo.js";
+export {
 	connectModel,
 	type ModelChoice,
 	type ModelProvider,

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -15,6 +16,7 @@ import {
 	mcpConnections,
 	mcpInfo,
 	pair,
+	prepareDemo,
 	restore,
 	serviceInstall,
 	setPassword,
@@ -30,6 +32,8 @@ import { createRuntime } from "./runtime.js";
 
 const HELP = `jamot ${VERSION} — one company, one runtime
 
+  jamot demo [template]       try it: a throwaway company you talk to in the browser,
+                              no keys (--no-open: don't open the browser)
   jamot setup                 create a company from a template (asks a few questions)
   jamot start                 run it: Telegram, heartbeats, the console on :3000
   jamot status                how the company is doing
@@ -77,6 +81,7 @@ async function main(argv: string[]): Promise<number> {
 			"with-key": { type: "boolean" },
 			"dry-run": { type: "boolean" },
 			people: { type: "boolean" },
+			"no-open": { type: "boolean" },
 			as: { type: "string" },
 			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
@@ -98,6 +103,37 @@ async function main(argv: string[]): Promise<number> {
 			for (const t of listTemplates())
 				console.log(`  ${t.id.padEnd(22)} ${t.name} — ${t.summary}`);
 			return 0;
+
+		case "demo": {
+			const demo = await prepareDemo(rest[0] ?? values.template);
+			const runtime = await createRuntime({
+				dataDir: demo.dir,
+				telegram: false,
+				port: Number(values.port ?? process.env.PORT ?? 3000),
+				host: values.host ?? "127.0.0.1",
+				...(webRoot() ? { webRoot: webRoot() as string } : {}),
+			});
+			const stop = async () => {
+				await runtime.stop();
+				process.exit(0);
+			};
+			process.once("SIGINT", stop);
+			process.once("SIGTERM", stop);
+			await runtime.start({ telegram: false });
+			const port = Number(values.port ?? process.env.PORT ?? 3000);
+			const base = `http://${values.host ?? "127.0.0.1"}:${port}`;
+			console.log(`
+${demo.companyName} is running as a demo — scripted replies, no keys, nobody real.
+
+  Talk to it:        ${base}/chat
+  Its console:       ${base}   (password: ${demo.password})
+
+It lives in ${demo.dir} and is gone when you delete that folder.
+To start a real company: jamot setup.   Stop: Ctrl+C.
+`);
+			if (values["no-open"] !== true) openInBrowser(`${base}/chat`);
+			return new Promise(() => {}); // runs until stopped
+		}
 
 		case "setup":
 			return runSetup(values.template, where);
@@ -482,3 +518,23 @@ main(process.argv.slice(2)).then(
 		process.exitCode = 1;
 	},
 );
+
+/** Opens a page in the default browser; quietly does nothing where it can't. */
+function openInBrowser(url: string): void {
+	const [command, args] =
+		process.platform === "darwin"
+			? ["open", [url]]
+			: process.platform === "win32"
+				? ["cmd", ["/c", "start", "", url]]
+				: ["xdg-open", [url]];
+	try {
+		spawn(command as string, args as string[], {
+			stdio: "ignore",
+			detached: true,
+		})
+			.on("error", () => undefined)
+			.unref();
+	} catch {
+		// No browser here (a server, CI): the address is printed above.
+	}
+}

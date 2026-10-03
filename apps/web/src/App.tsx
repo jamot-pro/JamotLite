@@ -20,12 +20,16 @@ const PAGES = [
 export function App() {
 	const [path, setPath] = useState(location.pathname);
 	const [signedIn, setSignedIn] = useState<boolean | null>(null);
+	const [demo, setDemo] = useState(false);
 
 	useEffect(() => {
 		const onPop = () => setPath(location.pathname);
 		addEventListener("popstate", onPop);
-		api<{ signedIn: boolean }>("/me").then(
-			(me) => setSignedIn(me.signedIn),
+		api<{ signedIn: boolean; demo?: boolean }>("/me").then(
+			(me) => {
+				setSignedIn(me.signedIn);
+				setDemo(me.demo === true);
+			},
 			() => setSignedIn(false),
 		);
 		return () => removeEventListener("popstate", onPop);
@@ -86,6 +90,22 @@ export function App() {
 				</button>
 			</nav>
 			<main className="page">
+				{demo && (
+					<p className="demo-banner" role="status">
+						This is a demo company: its agents answer with a scripted demo
+						model, and nothing reaches real people. Add a real model in{" "}
+						<a
+							href="/settings"
+							onClick={(e) => {
+								e.preventDefault();
+								go("/settings");
+							}}
+						>
+							Settings
+						</a>{" "}
+						to make it real.
+					</p>
+				)}
 				<Page go={go} />
 			</main>
 		</div>

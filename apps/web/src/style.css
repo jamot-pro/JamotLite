@@ -428,3 +428,12 @@ th {
 		overflow-x: auto;
 	}
 }
+
+.demo-banner {
+	margin: 0 0 16px;
+	padding: 10px 14px;
+	border: 1px solid var(--warn);
+	border-radius: var(--radius);
+	color: var(--text);
+	background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+}
