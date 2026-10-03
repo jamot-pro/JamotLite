@@ -16,7 +16,8 @@
 		"format": "biome format --write .",
 		"jamot": "tsx apps/runtime/src/cli.ts",
 		"build": "pnpm --filter @jamot/web build && node scripts/build.mjs",
-		"ledger": "node scripts/ledger.mjs"
+		"ledger": "node scripts/ledger.mjs",
+		"smoke": "node scripts/smoke-bundle.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
