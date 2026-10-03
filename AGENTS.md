@@ -6,11 +6,16 @@ this is also the fastest map of the codebase.
 
 ## What Jamot Lite is
 
+Hermes and OpenClaw are your assistant; Paperclip manages your agents;
+**Jamot runs your business** — its customers, its people, and a charter that
+outlives them.
+
 One company = one runtime: one process, one data folder (`company.yaml` +
 `company.db`). The runtime runs the company's humans and agents, keeps a
 heartbeat on every responsibility, notices what is missing (survival), remembers
-every person it talks to, talks to people through Telegram, and is an MCP
-server. The design, scope and every decision live in
+every person it talks to, talks to people through Telegram and a web chat,
+backs itself up every day, and is an MCP server that outside agents join as
+someone in the company. The design, scope and every decision live in
 [docs/RUNTIME.md](docs/RUNTIME.md) — read it before building anything.
 
 Words: a **Company** runs from its **charter** — Vision, Mission, Values,

@@ -75,7 +75,7 @@ anything irreversible always wait for a human.
        ┌─────────┴──────────┐
      TEAMS           RESPONSIBILITIES     each with an owner
        │                    │
-       └──── HUMANS + AGENTS              side by side, on Telegram
+       └──── HUMANS + AGENTS              side by side, on Telegram and the web
                     │
           TOOLS · HEARTBEATS              what they use · what keeps watch
                     │
@@ -96,7 +96,8 @@ Jamot Lite turns it into a running company:
 - **It survives people.** Name a successor: if the owner goes silent, the
   company turns to them.
 - **It connects.** The company is an MCP server, so your own AI — Claude,
-  Cursor, Hermes — can plug into it ([recipe](docs/recipes/connect-your-ai.md)).
+  Cursor, Hermes — joins it as one of its agents: with a name, limits, a
+  history, and proposals you approve ([recipe](docs/recipes/connect-your-ai.md)).
 - **It talks where customers are.** Telegram, and a chat page in the browser
   that you turn on when you're ready ([recipe](docs/recipes/web-chat.md)).
 - **It's yours.** One folder, backed up every day on its own
@@ -111,7 +112,9 @@ going*, not *guaranteed to succeed*. That part is still up to the people.
 **✅ In Jamot Lite today** · **🔨 Next** · **🌱 Where we're headed**
 
 1. **A company that stays alive** ✅ — the charter, owners and successors,
-   heartbeats, memory, approvals, Telegram, MCP, on your own machine.
+   heartbeats, memory, approvals, Telegram and a web chat, daily backups,
+   MCP, on your own machine — or on a server, several companies side by side.
+   Try it with `jamot demo`; bring your own AI in as one of its agents.
 2. **A company that senses the world** 🔨 — sensors over MCP feed the
    heartbeats: a thermometer, a soil probe, a door.
 3. **Companies that find each other** 🔨 — a hub where companies say what they
