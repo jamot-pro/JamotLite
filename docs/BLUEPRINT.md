@@ -104,7 +104,7 @@ console, CLI, templates and agent instructions still say "Dream".
 shows only code names; the round-trip test passes for all templates.
 **Exit.** `jamot setup` asks for the four parts; the Overview shows them.
 
-## S3 · `jamot import` names the folder after the company
+## S3 · `jamot import` names the folder after the company · [GitHub #14](https://github.com/jamot-pro/JamotLite/issues/14)
 
 **Context.** `jamot import templates/x.yaml` puts every company in
 `$JAMOT_HOME/company/`, so a second import collides with the first. S6 and
@@ -118,7 +118,7 @@ S7 both need one folder per company id. Part of first issue 7 (GitHub #9).
 **Verify.** `commands.test.ts`: two imports → two folders; collision refused.
 **Exit.** Two companies can live in one `JAMOT_HOME`.
 
-## S4 · Backups on by default
+## S4 · Backups on by default · [GitHub #15](https://github.com/jamot-pro/JamotLite/issues/15)
 
 **Context.** A business's whole life is `company.db` + `secrets.key` in one
 folder. `jamot backup` exists (`commands.ts`, `store.backup`) but nothing runs
@@ -137,7 +137,7 @@ Litestream was planned for v0.2 (RUNTIME §11).
 **Verify.** Restore round trip test; the vital sign flips when backups stop.
 **Exit.** A new company has nightly backups without the owner doing anything.
 
-## S5 · Web chat channel
+## S5 · Web chat channel · [GitHub #16](https://github.com/jamot-pro/JamotLite/issues/16)
 
 **Context.** Telegram is the only channel (`Channel = "telegram"` in
 `packages/ports/src/conversations.ts`). A demo, and many customers, need to
@@ -160,7 +160,7 @@ agent answers → both in the person's memory; rate limit and cost cap tested;
 `route-guard`-style test that console routes stay behind auth.
 **Exit.** A customer can talk to the company in a browser, safely.
 
-## S6 · `jamot demo`
+## S6 · `jamot demo` · [GitHub #17](https://github.com/jamot-pro/JamotLite/issues/17)
 
 **Context.** Time to first win is about 30 minutes for a developer and out of
 reach for an owner (brief §5); Paperclip starts with one command. The test
@@ -186,7 +186,7 @@ one chat message; the reply arrives with no network.
 **Exit.** The fleet control plane is designed in RUNTIME §9 from what the
 check taught us — designed, not built.
 
-## S8 · Bring your own agent
+## S8 · Bring your own agent · [GitHub #18](https://github.com/jamot-pro/JamotLite/issues/18)
 
 **Context.** Owners already have Hermes, OpenClaw, Claude Code. Today they can
 connect over MCP (`packages/mcp/src/server.ts`, ten tools) with one company
@@ -256,3 +256,4 @@ one pull request is split before it's started, not halfway.
 | Date | Change | Why |
 |---|---|---|
 | 2026-10-03 | Plan written | From PRODUCT-BRIEF.md §6 |
+| 2026-10-03 | S3–S6, S8 opened as GitHub #14–#18; S2, S3 (with #9) and S7 labelled `v0.2` | So stewards can pick steps up on GitHub |
