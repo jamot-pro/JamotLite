@@ -30,6 +30,9 @@ export interface TelegramDeps {
 	log?: (message: string) => void;
 }
 
+/** How long the first call to Telegram may take before it's retried. */
+export const FIRST_CONTACT_MS = 20_000;
+
 export type Role = "owner" | "successor";
 
 export interface TelegramOwner {
@@ -230,8 +233,13 @@ export function createTelegramChannel(
 			for (let wait = 2_000; ; wait = Math.min(wait * 2, 60_000)) {
 				if (stopped) return;
 				try {
-					await bot.init();
-					await bot.api.deleteWebhook();
+					// A connection that hangs would otherwise wait grammy's 500 s.
+					// (grammy types its signal with a polyfill; Node's is the same thing.)
+					const signal = AbortSignal.timeout(FIRST_CONTACT_MS) as Parameters<
+						typeof bot.init
+					>[0];
+					await bot.init(signal);
+					await bot.api.deleteWebhook(undefined, signal);
 					break;
 				} catch (err) {
 					if (err instanceof GrammyError && err.error_code === 401)
