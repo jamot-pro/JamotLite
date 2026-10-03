@@ -21,6 +21,7 @@ import {
 	status,
 	TELEGRAM_TOKEN,
 	VERSION,
+	webchat,
 } from "./cli/commands.js";
 import { companyDir, jamotHome, webRoot } from "./cli/paths.js";
 import { createRuntime } from "./runtime.js";
@@ -41,6 +42,7 @@ const HELP = `jamot ${VERSION} — one company, one runtime
   jamot import <dir|yaml>     start a company from an export or a company.yaml,
                               in a folder named after its id (--as <id> to rename)
   jamot secret set <name>     store a secret (e.g. a tool's token), encrypted
+  jamot webchat on|off|status a chat page at /chat for customers (--cap <dollars> a day)
   jamot password              change the console password
   jamot templates             the companies you can start from
   jamot service install       start with the machine (writes the service file)
@@ -71,6 +73,7 @@ async function main(argv: string[]): Promise<number> {
 			"with-key": { type: "boolean" },
 			"dry-run": { type: "boolean" },
 			as: { type: "string" },
+			cap: { type: "string" },
 			yes: { type: "boolean", short: "y" },
 			agent: { type: "string" },
 			help: { type: "boolean", short: "h" },
@@ -180,6 +183,15 @@ async function main(argv: string[]): Promise<number> {
 			return print(
 				`Backed up to ${await backup(companyDir(where), values.to)}`,
 			);
+
+		case "webchat": {
+			const w = await webchat(companyDir(where), rest[0], values.cap);
+			return print(
+				w.enabled
+					? `Web chat is on at /chat, up to $${w.dailyCapUsd} of replies a day. It's public: read docs/recipes/web-chat.md.`
+					: "Web chat is off: /chat answers 404.",
+			);
+		}
 
 		case "restore": {
 			const from = rest[0];

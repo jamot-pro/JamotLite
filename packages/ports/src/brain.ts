@@ -47,6 +47,8 @@ export interface RunStore {
 		input: string | null;
 	}): Promise<Run>;
 	addUsage(runId: string, usage: RunUsage): Promise<void>;
+	/** Blanks the input and output of runs in sessions starting with `prefix`; costs stay. */
+	eraseText(prefix: string): Promise<void>;
 	finish(
 		runId: string,
 		result: {
@@ -67,6 +69,8 @@ export interface RunStore {
 	totals(filter?: {
 		since?: string;
 		agentKey?: string;
+		/** Runs whose session id starts with this, e.g. "web:" for web chat. */
+		sessionPrefix?: string;
 	}): Promise<RunUsage & { runs: number }>;
 }
 
@@ -76,6 +80,8 @@ export interface TranscriptStore {
 	append(sessionId: string, messages: unknown[]): Promise<void>;
 	/** Rewrites one message — used when a human decides on a tool call that was waiting. */
 	replace(sessionId: string, seq: number, message: unknown): Promise<void>;
+	/** Deletes the transcripts of every session whose id starts with `prefix`. */
+	erase(prefix: string): Promise<void>;
 }
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";

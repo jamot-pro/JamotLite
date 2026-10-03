@@ -32,12 +32,25 @@ export function migrate(db: DatabaseSync): string[] {
 	const applied: string[] = [];
 	for (const m of MIGRATIONS) {
 		if (done.has(m.id)) continue;
-		inTransaction(db, () => {
-			db.exec(m.sql);
-			db.prepare(
-				"INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
-			).run(m.id, new Date().toISOString());
-		});
+		// Outside the transaction: SQLite ignores this pragma inside one.
+		if (m.foreignKeysOff) db.exec("PRAGMA foreign_keys = OFF");
+		try {
+			inTransaction(db, () => {
+				db.exec(m.sql);
+				if (m.foreignKeysOff) {
+					const broken = db.prepare("PRAGMA foreign_key_check").all();
+					if (broken.length > 0)
+						throw new Error(
+							`migration ${m.id} would break ${broken.length} reference(s)`,
+						);
+				}
+				db.prepare(
+					"INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+				).run(m.id, new Date().toISOString());
+			});
+		} finally {
+			if (m.foreignKeysOff) db.exec("PRAGMA foreign_keys = ON");
+		}
 		applied.push(m.id);
 	}
 	return applied;

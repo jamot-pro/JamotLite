@@ -43,6 +43,12 @@ import {
 	MODEL_SETTING,
 	VERSION,
 } from "../runtime.js";
+import {
+	updateWebChatSettings,
+	WEBCHAT_DEFAULTS,
+	WEBCHAT_SETTING,
+	type WebChatSettings,
+} from "../webchat.js";
 import { jamotHome, templatesDir } from "./paths.js";
 
 /**
@@ -609,3 +615,31 @@ WantedBy=default.target
 }
 
 export { VERSION };
+
+/** `jamot webchat on|off|status [--cap <dollars>]`: read on every request, so no restart. */
+export async function webchat(
+	dir: string,
+	action: string | undefined,
+	cap?: string,
+): Promise<WebChatSettings> {
+	const c = openCompany(dir);
+	try {
+		const current = {
+			...WEBCHAT_DEFAULTS,
+			...((await c.store.settings.get<Partial<WebChatSettings>>(
+				WEBCHAT_SETTING,
+			)) ?? {}),
+		};
+		if (action === "status" || action === undefined) return current;
+		if (action !== "on" && action !== "off")
+			throw new Error("usage: jamot webchat on|off|status [--cap <dollars>]");
+		const next = updateWebChatSettings(current, {
+			enabled: action === "on",
+			...(cap !== undefined ? { dailyCapUsd: cap } : {}),
+		});
+		await c.store.settings.set(WEBCHAT_SETTING, next);
+		return next;
+	} finally {
+		c.close();
+	}
+}
