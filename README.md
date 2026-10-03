@@ -8,9 +8,11 @@ Write your company's **charter** — its vision, mission, values and goals.
 Jamot runs it with humans and AI agents side by side, remembers everyone it
 touches, notices what's missing, and keeps going.
 
-This repository is **Jamot Lite**: one company, one runtime, on your own machine.
+**For a business with customers and people** — and for whoever runs it. This
+repository is **Jamot Lite**: the open-source runtime for one company, on your
+own machine.
 
-[Why Jamot](#why-jamot) · [How it works](#how-it-works) · [Start a company](#start-a-company) · [Build Jamot with us](#build-jamot-with-us)
+[Why Jamot](#why-jamot) · [Jamot and the agents you know](#jamot-and-the-agents-you-know) · [How it works](#how-it-works) · [Start a company](#start-a-company) · [Build Jamot with us](#build-jamot-with-us)
 
 </div>
 
@@ -33,6 +35,21 @@ successor for when its owner goes quiet. The values become rules no agent may
 break. The goals are what the heartbeats measure. When someone goes quiet or
 leaves, Jamot notices, and the work moves to whoever is next, carrying
 everything the company knows.
+
+## Jamot and the agents you know
+
+Hermes and OpenClaw are your assistant. Paperclip manages your agents.
+**Jamot runs your business** — with your customers, your people, and a charter
+that outlives all of them.
+
+| | Made for | What it runs |
+|---|---|---|
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent), [OpenClaw](https://github.com/openclaw/openclaw) | One person | Your personal assistant: your inbox, your files, your tasks |
+| [Paperclip](https://github.com/paperclipai/paperclip) | A founder running agents | Agents as employees in an org chart, doing the company's internal work |
+| **Jamot** | A business and everyone in it | The company itself: agents answer its customers, every person is remembered, every responsibility has an owner and a successor, and anything irreversible waits for a person |
+
+They're all good at what they do, and they work together: connect Hermes,
+OpenClaw or Claude Code to a Jamot company over MCP and they work inside it.
 
 ## Not zero-human. Best-human.
 
