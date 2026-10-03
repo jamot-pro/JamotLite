@@ -11,6 +11,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { bundleOptions } from "./build-options.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
@@ -22,24 +23,9 @@ if (!existsSync(join(root, "apps/web/dist/index.html"))) {
 }
 
 await build({
+	...bundleOptions,
 	entryPoints: [join(root, "apps/runtime/src/cli.ts")],
 	outfile: join(dist, "jamot.mjs"),
-	bundle: true,
-	platform: "node",
-	format: "esm",
-	target: "node22",
-	minify: true,
-	legalComments: "linked",
-	sourcemap: false,
-	// Some dependencies are CommonJS and call require(); give them one.
-	banner: {
-		js: [
-			"#!/usr/bin/env -S node --disable-warning=DEP0040",
-			'import { createRequire as __jamotRequire } from "node:module";',
-			"const require = __jamotRequire(import.meta.url);",
-		].join("\n"),
-	},
-	logLevel: "warning",
 });
 
 cpSync(join(root, "templates"), join(dist, "templates"), { recursive: true });

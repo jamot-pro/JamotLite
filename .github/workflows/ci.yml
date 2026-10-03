@@ -30,6 +30,8 @@ jobs:
           cd "$RUNNER_TEMP/jamot"
           node jamot.mjs --version
           node jamot.mjs templates
+      # The bundled Telegram client must reach Telegram, not hang (D38).
+      - run: pnpm smoke
 
   docker:
     runs-on: ubuntu-latest
