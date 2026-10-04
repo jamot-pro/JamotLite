@@ -23,8 +23,23 @@ export {
 	type ConnectionAccess,
 	listConnections,
 	type McpCaller,
+	type OAuthClientRef,
 	revokeConnection,
 } from "./connections/connections.js";
+export {
+	ACCESS_TOKEN_SECONDS,
+	acceptableRedirect,
+	fetchClientDocument,
+	grantConnection,
+	hostOf,
+	loopbackOnly,
+	type OAuthClient,
+	OAuthError,
+	type OAuthTokens,
+	refreshConnection,
+	registerClient,
+	resolveClient,
+} from "./connections/oauth.js";
 export {
 	decideProposal,
 	PROPOSAL_SESSION_PREFIX,

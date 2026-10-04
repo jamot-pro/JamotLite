@@ -105,6 +105,7 @@ describe("the company as an MCP server", () => {
 		const { tools } = await ai.listTools();
 		expect(tools.map((t) => t.name).sort()).toEqual([
 			"approvals_pending",
+			"company_dashboard",
 			"company_map",
 			"company_overview",
 			"conversation",

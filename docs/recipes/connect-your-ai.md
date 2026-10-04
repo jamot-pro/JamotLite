@@ -4,6 +4,10 @@ Your company is an MCP server. Any AI that speaks MCP — Claude, Claude Code,
 Cursor, Hermes — can connect and ask it things: *what's missing? who wrote
 today? what did the agents cost this month?*
 
+Using claude.ai, or another client that signs in with OAuth? Follow
+[Connect Claude](connect-claude.md) instead: no token to paste, and the
+company shows as a dashboard inside the conversation.
+
 ## 1. Get the address and the token
 
 ```bash
@@ -42,6 +46,7 @@ If the runtime runs on another machine, reach it through a tunnel you trust
 - *Remember that the flour supplier closes in August.* → `memory_note`
 - *What did the agents do today, and what did it cost?* → `runs_recent`
 - *Is anything waiting for me?* → `approvals_pending`
+- *Show me the company* → `company_dashboard` (a dashboard, in hosts that support MCP Apps)
 
 ## Connect it as someone in the company
 

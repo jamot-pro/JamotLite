@@ -10,10 +10,12 @@ import Fastify, {
 	type FastifyRequest,
 } from "fastify";
 import { type ApiDeps, registerApi } from "./api.js";
+import { registerOAuth } from "./oauth.js";
 
 /**
  * The runtime's one HTTP port: `/health`; `/mcp`, the company as an MCP
- * server for the owner's AI; `/api`, the console's JSON API; and the web
+ * server for the owner's AI, with `/oauth` and `/.well-known` for clients
+ * that sign in with OAuth; `/api`, the console's JSON API; and the web
  * console itself (a static single-page app).
  */
 export interface HttpOptions {
@@ -28,6 +30,8 @@ export interface HttpOptions {
 	onProposal?: (approvalIds: string[]) => Promise<void>;
 	/** One TLS proxy in front: `req.ip` is the client it forwarded for. */
 	behindProxy?: boolean;
+	/** The company's public address, for OAuth discovery (else read from requests). */
+	publicUrl?: string;
 }
 
 export function createHttpServer(opts: HttpOptions): FastifyInstance {
@@ -56,6 +60,13 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 		return { ok: true, company: company?.name ?? null, version: opts.version };
 	});
 
+	registerOAuth(app, {
+		store: opts.store,
+		...(opts.publicUrl ? { publicUrl: opts.publicUrl } : {}),
+	});
+	const publicBase = (req: FastifyRequest) =>
+		(opts.publicUrl ?? `${req.protocol}://${req.host}`).replace(/\/+$/, "");
+
 	const mcp = async (request: FastifyRequest, reply: FastifyReply) => {
 		// The MCP SDK writes the response itself.
 		reply.hijack();
@@ -66,6 +77,7 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 			...(opts.onProposal ? { onProposal: opts.onProposal } : {}),
 			version: opts.version,
 			dataDir: opts.dataDir,
+			resourceMetadata: `${publicBase(request)}/.well-known/oauth-protected-resource/mcp`,
 		});
 	};
 	app.post("/mcp", mcp);
@@ -90,6 +102,8 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 			const isPage =
 				!path.startsWith("/api") &&
 				!path.startsWith("/mcp") &&
+				!path.startsWith("/oauth") &&
+				!path.startsWith("/.well-known") &&
 				!/\.[a-z0-9]+$/i.test(path);
 			if (req.method === "GET" && isPage) {
 				return reply.type("text/html").sendFile("index.html");

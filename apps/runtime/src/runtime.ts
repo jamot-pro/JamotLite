@@ -77,6 +77,8 @@ export interface RuntimeOptions {
 	/** Served behind one TLS proxy (Render, Fly, Caddy): trust its client
 	 * address for the login limit and mark the session cookie Secure. */
 	behindProxy?: boolean;
+	/** The public address (https://…), for MCP sign-in; else read from requests. */
+	publicUrl?: string;
 	log?: (message: string) => void;
 }
 
@@ -231,6 +233,11 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		port = opts.port ?? 3000,
 		host = opts.host ?? "127.0.0.1",
 	) => {
+		if (!http && opts.behindProxy && !opts.publicUrl)
+			// OAuth discovery would name whatever host the proxy forwarded.
+			log(
+				"[runtime] behind a proxy with no public address: set JAMOT_PUBLIC_URL=https://… so MCP sign-in names the right one",
+			);
 		if (!http)
 			http = createHttpServer({
 				store,
@@ -239,6 +246,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				dataDir: opts.dataDir,
 				...(opts.webRoot ? { webRoot: opts.webRoot } : {}),
 				behindProxy: opts.behindProxy === true,
+				...(opts.publicUrl ? { publicUrl: opts.publicUrl } : {}),
 				onProposal: (ids) => telegram.askOwnerToApprove(ids),
 				api: {
 					store,

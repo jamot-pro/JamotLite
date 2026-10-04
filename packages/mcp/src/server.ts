@@ -10,6 +10,13 @@ import type { CompanyStore } from "@jamot/ports";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import {
+	DASHBOARD_HTML,
+	DASHBOARD_URI,
+	DASHBOARD_VIEWS,
+	type DashboardView,
+	MCP_APP_MIME,
+} from "./dashboard.js";
 
 /**
  * The company's MCP surface: the company as an MCP server, so the owner's own AI —
@@ -74,13 +81,17 @@ export function createCompanyMcpServer(
 	});
 
 	/** Registers a tool; a connection's calls become its node's runs and events. */
-	type Result = ReturnType<typeof text> & { isError?: boolean };
+	type Result = ReturnType<typeof text> & {
+		isError?: boolean;
+		structuredContent?: Record<string, unknown>;
+	};
 	const tool = <A>(
 		name: string,
 		config: {
 			title: string;
 			description: string;
 			inputSchema?: Record<string, z.ZodTypeAny>;
+			_meta?: Record<string, unknown>;
 		},
 		handler: (args: A, run: { id: string } | null) => Promise<Result>,
 	) => {
@@ -134,6 +145,162 @@ export function createCompanyMcpServer(
 		);
 	};
 
+	/** The company, its charter, readiness and vital signs. */
+	const overviewData = async () => {
+		const company = await store.graph.getCompany();
+		const dream = (await store.graph.listNodes()).find(
+			(n) => n.kind === "dream",
+		);
+		const vitals = await computeVitals(
+			store,
+			opts.dataDir ? { dataDir: opts.dataDir } : {},
+		);
+		return {
+			company,
+			// The charter in its own words (`dream` is only the code name).
+			charter: dream
+				? {
+						vision: dream.config.vision ?? null,
+						mission: dream.config.objective ?? null,
+						values: dream.config.constraints ?? [],
+						goals: dream.config.outcomes ?? [],
+					}
+				: null,
+			covered: vitals.people.readiness.covered,
+			readiness: Math.round(vitals.people.readiness.overall * 100),
+			tier: vitals.tier,
+			money: vitals.money,
+			unowned: vitals.people.unowned,
+			quiet: vitals.people.quiet,
+			work: vitals.work,
+			runtime: vitals.runtime,
+		};
+	};
+
+	/** What keeps the company from being covered, and open heartbeat issues. */
+	const missingData = async () => {
+		const readiness = computeReadiness({
+			nodes: await store.graph.listNodes(),
+			edges: await store.graph.listEdges(),
+		});
+		// Issues the heartbeats raised and haven't seen fixed since (an issue can reopen).
+		const lastResolved = new Map<string, number>();
+		for (const e of await store.events.list({
+			type: "issue.resolved",
+			limit: 1000,
+		})) {
+			if (e.subject && !lastResolved.has(e.subject))
+				lastResolved.set(e.subject, e.seq);
+		}
+		const seen = new Set<string>();
+		const open: unknown[] = [];
+		for (const e of await store.events.list({
+			type: "issue.opened",
+			limit: 1000,
+		})) {
+			if (!e.subject || seen.has(e.subject)) continue;
+			seen.add(e.subject);
+			if (e.seq > (lastResolved.get(e.subject) ?? 0)) open.push(e.data.title);
+		}
+		return {
+			covered: readiness.covered,
+			gaps: readiness.dimensions
+				.filter((d) => d.missing.length > 0)
+				.map((d) => ({
+					area: d.label,
+					missing: d.missing.map((m) => m.name),
+				})),
+			openIssues: open,
+		};
+	};
+
+	/** Teams, people, agents, responsibilities (with owners), tools, heartbeats. */
+	const mapData = async () => {
+		const nodes = await store.graph.listNodes();
+		const edges = await store.graph.listEdges();
+		const byId = new Map(nodes.map((n) => [n.id, n]));
+		const kinds = [
+			"team",
+			"human",
+			"agent",
+			"responsibility",
+			"tool",
+			"heartbeat",
+		] as const;
+		const map: Record<string, unknown[]> = {};
+		for (const kind of kinds) {
+			map[kind] = nodes
+				.filter((n) => n.kind === kind)
+				.map((n) => ({
+					key: n.key,
+					name: n.name,
+					...(kind === "responsibility"
+						? {
+								owners: edges
+									.filter(
+										(e) =>
+											e.toNodeId === n.id &&
+											(e.relation === "owns" ||
+												e.relation === "responsible_for"),
+									)
+									.map((e) => byId.get(e.fromNodeId)?.name),
+							}
+						: {}),
+					...(kind === "heartbeat" ? { schedule: n.config.schedule } : {}),
+				}));
+		}
+		return map;
+	};
+
+	/** Recent runs — a connection's own only — and 30-day totals. */
+	const runsData = async (limit: number) => {
+		const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+		return {
+			last30Days: await store.runs.totals({
+				since,
+				...(connection ? { agentKey: connection.nodeKey } : {}),
+			}),
+			// A connection sees its own node's runs; the shared token, all.
+			runs: (
+				await store.runs.list({
+					limit,
+					...(connection ? { agentKey: connection.nodeKey } : {}),
+				})
+			).map((r) => ({
+				agent: r.agentKey,
+				status: r.status,
+				trigger: r.trigger,
+				model: r.model,
+				costMicroUsd: r.costMicroUsd,
+				tokens: r.inputTokens + r.outputTokens,
+				// Run words can quote customers: only with people access.
+				output: seesPeople ? r.output : null,
+				error: r.error,
+				at: r.startedAt,
+			})),
+		};
+	};
+
+	/** Actions waiting for the owner — a connection's own only. */
+	const pendingData = async () => {
+		const pending = await store.approvals.list({
+			status: "pending",
+			// A connection sees its own proposals.
+			...(connection
+				? {
+						sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
+					}
+				: {}),
+		});
+		return pending.map((a) => ({
+			id: a.id,
+			agent: a.agentKey,
+			tool: a.tool,
+			args: a.args,
+			since: a.createdAt,
+		}));
+	};
+
 	tool(
 		"company_overview",
 		{
@@ -141,36 +308,7 @@ export function createCompanyMcpServer(
 			description:
 				"The company, its charter (vision, mission, values, goals), how ready it is, and its vital signs: money, people, work, and the runtime.",
 		},
-		async () => {
-			const company = await store.graph.getCompany();
-			const dream = (await store.graph.listNodes()).find(
-				(n) => n.kind === "dream",
-			);
-			const vitals = await computeVitals(
-				store,
-				opts.dataDir ? { dataDir: opts.dataDir } : {},
-			);
-			return text({
-				company,
-				// The charter in its own words (`dream` is only the code name).
-				charter: dream
-					? {
-							vision: dream.config.vision ?? null,
-							mission: dream.config.objective ?? null,
-							values: dream.config.constraints ?? [],
-							goals: dream.config.outcomes ?? [],
-						}
-					: null,
-				covered: vitals.people.readiness.covered,
-				readiness: Math.round(vitals.people.readiness.overall * 100),
-				tier: vitals.tier,
-				money: vitals.money,
-				unowned: vitals.people.unowned,
-				quiet: vitals.people.quiet,
-				work: vitals.work,
-				runtime: vitals.runtime,
-			});
-		},
+		async () => text(await overviewData()),
 	);
 
 	tool(
@@ -180,41 +318,7 @@ export function createCompanyMcpServer(
 			description:
 				"Everything that keeps the company from being fully covered, and the issues its heartbeats raised.",
 		},
-		async () => {
-			const readiness = computeReadiness({
-				nodes: await store.graph.listNodes(),
-				edges: await store.graph.listEdges(),
-			});
-			// Issues the heartbeats raised and haven't seen fixed since (an issue can reopen).
-			const lastResolved = new Map<string, number>();
-			for (const e of await store.events.list({
-				type: "issue.resolved",
-				limit: 1000,
-			})) {
-				if (e.subject && !lastResolved.has(e.subject))
-					lastResolved.set(e.subject, e.seq);
-			}
-			const seen = new Set<string>();
-			const open: unknown[] = [];
-			for (const e of await store.events.list({
-				type: "issue.opened",
-				limit: 1000,
-			})) {
-				if (!e.subject || seen.has(e.subject)) continue;
-				seen.add(e.subject);
-				if (e.seq > (lastResolved.get(e.subject) ?? 0)) open.push(e.data.title);
-			}
-			return text({
-				covered: readiness.covered,
-				gaps: readiness.dimensions
-					.filter((d) => d.missing.length > 0)
-					.map((d) => ({
-						area: d.label,
-						missing: d.missing.map((m) => m.name),
-					})),
-				openIssues: open,
-			});
-		},
+		async () => text(await missingData()),
 	);
 
 	tool(
@@ -224,42 +328,7 @@ export function createCompanyMcpServer(
 			description:
 				"Teams, people, agents, responsibilities (and who owns each), tools and heartbeats.",
 		},
-		async () => {
-			const nodes = await store.graph.listNodes();
-			const edges = await store.graph.listEdges();
-			const byId = new Map(nodes.map((n) => [n.id, n]));
-			const kinds = [
-				"team",
-				"human",
-				"agent",
-				"responsibility",
-				"tool",
-				"heartbeat",
-			] as const;
-			const map: Record<string, unknown[]> = {};
-			for (const kind of kinds) {
-				map[kind] = nodes
-					.filter((n) => n.kind === kind)
-					.map((n) => ({
-						key: n.key,
-						name: n.name,
-						...(kind === "responsibility"
-							? {
-									owners: edges
-										.filter(
-											(e) =>
-												e.toNodeId === n.id &&
-												(e.relation === "owns" ||
-													e.relation === "responsible_for"),
-										)
-										.map((e) => byId.get(e.fromNodeId)?.name),
-								}
-							: {}),
-						...(kind === "heartbeat" ? { schedule: n.config.schedule } : {}),
-					}));
-			}
-			return text(map);
-		},
+		async () => text(await mapData()),
 	);
 
 	// People and their conversations: only with people access.
@@ -441,33 +510,7 @@ export function createCompanyMcpServer(
 				"What the agents did lately, with tokens and cost, and totals for the last 30 days.",
 			inputSchema: { limit: z.number().int().min(1).max(100).default(20) },
 		},
-		async ({ limit }: { limit: number }) => {
-			const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-			return text({
-				last30Days: await store.runs.totals({
-					since,
-					...(connection ? { agentKey: connection.nodeKey } : {}),
-				}),
-				// A connection sees its own node's runs; the shared token, all.
-				runs: (
-					await store.runs.list({
-						limit,
-						...(connection ? { agentKey: connection.nodeKey } : {}),
-					})
-				).map((r) => ({
-					agent: r.agentKey,
-					status: r.status,
-					trigger: r.trigger,
-					model: r.model,
-					costMicroUsd: r.costMicroUsd,
-					tokens: r.inputTokens + r.outputTokens,
-					// Run words can quote customers: only with people access.
-					output: seesPeople ? r.output : null,
-					error: r.error,
-					at: r.startedAt,
-				})),
-			});
-		},
+		async ({ limit }: { limit: number }) => text(await runsData(limit)),
 	);
 
 	tool(
@@ -477,25 +520,99 @@ export function createCompanyMcpServer(
 			description:
 				"Agent actions waiting for the owner. Decide them on Telegram — this surface can't approve anything.",
 		},
-		async () => {
-			const pending = await store.approvals.list({
-				status: "pending",
-				// A connection sees its own proposals.
-				...(connection
+		async () => text(await pendingData()),
+	);
+
+	// The dashboard, shown inside the conversation by hosts that support MCP
+	// Apps (D45); others get its summary as text.
+	server.registerResource(
+		"company-dashboard",
+		DASHBOARD_URI,
+		{
+			title: "Company dashboard",
+			description:
+				"The company at a glance: readiness, map, activity, proposals.",
+			mimeType: MCP_APP_MIME,
+			_meta: { ui: { prefersBorder: true } },
+		},
+		async () => ({
+			contents: [
+				{
+					uri: DASHBOARD_URI,
+					mimeType: MCP_APP_MIME,
+					text: DASHBOARD_HTML,
+					_meta: { ui: { prefersBorder: true } },
+				},
+			],
+		}),
+	);
+
+	/** Proposals decided lately — a connection's own only. */
+	const decidedData = async () =>
+		(
+			await store.approvals.list(
+				connection
 					? {
 							sessionId: `${PROPOSAL_SESSION_PREFIX}${connection.connectionId}`,
 						}
-					: {}),
-			});
-			return text(
-				pending.map((a) => ({
-					id: a.id,
-					agent: a.agentKey,
-					tool: a.tool,
-					args: a.args,
-					since: a.createdAt,
-				})),
-			);
+					: {},
+			)
+		)
+			.filter((a) => a.status !== "pending")
+			.slice(-10)
+			.reverse()
+			.map((a) => ({
+				agent: a.agentKey,
+				tool: a.tool,
+				status: a.status,
+				by: a.decidedBy,
+				at: a.decidedAt,
+			}));
+
+	tool(
+		"company_dashboard",
+		{
+			title: "Show the company",
+			description:
+				"Shows the company as a dashboard: readiness and what's missing, the company map, recent activity, and proposals waiting for a person. Use it when the owner wants to see the company.",
+			inputSchema: { view: z.enum(DASHBOARD_VIEWS).optional() },
+			_meta: {
+				ui: { resourceUri: DASHBOARD_URI },
+				// The key hosts read before MCP Apps settled on `ui.resourceUri`.
+				"ui/resourceUri": DASHBOARD_URI,
+			},
+		},
+		async ({ view }: { view?: DashboardView }) => {
+			const [overview, missing, map, activity, pending, decided] =
+				await Promise.all([
+					overviewData(),
+					missingData(),
+					mapData(),
+					runsData(15),
+					pendingData(),
+					decidedData(),
+				]);
+			const name = overview.company?.name ?? "The company";
+			const summary = [
+				`${name}: ${overview.readiness}% ready${overview.covered ? ", fully covered" : ""}.`,
+				`${missing.gaps.length} gap(s), ${missing.openIssues.length} open issue(s), ${pending.length} proposal(s) waiting for a person.`,
+				"Shown as a dashboard; company_overview, company_map, runs_recent and approvals_pending give the details as text.",
+			].join(" ");
+			return {
+				...text(summary),
+				structuredContent: {
+					view: view ?? "overview",
+					caller: {
+						as: connection?.nodeName ?? null,
+						people: seesPeople,
+					},
+					overview,
+					missing,
+					map,
+					activity,
+					proposals: { pending, decided },
+				},
+			};
 		},
 	);
 
@@ -595,6 +712,8 @@ export async function handleMcpRequest(
 		onProposal?: (approvalIds: string[]) => Promise<void>;
 		version: string;
 		dataDir?: string;
+		/** Where an OAuth client finds how to sign in (RFC 9728). */
+		resourceMetadata?: string;
 	},
 ): Promise<void> {
 	const given =
@@ -603,7 +722,9 @@ export async function handleMcpRequest(
 	if (!caller) {
 		res.writeHead(401, {
 			"content-type": "application/json",
-			"www-authenticate": "Bearer",
+			"www-authenticate": opts.resourceMetadata
+				? `Bearer resource_metadata="${opts.resourceMetadata}", scope="company"`
+				: "Bearer",
 		});
 		res.end(JSON.stringify({ error: "a valid bearer token is required" }));
 		return;

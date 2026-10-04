@@ -98,6 +98,8 @@ Jamot Lite turns it into a running company:
 - **It connects.** The company is an MCP server, so your own AI — Claude,
   Cursor, Hermes — joins it as one of its agents: with a name, limits, a
   history, and proposals you approve ([recipe](docs/recipes/connect-your-ai.md)).
+  claude.ai signs in with one click and shows the company as a dashboard
+  inside the conversation ([recipe](docs/recipes/connect-claude.md)).
 - **It talks where customers are.** Telegram, and a chat page in the browser
   that you turn on when you're ready ([recipe](docs/recipes/web-chat.md)).
 - **It's yours.** One folder, backed up every day on its own

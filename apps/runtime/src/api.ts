@@ -339,7 +339,11 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 		// Outside agents connected as someone in the map (BLUEPRINT S8). The
 		// token is shown once, here; only its hash is kept.
-		const publicConnection = ({ tokenHash: _h, ...c }: Connection) => c;
+		const publicConnection = ({
+			tokenHash: _h,
+			refreshHash: _r,
+			...c
+		}: Connection) => c;
 		owner.get("/api/mcp/connections", async () => ({
 			connections: (await listConnections(store)).map(publicConnection),
 		}));
