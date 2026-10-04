@@ -28,7 +28,7 @@ import {
 	VERSION,
 	webchat,
 } from "./cli/commands.js";
-import { companyDir, jamotHome, webRoot } from "./cli/paths.js";
+import { companyDir, jamotHome, publicUrl, webRoot } from "./cli/paths.js";
 import { createRuntime } from "./runtime.js";
 
 const HELP = `jamot ${VERSION} — one company, one runtime
@@ -156,6 +156,8 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 				host: values.host ?? process.env.HOST ?? "127.0.0.1",
 				...(webRoot() ? { webRoot: webRoot() as string } : {}),
 				behindProxy: process.env.JAMOT_BEHIND_PROXY === "1",
+				// Render names the service's address itself.
+				...(publicUrl() ? { publicUrl: publicUrl() as string } : {}),
 			});
 			const stop = async () => {
 				console.log("\n[runtime] stopping…");
@@ -223,7 +225,7 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 				);
 				const lines = connections.map(
 					(c) =>
-						`  ${c.id}  ${c.nodeName} (${c.nodeKey}) · ${c.access}${c.revokedAt ? ` · revoked ${c.revokedAt.slice(0, 10)}` : ""}`,
+						`  ${c.id}  ${c.nodeName} (${c.nodeKey}) · ${c.access}${c.client ? ` · signed in from ${c.client.name} (${c.client.host})` : ""}${c.revokedAt ? ` · revoked ${c.revokedAt.slice(0, 10)}` : ""}`,
 				);
 				if (token) {
 					const added = connections.at(-1) as Connection;

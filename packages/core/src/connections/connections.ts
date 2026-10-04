@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { CompanyStore } from "@jamot/ports";
+import type { CompanyPorts, CompanyStore } from "@jamot/ports";
 
 /**
  * Bring your own agent (BLUEPRINT S8, RUNTIME D40). An outside AI — Claude
@@ -30,6 +30,21 @@ export interface Connection {
 	tokenHash: string;
 	createdAt: string;
 	revokedAt: string | null;
+	/** Signed in over OAuth (an MCP client such as claude.ai) rather than
+	 *  given a token by hand: which client, and when its access token ends. */
+	client?: OAuthClientRef;
+	expiresAt?: string | null;
+	/** The current refresh token's hash, and when it ends (rotated on use). */
+	refreshHash?: string;
+	refreshExpiresAt?: string;
+}
+
+/** The client a connection signed in with, as the owner saw it on consent. */
+export interface OAuthClientRef {
+	id: string;
+	name: string;
+	/** The host its client id or redirect lives on, e.g. claude.ai. */
+	host: string;
 }
 
 /** Who is on the other end of an MCP request. */
@@ -43,17 +58,17 @@ export type McpCaller =
 			access: ConnectionAccess;
 	  };
 
-const hash = (token: string) =>
+export const hashToken = (token: string) =>
 	createHash("sha256").update(token).digest("base64url");
 
-const same = (a: string, b: string) => {
+export const sameText = (a: string, b: string) => {
 	const x = Buffer.from(a);
 	const y = Buffer.from(b);
 	return x.length === y.length && timingSafeEqual(x, y);
 };
 
 export async function listConnections(
-	store: CompanyStore,
+	store: CompanyPorts,
 ): Promise<Connection[]> {
 	return (await store.settings.get<Connection[]>(CONNECTIONS_SETTING)) ?? [];
 }
@@ -61,40 +76,62 @@ export async function listConnections(
 /** A new connection for an agent or human in the map. The token is returned once. */
 export async function addConnection(
 	store: CompanyStore,
-	input: { nodeKey: string; access?: ConnectionAccess },
+	input: {
+		nodeKey: string;
+		access?: ConnectionAccess;
+		/** OAuth sign-ins: the client, and how long the access token lasts. */
+		client?: OAuthClientRef;
+		ttlSeconds?: number;
+	},
 	now = new Date(),
 ): Promise<{ connection: Connection; token: string }> {
-	const node = (await store.graph.listNodes()).find(
-		(n) =>
-			n.key === input.nodeKey && (n.kind === "agent" || n.kind === "human"),
-	);
-	if (!node)
-		throw new Error(
-			`no agent or person "${input.nodeKey}" in the company map — add them to company.yaml first`,
+	// One transaction: the list is read and written whole, so nothing else
+	// (a refresh, a revoke) may slip in between.
+	return store.transaction(async (tx) => {
+		const node = (await tx.graph.listNodes()).find(
+			(n) =>
+				n.key === input.nodeKey && (n.kind === "agent" || n.kind === "human"),
 		);
-	const id = randomBytes(6).toString("hex");
-	const token = `jmt_${id}_${randomBytes(32).toString("base64url")}`;
-	const connection: Connection = {
-		id,
-		nodeKey: node.key,
-		nodeName: node.name,
-		access: input.access ?? "company",
-		tokenHash: hash(token),
-		createdAt: now.toISOString(),
-		revokedAt: null,
-	};
-	await store.settings.set(CONNECTIONS_SETTING, [
-		...(await listConnections(store)),
-		connection,
-	]);
-	await store.events.append({
-		type: "mcp.connected",
-		source: "mcp",
-		subject: node.key,
-		data: { connectionId: id, access: connection.access },
-		idempotencyKey: `mcp-connected:${id}`,
+		if (!node)
+			throw new Error(
+				`no agent or person "${input.nodeKey}" in the company map — add them to company.yaml first`,
+			);
+		const id = randomBytes(6).toString("hex");
+		const token = `jmt_${id}_${randomBytes(32).toString("base64url")}`;
+		const connection: Connection = {
+			id,
+			nodeKey: node.key,
+			nodeName: node.name,
+			access: input.access ?? "company",
+			tokenHash: hashToken(token),
+			createdAt: now.toISOString(),
+			revokedAt: null,
+			...(input.client
+				? {
+						client: input.client,
+						expiresAt: new Date(
+							now.getTime() + (input.ttlSeconds ?? 3600) * 1000,
+						).toISOString(),
+					}
+				: {}),
+		};
+		await tx.settings.set(CONNECTIONS_SETTING, [
+			...(await listConnections(tx)),
+			connection,
+		]);
+		await tx.events.append({
+			type: "mcp.connected",
+			source: "mcp",
+			subject: node.key,
+			data: {
+				connectionId: id,
+				access: connection.access,
+				...(input.client ? { client: input.client.host } : {}),
+			},
+			idempotencyKey: `mcp-connected:${id}`,
+		});
+		return { connection, token };
 	});
-	return { connection, token };
 }
 
 /** Revokes a connection by id, or the original shared token with "shared". */
@@ -107,20 +144,24 @@ export async function revokeConnection(
 		await store.settings.set(SHARED_REVOKED_SETTING, now.toISOString());
 		return;
 	}
-	const all = await listConnections(store);
-	const found = all.find((c) => c.id === id);
-	if (!found) throw new Error(`no connection ${id} — see \`jamot mcp list\``);
-	if (found.revokedAt) return;
-	await store.settings.set(
-		CONNECTIONS_SETTING,
-		all.map((c) => (c.id === id ? { ...c, revokedAt: now.toISOString() } : c)),
-	);
-	await store.events.append({
-		type: "mcp.revoked",
-		source: "mcp",
-		subject: found.nodeKey,
-		data: { connectionId: id },
-		idempotencyKey: `mcp-revoked:${id}`,
+	return store.transaction(async (tx) => {
+		const all = await listConnections(tx);
+		const found = all.find((c) => c.id === id);
+		if (!found) throw new Error(`no connection ${id} — see \`jamot mcp list\``);
+		if (found.revokedAt) return;
+		await tx.settings.set(
+			CONNECTIONS_SETTING,
+			all.map((c) =>
+				c.id === id ? { ...c, revokedAt: now.toISOString() } : c,
+			),
+		);
+		await tx.events.append({
+			type: "mcp.revoked",
+			source: "mcp",
+			subject: found.nodeKey,
+			data: { connectionId: id },
+			idempotencyKey: `mcp-revoked:${id}`,
+		});
 	});
 }
 
@@ -129,6 +170,7 @@ export async function authenticateMcp(
 	store: CompanyStore,
 	token: string,
 	sharedToken: string,
+	now = new Date(),
 ): Promise<McpCaller | null> {
 	if (!token) return null;
 	const m = /^jmt_([0-9a-f]{12})_/.exec(token);
@@ -139,7 +181,9 @@ export async function authenticateMcp(
 		if (
 			!connection ||
 			connection.revokedAt ||
-			!same(hash(token), connection.tokenHash)
+			!sameText(hashToken(token), connection.tokenHash) ||
+			(connection.expiresAt &&
+				Date.parse(connection.expiresAt) <= now.getTime())
 		)
 			return null;
 		// The node may have left the company map since.
@@ -156,5 +200,7 @@ export async function authenticateMcp(
 		};
 	}
 	if (await store.settings.get(SHARED_REVOKED_SETTING)) return null;
-	return same(token, sharedToken) ? { kind: "shared", access: "people" } : null;
+	return sameText(token, sharedToken)
+		? { kind: "shared", access: "people" }
+		: null;
 }

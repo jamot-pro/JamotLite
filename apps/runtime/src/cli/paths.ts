@@ -74,3 +74,10 @@ export function webRoot(): string | undefined {
 		) ?? undefined
 	);
 }
+
+/** The company's public address, for MCP sign-in: JAMOT_PUBLIC_URL, or the
+ *  one Render gives a web service. Otherwise it's read from each request. */
+export function publicUrl(env = process.env): string | undefined {
+	const url = env.JAMOT_PUBLIC_URL || env.RENDER_EXTERNAL_URL;
+	return url ? url.replace(/\/+$/, "") : undefined;
+}
