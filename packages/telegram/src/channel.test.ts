@@ -167,15 +167,23 @@ describe("Telegram", () => {
 		});
 		expect(sent().at(-1)?.text).toMatch(/You're now the owner/);
 
-		// Used once; the same code again is just a message.
+		// Used once: the same code again is told it didn't work, and it isn't
+		// handed to the agents as a message.
 		await bot.handleUpdate(text(lucia, `/start ${code}`));
-		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(1);
+		expect(sent().at(-1)?.text).toMatch(/code didn't work/);
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
 	});
 
 	it("doesn't pair anyone with a wrong code", async () => {
 		await channel.createPairingCode();
 		await bot.handleUpdate(text(rossi, "/start WRONGCODE"));
 		expect(await channel.owner()).toBeNull();
+		// It says the code didn't work, and it isn't a message for the agents.
+		const said = calls
+			.filter((c) => c.method === "sendMessage")
+			.map((c) => String(c.payload.text));
+		expect(said.join("\n")).toMatch(/code didn't work .* expired/);
+		expect(await store.conversations.list()).toEqual([]);
 	});
 
 	it("sends queued replies and remembers them", async () => {

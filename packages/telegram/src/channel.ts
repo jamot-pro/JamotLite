@@ -113,6 +113,12 @@ export function createTelegramChannel(
 					return;
 				}
 			}
+			// A code that matched nothing is a pairing attempt, not a message
+			// for the agents: say so, instead of answering in silence.
+			await ctx.reply(
+				"That code didn't work — it may have expired (a code works once, for 24 hours). Get a new one with `jamot pair`, or in the console under Settings.",
+			);
+			return;
 		}
 
 		await seenOwner(who.userId);
