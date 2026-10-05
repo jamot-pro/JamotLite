@@ -235,6 +235,30 @@ describe("a heartbeat run", () => {
 		expect(told[0]?.[1]).toContain("✅ Nobody is in Kitchen");
 	});
 
+	it("posts to the stewards' group instead, when there is one (D49)", async () => {
+		const posted: string[] = [];
+		const told: string[][] = [];
+		const withGroup: Notifier = {
+			...notifier,
+			async toGroup(m) {
+				posted.push(m.text);
+				return true;
+			},
+			async toMembers(keys) {
+				told.push(keys);
+				return keys.length;
+			},
+		};
+		await addSteward(store, { name: "Citra", teamKey: "kitchen" }, "owner");
+		await runHeartbeat(
+			{ store, notifier: withGroup, now: at("2026-10-01T10:00:00Z") },
+			"h-pulse",
+		);
+		expect(posted).toHaveLength(1);
+		expect(toOwner).toHaveLength(1);
+		expect(told).toEqual([]);
+	});
+
 	it("notices a customer waiting too long for an answer", async () => {
 		await receiveMessage(store, {
 			channel: "telegram",

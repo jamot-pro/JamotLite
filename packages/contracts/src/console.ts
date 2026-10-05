@@ -174,6 +174,8 @@ export interface SettingsView {
 	modelKeySet: boolean;
 	owner: { name: string } | null;
 	successor: { name: string } | null;
+	/** The stewards' Telegram group the bot posts heartbeats to (D49). */
+	group: { title: string; connectedAt: string } | null;
 	/** Money settings for the survival tier, when set. */
 	survival: unknown;
 	version: string;

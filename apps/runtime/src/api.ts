@@ -487,6 +487,11 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 				modelKeySet: (await deps.secrets.list()).includes("model.apiKey"),
 				owner: await deps.telegram.owner(),
 				successor: await deps.telegram.successor(),
+				group: await deps.telegram
+					.group()
+					.then((g) =>
+						g ? { title: g.title, connectedAt: g.connectedAt } : null,
+					),
 				survival: await store.settings.get("survival"),
 				version: deps.version,
 			}),

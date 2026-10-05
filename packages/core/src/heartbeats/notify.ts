@@ -22,6 +22,11 @@ export interface Notifier {
 	 * with the owner. Returns how many it reached.
 	 */
 	toMembers?(nodeKeys: string[], message: { text: string }): Promise<number>;
+	/**
+	 * Posts to the company's group — the stewards' group (D49) — when it has
+	 * one. No buttons. Returns false when there's no group.
+	 */
+	toGroup?(message: { text: string }): Promise<boolean>;
 }
 
 /** Settings the channel keeps current and the heartbeats read. */

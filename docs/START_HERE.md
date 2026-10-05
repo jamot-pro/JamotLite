@@ -174,5 +174,8 @@ and start from your first issue.
 5. The owner of the area reviews within 48 hours (the successor if they're
    away). Then it's merged and the ledger line stands.
 
-Stuck for more than an hour? Ask in the stewards' Telegram group. Asking early
+Stuck for more than an hour? Ask in the stewards' Telegram group — Jamot's
+heartbeats are posted there too. Once you're in the company map (the founder
+adds you on the console's **Stewards** page), ask for your pairing code: with
+it, the bot knows you. Asking early
 is part of the job.

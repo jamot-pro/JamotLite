@@ -116,7 +116,17 @@ export function Settings() {
 						<span>Successor — contacted if the owner goes silent</span>
 						<span>{s.successor ? `✅ ${s.successor.name}` : "not named"}</span>
 					</Item>
+					<Item>
+						<span>Stewards' group — the heartbeats, for everyone</span>
+						<span>{s.group ? `✅ ${s.group.title}` : "not connected"}</span>
+					</Item>
 				</List>
+				{!s.group && (
+					<Muted small block>
+						To connect the group: add the company's bot to it, then send{" "}
+						<code>/here</code> in the group from the owner's Telegram.
+					</Muted>
+				)}
 				<Actions>
 					{(["owner", "successor"] as const).map((role) => (
 						<Button

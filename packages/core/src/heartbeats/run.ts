@@ -174,7 +174,14 @@ export async function runHeartbeat(
 			text: lines.join("\n"),
 			...(actions.length ? { actions } : {}),
 		});
-		if (teamPeople.size > 0 && deps.notifier.toMembers)
+		// The stewards' group hears every heartbeat (D49); without a group, a
+		// team's linked people hear their team's (D48).
+		const inGroup = deps.notifier.toGroup
+			? await deps.notifier
+					.toGroup({ text: lines.join("\n") })
+					.catch(() => false)
+			: false;
+		if (!inGroup && teamPeople.size > 0 && deps.notifier.toMembers)
 			await deps.notifier
 				.toMembers([...teamPeople], { text: lines.join("\n") })
 				.catch(() => 0);
