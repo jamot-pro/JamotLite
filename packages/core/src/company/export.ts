@@ -4,6 +4,7 @@ import {
 	DreamConfig,
 } from "@jamot/contracts";
 import type { GraphStore } from "@jamot/ports";
+import { isRetired } from "./retired.js";
 
 /**
  * Reads a running company back into a company file: its structure as it is
@@ -39,7 +40,7 @@ export async function exportCompanyFile(
 		dream: DreamConfig.parse(dream.config),
 		...(company.founderKey ? { founder: company.founderKey } : {}),
 		nodes: all
-			.filter((n) => n.kind !== "dream")
+			.filter((n) => n.kind !== "dream" && !isRetired(n))
 			.map((n) => ({
 				key: n.key,
 				kind: n.kind,

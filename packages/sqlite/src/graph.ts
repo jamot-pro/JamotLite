@@ -72,6 +72,52 @@ export function graphOps(db: DatabaseSync): Sync<GraphStore> {
 			);
 		},
 
+		addNode(input) {
+			const id = randomUUID();
+			const now = nowIso();
+			run(
+				db,
+				"INSERT INTO org_nodes (id, key, kind, name, ref_id, config, pos_x, pos_y, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, 0, 0, ?, ?)",
+				id,
+				input.key,
+				input.kind,
+				input.name,
+				JSON.stringify(input.config ?? {}),
+				now,
+				now,
+			);
+			return toNode(
+				one(
+					db,
+					"SELECT id, key, kind, name, ref_id, config, pos_x, pos_y FROM org_nodes WHERE id = ?",
+					id,
+				) as Row,
+			);
+		},
+
+		updateNode(nodeId, change) {
+			const current = one(
+				db,
+				"SELECT id, key, kind, name, ref_id, config, pos_x, pos_y FROM org_nodes WHERE id = ?",
+				nodeId,
+			);
+			if (!current) return null;
+			const node = toNode(current);
+			run(
+				db,
+				"UPDATE org_nodes SET name = ?, config = ?, updated_at = ? WHERE id = ?",
+				change.name ?? node.name,
+				JSON.stringify(change.config ?? node.config),
+				nowIso(),
+				nodeId,
+			);
+			return {
+				...node,
+				name: change.name ?? node.name,
+				config: change.config ?? node.config,
+			};
+		},
+
 		importGraph(graph: GraphImport) {
 			const existing = one<{ n: number }>(
 				db,

@@ -66,4 +66,16 @@ export interface GraphStore {
 	}): Promise<StoredEdge>;
 	/** Ends an edge (sets `validTo`), keeping it as history. */
 	endEdge(edgeId: string): Promise<boolean>;
+	/** Adds one node to the map. Its key must be new. */
+	addNode(input: {
+		key: string;
+		kind: OrgNodeKind;
+		name: string;
+		config?: Record<string, unknown>;
+	}): Promise<StoredNode>;
+	/** Renames a node and/or replaces its config. Null when there's no such node. */
+	updateNode(
+		nodeId: string,
+		change: { name?: string; config?: Record<string, unknown> },
+	): Promise<StoredNode | null>;
 }

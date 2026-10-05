@@ -1,3 +1,12 @@
+export {
+	AGENT_LIMITS,
+	AgentError,
+	addAgent,
+	agentsView,
+	retireAgent,
+	setAgentTools,
+	updateAgent,
+} from "./agents/manage.js";
 export { memoryTools } from "./agents/memory-tools.js";
 export {
 	decideApproval,
@@ -16,6 +25,7 @@ export {
 } from "./channels/intake.js";
 export { exportCompanyFile } from "./company/export.js";
 export { type ImportOptions, importCompanyFile } from "./company/import.js";
+export { isRetired } from "./company/retired.js";
 export {
 	addConnection,
 	authenticateMcp,

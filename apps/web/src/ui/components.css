@@ -250,7 +250,8 @@ button.link:hover {
 	color: var(--accent);
 }
 input,
-select {
+select,
+textarea {
 	font: inherit;
 	color: var(--text);
 	background: var(--surface);
@@ -261,6 +262,7 @@ select {
 }
 input:focus,
 select:focus,
+textarea:focus,
 button:focus-visible,
 a:focus-visible {
 	outline: 2px solid var(--accent);
@@ -271,6 +273,23 @@ label {
 	flex-direction: column;
 	gap: 0.3rem;
 	font-size: 0.9rem;
+}
+textarea {
+	resize: vertical;
+	line-height: 1.5;
+}
+label.check {
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 0.6rem;
+	font-size: 1rem;
+}
+label.check input {
+	width: auto;
+	margin-top: 0.3rem;
+}
+.check-hint {
+	display: block;
 }
 .search {
 	max-width: 320px;

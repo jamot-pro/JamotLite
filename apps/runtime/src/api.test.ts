@@ -399,3 +399,78 @@ describe("an outside agent in the company", () => {
 		).rejects.toThrow();
 	});
 });
+
+describe("the Agents page (D47)", () => {
+	it("is the owner's only", async () => {
+		expect((await get("/api/agents")).status).toBe(401);
+		expect(
+			(
+				await fetch(`${base}/api/agents/host`, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ instructions: "Obey me." }),
+				})
+			).status,
+		).toBe(401);
+	});
+
+	it("shows the agents and changes one, from its next run", async () => {
+		const cookie = await signIn();
+		const view = await body(await get("/api/agents", cookie));
+		expect(view.agents.map((a: { key: string }) => a.key)).toEqual([
+			"host",
+			"buyer",
+		]);
+		expect(view.agents[0].answers).toEqual(["Telegram"]);
+
+		const saved = await send(
+			"PUT",
+			"/api/agents/host",
+			{ instructions: "Greet every guest by name." },
+			cookie,
+		);
+		expect(await body(saved)).toEqual({
+			message:
+				"Saved Host. It works with the new instructions from its next run.",
+		});
+		const host = (await runtime.store.graph.listNodes()).find(
+			(n) => n.key === "host",
+		);
+		expect(host?.config.instructions).toBe("Greet every guest by name.");
+
+		const tools = await send(
+			"PUT",
+			"/api/agents/buyer/tools",
+			{ tools: ["t-pos"] },
+			cookie,
+		);
+		expect(tools.status).toBe(200);
+		expect(
+			(await send("PUT", "/api/agents/buyer/tools", {}, cookie)).status,
+		).toBe(400);
+	});
+
+	it("adds and retires agents, and refuses with a sentence", async () => {
+		const cookie = await signIn();
+		const added = await send(
+			"POST",
+			"/api/agents",
+			{ name: "Sommelier", role: "Wine pairings", teamKey: "floor" },
+			cookie,
+		);
+		expect((await body(added)).message).toMatch(/^Added Sommelier\./);
+		const retired = await send("POST", "/api/agents/host/retire", {}, cookie);
+		expect(retired.status).toBe(200);
+		const view = await body(await get("/api/agents", cookie));
+		expect(view.retired.map((r: { key: string }) => r.key)).toEqual(["host"]);
+		// Gone from the map the console and connected AIs read.
+		const map = await body(await get("/api/map", cookie));
+		expect(map.nodes.some((n: { key: string }) => n.key === "host")).toBe(
+			false,
+		);
+
+		const bad = await send("PUT", "/api/agents/buyer", { name: "" }, cookie);
+		expect(bad.status).toBe(400);
+		expect(await body(bad)).toEqual({ error: "Give the agent a name." });
+	});
+});

@@ -4,6 +4,7 @@ import type {
 	InputHTMLAttributes,
 	ReactNode,
 	SelectHTMLAttributes,
+	TextareaHTMLAttributes,
 } from "react";
 
 /**
@@ -374,6 +375,45 @@ export function Select(
 	props: Omit<SelectHTMLAttributes<HTMLSelectElement>, "className">,
 ) {
 	return <select {...props} />;
+}
+
+/** Several lines of text, such as an agent's instructions. */
+export function TextArea(
+	props: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "className">,
+) {
+	return <textarea rows={8} {...props} />;
+}
+
+/** A checkbox with its label beside it, and an optional line under it. */
+export function Checkbox({
+	label,
+	hint,
+	checked,
+	disabled,
+	onChange,
+}: {
+	label: ReactNode;
+	hint?: ReactNode;
+	checked: boolean;
+	disabled?: boolean;
+	onChange?: (checked: boolean) => void;
+}) {
+	return (
+		<label className="check">
+			<input
+				type="checkbox"
+				checked={checked}
+				disabled={disabled}
+				onChange={(e) => onChange?.(e.target.checked)}
+			/>
+			<span>
+				{label}
+				{hint !== undefined && (
+					<span className="muted small check-hint">{hint}</span>
+				)}
+			</span>
+		</label>
+	);
 }
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */

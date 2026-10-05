@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Approval, CompanyPorts, CompanyStore } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 import { handleOwnerAction } from "../heartbeats/actions.js";
 
 /**
@@ -46,7 +47,8 @@ export async function propose(
 			!nodes.some(
 				(n) =>
 					n.key === proposal.ownerKey &&
-					(n.kind === "human" || n.kind === "agent" || n.kind === "team"),
+					(n.kind === "human" || n.kind === "agent" || n.kind === "team") &&
+					!isRetired(n),
 			)
 		)
 			throw new Error(`no person, agent or team ${proposal.ownerKey}`);

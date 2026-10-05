@@ -1,6 +1,7 @@
 import type { Me } from "@jamot/contracts";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, SignedOut } from "./api.js";
+import { Agents } from "./pages/Agents.js";
 import { Approvals } from "./pages/Approvals.js";
 import { CompanyMap } from "./pages/CompanyMap.js";
 import { Login } from "./pages/Login.js";
@@ -21,6 +22,7 @@ import {
 const PAGES = [
 	{ path: "/", label: "Overview", Page: OverviewPage },
 	{ path: "/map", label: "Company map", Page: CompanyMap },
+	{ path: "/agents", label: "Agents", Page: Agents },
 	{ path: "/people", label: "People", Page: People },
 	{ path: "/approvals", label: "Approvals", Page: Approvals },
 	{ path: "/runs", label: "Agent runs", Page: Runs },

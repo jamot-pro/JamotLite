@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { CompanyPorts, CompanyStore } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 
 /**
  * Bring your own agent (BLUEPRINT S8, RUNTIME D40). An outside AI — Claude
@@ -90,7 +91,9 @@ export async function addConnection(
 	return store.transaction(async (tx) => {
 		const node = (await tx.graph.listNodes()).find(
 			(n) =>
-				n.key === input.nodeKey && (n.kind === "agent" || n.kind === "human"),
+				n.key === input.nodeKey &&
+				(n.kind === "agent" || n.kind === "human") &&
+				!isRetired(n),
 		);
 		if (!node)
 			throw new Error(
@@ -186,9 +189,9 @@ export async function authenticateMcp(
 				Date.parse(connection.expiresAt) <= now.getTime())
 		)
 			return null;
-		// The node may have left the company map since.
+		// The node may have left the company map (or retired) since.
 		const node = (await store.graph.listNodes()).find(
-			(n) => n.key === connection.nodeKey,
+			(n) => n.key === connection.nodeKey && !isRetired(n),
 		);
 		if (!node) return null;
 		return {

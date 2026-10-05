@@ -1,6 +1,9 @@
 import { stringifyCompanyFile } from "@jamot/company-file";
 import type {
 	ActionResult,
+	AgentInput,
+	AgentsView,
+	AgentToolsInput,
 	ApprovalsView,
 	MapView,
 	McpInfo,
@@ -13,14 +16,21 @@ import type {
 	SettingsView,
 } from "@jamot/contracts";
 import {
+	AgentError,
+	addAgent,
 	addConnection,
+	agentsView,
 	type Connection,
 	computeVitals,
 	exportCompanyFile,
 	handleOwnerAction,
+	isRetired,
 	listConnections,
+	retireAgent,
 	revokeConnection,
 	type Secrets,
+	setAgentTools,
+	updateAgent,
 } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import type { TelegramChannel } from "@jamot/telegram";
@@ -166,7 +176,10 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 		});
 
 		owner.get("/api/map", async (): Promise<MapView> => {
-			const nodes = await store.graph.listNodes();
+			// Retired agents are history, not part of the map.
+			const nodes = (await store.graph.listNodes()).filter(
+				(n) => !isRetired(n),
+			);
 			const edges = await store.graph.listEdges();
 			return {
 				nodes: nodes.map((n) => ({
@@ -196,6 +209,77 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 						"the owner",
 					),
 				};
+			},
+		);
+
+		// Agents (RUNTIME D47): what each does, changed only from here — by the
+		// owner, never over MCP. A refusal is a sentence the page shows.
+		const by = "the owner (console)";
+		const refused = (reply: FastifyReply, err: unknown) => {
+			if (err instanceof AgentError)
+				return reply.code(400).send({ error: err.message });
+			throw err;
+		};
+		owner.get("/api/agents", async (): Promise<AgentsView> => {
+			const web = await store.settings.get<WebChatSettings>(WEBCHAT_SETTING);
+			return agentsView(store, {
+				channels: [
+					{ id: "telegram", label: "Telegram" },
+					...(web?.enabled ? [{ id: "web", label: "Web chat" }] : []),
+				],
+			});
+		});
+		owner.post<{ Body: AgentInput }>(
+			"/api/agents",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					const { message } = await addAgent(store, req.body ?? {}, by);
+					return { message };
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.put<{ Params: { key: string }; Body: AgentInput }>(
+			"/api/agents/:key",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					return {
+						message: await updateAgent(
+							store,
+							req.params.key,
+							req.body ?? {},
+							by,
+						),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.put<{ Params: { key: string }; Body: AgentToolsInput }>(
+			"/api/agents/:key/tools",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				const tools = req.body?.tools;
+				if (!Array.isArray(tools) || !tools.every((t) => typeof t === "string"))
+					return reply.code(400).send({ error: "Say which tools, as a list." });
+				try {
+					return {
+						message: await setAgentTools(store, req.params.key, tools, by),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Params: { key: string } }>(
+			"/api/agents/:key/retire",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					return { message: await retireAgent(store, req.params.key, by) };
+				} catch (err) {
+					return refused(reply, err);
+				}
 			},
 		);
 

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { CompanyPorts, CompanyStore } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 import { assertSafeUrl } from "../net/ssrf.js";
 import {
 	addConnection,
@@ -321,7 +322,11 @@ export async function refreshConnection(
 			connection.revokedAt ||
 			connection.client?.id !== clientId ||
 			!sameText(hashToken(refreshToken), connection.refreshHash) ||
-			Date.parse(connection.refreshExpiresAt ?? "") <= now.getTime()
+			Date.parse(connection.refreshExpiresAt ?? "") <= now.getTime() ||
+			// The agent or person it connects as may have retired since.
+			!(await tx.graph.listNodes()).some(
+				(n) => n.key === connection.nodeKey && !isRetired(n),
+			)
 		)
 			throw new OAuthError("invalid_grant", "that refresh token doesn't work");
 		const access = `jmt_${connection.id}_${randomBytes(32).toString("base64url")}`;

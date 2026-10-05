@@ -12,6 +12,7 @@ import {
 	Card,
 	Cell,
 	Chat,
+	Checkbox,
 	ErrorText,
 	Field,
 	Form,
@@ -34,6 +35,7 @@ import {
 	Small,
 	Split,
 	Table,
+	TextArea,
 	Tile,
 	Tiles,
 } from "../ui/index.js";
@@ -243,6 +245,21 @@ export function Gallery() {
 									<option value="a">Anthropic</option>
 								</Select>
 							</Field>
+							<Field label="Several lines" hint="(at most 8000 characters)">
+								<TextArea defaultValue={LONG} rows={3} />
+							</Field>
+							<Checkbox label="A checkbox" checked onChange={noop} />
+							<Checkbox
+								label="With a line under it"
+								hint="Every action waits for your approval."
+								checked={false}
+								onChange={noop}
+							/>
+							<Checkbox
+								label="Disabled: given through a team"
+								checked
+								disabled
+							/>
 							<Button type="submit">Save</Button>
 						</Form>
 						<Form layout="row" onSubmit={noop}>
