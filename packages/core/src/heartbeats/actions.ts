@@ -1,4 +1,5 @@
 import type { CompanyStore } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 
 /**
  * The one-tap fixes heartbeats propose. `action` comes back from a button the
@@ -24,7 +25,8 @@ export async function handleOwnerAction(
 		const owner = nodes.find(
 			(n) =>
 				n.key === ownerKey &&
-				(n.kind === "human" || n.kind === "agent" || n.kind === "team"),
+				(n.kind === "human" || n.kind === "agent" || n.kind === "team") &&
+				!isRetired(n),
 		);
 		if (!responsibility || !owner)
 			return "That's no longer in the company map.";

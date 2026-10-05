@@ -22,6 +22,7 @@ import {
 	HEARTBEAT_JOB,
 	handleOwnerAction,
 	importCompanyFile,
+	isRetired,
 	loadOrCreateSecretKey,
 	planHeartbeats,
 	REPLY_JOB,
@@ -298,7 +299,10 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			const company = await store.graph.getCompany();
 			const nodes = await store.graph.listNodes();
 			const node = nodes.find(
-				(n) => n.kind === "agent" && (!agentKey || n.key === agentKey),
+				(n) =>
+					n.kind === "agent" &&
+					!isRetired(n) &&
+					(!agentKey || n.key === agentKey),
 			);
 			if (!company || !node)
 				throw new Error(

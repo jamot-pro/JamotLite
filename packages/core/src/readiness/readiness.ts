@@ -1,4 +1,5 @@
 import type { StoredEdge, StoredNode } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 
 /**
  * Readiness: how ready the company is to keep going, derived from its map —
@@ -43,8 +44,9 @@ export function computeReadiness(graph: {
 }): Readiness {
 	const { nodes, edges } = graph;
 	const byId = new Map(nodes.map((n) => [n.id, n]));
+	// A retired agent is history, not someone on it.
 	const ofKind = (kind: StoredNode["kind"]) =>
-		nodes.filter((n) => n.kind === kind);
+		nodes.filter((n) => n.kind === kind && !isRetired(n));
 	const gap = (n: StoredNode): Gap => ({ key: n.key, name: n.name });
 	const dimensions: ReadinessDimension[] = [];
 	const presence = (

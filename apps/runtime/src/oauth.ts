@@ -3,6 +3,7 @@ import {
 	type ConnectionAccess,
 	grantConnection,
 	hostOf,
+	isRetired,
 	loopbackOnly,
 	type OAuthClient,
 	type OAuthClientRef,
@@ -269,7 +270,10 @@ export function registerOAuth(app: FastifyInstance, deps: OAuthDeps): void {
 				if (!(await verifyPassword(String(q.password ?? ""), stored)))
 					return again("That password is wrong.", 401);
 				const node = (await store.graph.listNodes()).find(
-					(n) => n.key === q.node && (n.kind === "agent" || n.kind === "human"),
+					(n) =>
+						n.key === q.node &&
+						(n.kind === "agent" || n.kind === "human") &&
+						!isRetired(n),
 				);
 				if (!node) return again("Choose who this app connects as.", 400);
 
@@ -352,7 +356,7 @@ export function registerOAuth(app: FastifyInstance, deps: OAuthDeps): void {
 		) {
 			const company = (await store.graph.getCompany())?.name ?? "this company";
 			const nodes = (await store.graph.listNodes()).filter(
-				(n) => n.kind === "agent" || n.kind === "human",
+				(n) => (n.kind === "agent" || n.kind === "human") && !isRetired(n),
 			);
 			const host = hostOf(client, redirectUri);
 			const keep = [

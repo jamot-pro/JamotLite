@@ -79,6 +79,7 @@ export function CompanyMap() {
 							<Item key={r.id}>
 								<strong>{r.name}</strong>
 								<Select
+									aria-label={`Who owns ${r.name}`}
 									defaultValue=""
 									onChange={(e) => {
 										if (e.target.value) assign(r, e.target.value);

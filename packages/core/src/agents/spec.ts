@@ -1,6 +1,7 @@
 import type { AgentSpec, BrainTool, ModelAccess } from "@jamot/brain";
 import type { DreamConfig } from "@jamot/contracts";
 import type { CompanyRecord, StoredEdge, StoredNode } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 
 /**
  * Agents are graph nodes (RUNTIME D18). This turns one into what the brain
@@ -65,7 +66,7 @@ export function pickChannelAgent(
 				(e.relation === "uses" || e.relation === "has_access_to") &&
 				isChannelTool(e.toNodeId),
 		);
-	const agents = nodes.filter((n) => n.kind === "agent");
+	const agents = nodes.filter((n) => n.kind === "agent" && !isRetired(n));
 
 	const direct = agents.find((a) => reaches(a.id));
 	if (direct) return direct;

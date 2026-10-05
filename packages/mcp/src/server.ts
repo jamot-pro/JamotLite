@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
 	computeReadiness,
 	computeVitals,
+	isRetired,
 	type McpCaller,
 	PROPOSAL_SESSION_PREFIX,
 	propose,
@@ -216,7 +217,8 @@ export function createCompanyMcpServer(
 
 	/** Teams, people, agents, responsibilities (with owners), tools, heartbeats. */
 	const mapData = async () => {
-		const nodes = await store.graph.listNodes();
+		// Retired agents are history, not part of the map.
+		const nodes = (await store.graph.listNodes()).filter((n) => !isRetired(n));
 		const edges = await store.graph.listEdges();
 		const byId = new Map(nodes.map((n) => [n.id, n]));
 		const kinds = [

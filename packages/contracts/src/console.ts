@@ -188,3 +188,55 @@ export interface McpInfo {
 export interface ActionResult {
 	message: string;
 }
+
+/** One agent, as the Agents page shows it (RUNTIME D47). */
+export interface AgentRow {
+	key: string;
+	name: string;
+	role: string | null;
+	instructions: string;
+	teams: { key: string; name: string }[];
+	/** Tools it uses itself (it can change these here)… */
+	tools: string[];
+	/** …and the ones it reaches through a team. */
+	teamTools: string[];
+	/** Responsibilities it owns, by name. */
+	owns: string[];
+	/** Channels it answers: "Telegram", "Web chat". */
+	answers: string[];
+	runs30d: { runs: number; costMicroUsd: number };
+	lastRunAt: string | null;
+	/** Outside AIs connected as this agent (`jamot mcp list`). */
+	connections: number;
+}
+
+export interface ToolRow {
+	key: string;
+	name: string;
+	purpose: string | null;
+	/** What runs straight away and what waits for a person, in a sentence. */
+	approval: string;
+}
+
+export interface AgentsView {
+	agents: AgentRow[];
+	retired: { key: string; name: string; retiredAt: string }[];
+	teams: { key: string; name: string }[];
+	tools: ToolRow[];
+	/** The longest name, role and instructions the runtime accepts. */
+	limits: { name: number; role: number; instructions: number };
+}
+
+/** A new agent, or changes to one (absent fields stay as they are). */
+export interface AgentInput {
+	name?: string;
+	role?: string;
+	instructions?: string;
+	/** The team it works in; null for none. */
+	teamKey?: string | null;
+}
+
+/** The tools an agent uses itself, by key — the whole list. */
+export interface AgentToolsInput {
+	tools: string[];
+}

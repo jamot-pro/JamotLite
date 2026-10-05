@@ -48,7 +48,8 @@ Shown in every state on **`/dev/ui`** (development only; `pnpm dev:web`).
 - **Actions:** `Button` (`variant="primary" | "secondary" | "link"`,
   `size="small"`), `ButtonLink`, `PageLink`, `Actions`
 - **Forms:** `Form` (`layout="stack" | "row"`, `card`), `Field` (`label`,
-  `hint`), `Input` (`search`), `Select`
+  `hint`), `Input` (`search`), `Select`, `TextArea`, `Checkbox` (`label`,
+  `hint`, `checked`, `disabled`)
 - **Conversations:** `Chat`, `Bubble` (`direction`, `meta`)
 
 ## Voice
@@ -74,6 +75,7 @@ reads; it's the **charter** (AGENTS.md, Words).
 |---|---|---|
 | Overview | `/` | How the company is doing and what needs the owner now |
 | Company map | `/map` | Teams, who's in them, who owns what, heartbeats, tools |
+| Agents | `/agents` | Each agent: what it does, where, with what, at what cost; edit, tools, add, retire (D47) |
 | People | `/people` | Everyone the company talks to, and what it remembers |
 | Approvals | `/approvals` | What agents wait for a person to decide |
 | Agent runs | `/runs` | What the agents did, and what it cost |

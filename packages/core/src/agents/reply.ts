@@ -7,6 +7,7 @@ import type {
 } from "@jamot/brain";
 import { DreamConfig } from "@jamot/contracts";
 import type { CompanyStore, Conversation, Person } from "@jamot/ports";
+import { isRetired } from "../company/retired.js";
 import {
 	decideProposal,
 	PROPOSAL_SESSION_PREFIX,
@@ -161,7 +162,9 @@ async function conversationAgent(
 	if (!company) return null;
 	const nodes = await store.graph.listNodes();
 	const node = agentKey
-		? (nodes.find((n) => n.kind === "agent" && n.key === agentKey) ?? null)
+		? (nodes.find(
+				(n) => n.kind === "agent" && n.key === agentKey && !isRetired(n),
+			) ?? null)
 		: pickChannelAgent(
 				nodes,
 				await store.graph.listEdges(),
