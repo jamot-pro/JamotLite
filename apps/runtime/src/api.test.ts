@@ -528,3 +528,45 @@ describe("the Stewards page (D48)", () => {
 		).toBe(400);
 	});
 });
+
+describe("open roles and invitations (D52)", () => {
+	it("are the owner's only", async () => {
+		for (const path of ["/api/roles/r-chef/invite", "/api/invites/abc/approve"])
+			expect(
+				(
+					await fetch(`${base}${path}`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: "{}",
+					})
+				).status,
+			).toBe(401);
+	});
+
+	it("makes an invitation code for an open role, shown on the Stewards page", async () => {
+		const cookie = await signIn();
+		const invite = await body(
+			await send("POST", "/api/roles/r-chef/invite", {}, cookie),
+		);
+		expect(invite.code).toMatch(/^[A-Z2-9]{10}$/);
+		expect(Date.parse(invite.expiresAt)).toBeGreaterThan(Date.now());
+		const view = await body(await get("/api/stewards", cookie));
+		expect(view.invites).toMatchObject([
+			{ responsibility: { key: "r-chef" }, status: "open", candidate: null },
+		]);
+		// The code itself is never shown again.
+		expect(JSON.stringify(view)).not.toContain(invite.code);
+
+		const nobody = await send("POST", "/api/invites/nope/approve", {}, cookie);
+		expect(nobody.status).toBe(400);
+		expect(await body(nobody)).toEqual({
+			error: "That invitation isn't waiting for an answer.",
+		});
+		expect(
+			(await send("POST", "/api/invites/nope/maybe", {}, cookie)).status,
+		).toBe(404);
+		expect(
+			(await send("POST", "/api/roles/r-nothing/invite", {}, cookie)).status,
+		).toBe(400);
+	});
+});

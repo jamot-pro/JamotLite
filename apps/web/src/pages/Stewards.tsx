@@ -1,6 +1,8 @@
 import type {
 	ActionResult,
+	InviteRow,
 	PairingCode,
+	RoleInviteCode,
 	StewardInput,
 	StewardRow,
 	StewardsView,
@@ -12,6 +14,7 @@ import {
 	Badge,
 	Button,
 	Card,
+	Cell,
 	Checkbox,
 	ErrorText,
 	Field,
@@ -23,7 +26,9 @@ import {
 	Muted,
 	Notice,
 	Page,
+	Row,
 	Select,
+	Table,
 } from "../ui/index.js";
 
 /**
@@ -86,11 +91,15 @@ export function Stewards() {
 				</Card>
 			)}
 
+			<Waiting invites={view.invites} onDone={done} />
+
 			<Grid>
 				{view.stewards.map((s) => (
 					<StewardCard key={s.key} steward={s} view={view} onDone={done} />
 				))}
 			</Grid>
+
+			<OpenRoles view={view} onDone={done} />
 
 			{view.retired.length > 0 && (
 				<Card muted title="No longer in the company">
@@ -447,5 +456,172 @@ function OwnsForm({
 				</Button>
 			</Actions>
 		</Form>
+	);
+}
+
+/** People who used an invitation and wait for the owner's yes or no (D52). */
+function Waiting({
+	invites,
+	onDone,
+}: {
+	invites: InviteRow[];
+	onDone: (message: string) => void;
+}) {
+	const [busy, setBusy] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const waiting = invites.filter((i) => i.status === "waiting");
+	if (waiting.length === 0) return null;
+	const answer = async (id: string, yes: boolean) => {
+		if (busy) return;
+		setBusy(id);
+		setError(null);
+		try {
+			onDone(
+				(
+					await api<ActionResult>(
+						`/invites/${id}/${yes ? "approve" : "decline"}`,
+						{ method: "POST", body: {} },
+					)
+				).message,
+			);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(null);
+		}
+	};
+	return (
+		<Card tone="warn" title="Waiting for your answer">
+			{error && <ErrorText>{error}</ErrorText>}
+			{waiting.map((i) => (
+				<Actions key={i.id}>
+					<span>
+						<strong>{i.candidate}</strong> used your invitation and wants to
+						take <strong>{i.responsibility.name}</strong>.
+					</span>
+					<Button
+						size="small"
+						disabled={busy !== null}
+						onClick={() => answer(i.id, true)}
+					>
+						Yes, welcome them
+					</Button>
+					<Button
+						size="small"
+						variant="secondary"
+						disabled={busy !== null}
+						onClick={() => answer(i.id, false)}
+					>
+						No
+					</Button>
+				</Actions>
+			))}
+		</Card>
+	);
+}
+
+/**
+ * Responsibilities nobody owns, and an invitation for each (D52): a code the
+ * owner gives someone they know, who sends it to the company's bot.
+ */
+function OpenRoles({
+	view,
+	onDone,
+}: {
+	view: StewardsView;
+	onDone: (message: string) => void;
+}) {
+	const [made, setMade] = useState<(RoleInviteCode & { role: string }) | null>(
+		null,
+	);
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const open = view.responsibilities.filter((r) => !r.owner);
+	if (open.length === 0) return null;
+	const inviteFor = (key: string) =>
+		view.invites.find((i) => i.responsibility.key === key);
+
+	const invite = async (key: string, role: string) => {
+		if (busy) return;
+		setBusy(true);
+		setError(null);
+		try {
+			const code = await api<RoleInviteCode>(`/roles/${key}/invite`, {
+				method: "POST",
+				body: {},
+			});
+			setMade({ ...code, role });
+			onDone(`Invitation ready for ${role}.`);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Card title="Open roles">
+			<Muted block>
+				Nobody owns these yet. Invite someone you know: they send the code to
+				the company's bot, see the charter and the role, and you say yes or no.
+			</Muted>
+			{made && (
+				<Notice>
+					Send this to the person you're inviting for {made.role}:{" "}
+					{made.bot ? (
+						<>
+							open{" "}
+							<a
+								href={`https://t.me/${made.bot}?start=${made.code}`}
+								target="_blank"
+								rel="noreferrer"
+							>
+								t.me/{made.bot}?start={made.code}
+							</a>
+							, or send <code>/join {made.code}</code> to @{made.bot}
+						</>
+					) : (
+						<>
+							they send <code>/join {made.code}</code> to the company's bot
+						</>
+					)}
+					. It works once, until {when(made.expiresAt)}.
+				</Notice>
+			)}
+			{error && <ErrorText>{error}</ErrorText>}
+			<Table
+				columns={[{ label: "Role" }, { label: "Invitation" }, { label: "" }]}
+			>
+				{open.map((r) => {
+					const i = inviteFor(r.key);
+					return (
+						<Row key={r.key}>
+							<Cell>{r.name}</Cell>
+							<Cell small>
+								{i?.status === "waiting" ? (
+									<Badge tone="ok">{i.candidate} is waiting for you</Badge>
+								) : i ? (
+									<Muted>Sent · works until {when(i.expiresAt)}</Muted>
+								) : (
+									<Muted>None yet</Muted>
+								)}
+							</Cell>
+							<Cell>
+								{i?.status !== "waiting" && (
+									<Button
+										size="small"
+										variant="secondary"
+										disabled={busy}
+										onClick={() => invite(r.key, r.name)}
+									>
+										{i ? "New code" : "Invite someone"}
+									</Button>
+								)}
+							</Cell>
+						</Row>
+					);
+				})}
+			</Table>
+		</Card>
 	);
 }

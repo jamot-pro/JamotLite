@@ -4,6 +4,8 @@ import type { CompanyStore, StoredNode } from "@jamot/ports";
 import { AgentError, placeInTeam } from "../agents/manage.js";
 import { isRetired } from "../company/retired.js";
 import { listConnections } from "../connections/connections.js";
+import { invitesView } from "./invites.js";
+import { newHumanKey } from "./keys.js";
 
 /**
  * The people who run the company — its stewards — managed from the console
@@ -85,6 +87,7 @@ export async function stewardsView(
 		responsibilities: live
 			.filter((n) => n.kind === "responsibility")
 			.map((r) => ({ key: r.key, name: r.name, owner: ownerOf(r) })),
+		invites: await invitesView(store),
 	};
 }
 
@@ -128,14 +131,6 @@ function clean(input: StewardInput): StewardInput {
 	return out;
 }
 
-const slug = (name: string) =>
-	name
-		.toLowerCase()
-		.normalize("NFKD")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 30) || "person";
-
 /** A new person in the company map. Returns their key and what to tell the owner. */
 export async function addSteward(
 	store: CompanyStore,
@@ -146,10 +141,7 @@ export async function addSteward(
 	if (!change.name) throw new AgentError("Give the person a name.");
 	return store.transaction(async (tx) => {
 		const nodes = await tx.graph.listNodes();
-		const taken = new Set(nodes.map((n) => n.key));
-		const base = slug(change.name as string);
-		let key = base === "dream" ? "dream-person" : base;
-		for (let i = 2; taken.has(key); i++) key = `${base}-${i}`;
+		const key = newHumanKey(nodes, change.name as string);
 		const node = await tx.graph.addNode({
 			key,
 			kind: "human",

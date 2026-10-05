@@ -1,4 +1,4 @@
-import { OWNER_LAST_SEEN, SUCCESSION } from "@jamot/core";
+import { createRoleInvite, OWNER_LAST_SEEN, SUCCESSION } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import { openCompanyStore } from "@jamot/sqlite";
 import { Bot } from "grammy";
@@ -251,6 +251,102 @@ describe("Telegram", () => {
 		} as unknown as Update);
 		expect(await channel.group()).toBeNull();
 		expect(await channel.toGroup?.({ text: "x" })).toBe(false);
+	});
+
+	it("lets someone join an open role with an invitation, once the owner says yes (D52)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		await store.graph.addNode({
+			key: "r-bar",
+			kind: "responsibility",
+			name: "Bar",
+		});
+		await pairLucia();
+		const { code } = await createRoleInvite(store, "r-bar", "owner");
+		calls = [];
+
+		await bot.handleUpdate(text(nadya, `/join ${code}`));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "300",
+				text: expect.stringMatching(/invited you to take on: Bar/),
+			},
+			{
+				chat_id: "200",
+				text: expect.stringMatching(
+					/^Nadya used your invitation and wants to take Bar/,
+				),
+			},
+		]);
+		const buttons = JSON.stringify(sent()[1]?.reply_markup);
+		const approve = /invite:approve:\w+/.exec(buttons)?.[0] as string;
+		expect(approve).toBeTruthy();
+		// It isn't a message for the agents.
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		// Only the owner can let someone in.
+		calls = [];
+		await bot.handleUpdate(press(nadya, approve));
+		expect(
+			calls.find((c) => c.method === "answerCallbackQuery")?.payload,
+		).toMatchObject({
+			text: "Only the company's owner can decide this.",
+		});
+		expect(await channel.members()).toEqual({});
+
+		calls = [];
+		await bot.handleUpdate(press(lucia, approve));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "300",
+				text: expect.stringMatching(/^Welcome to .*Nadya\. You now own Bar\./),
+			},
+			{
+				chat_id: 200,
+				text: "Nadya joined and now owns Bar. They have their welcome on Telegram.",
+			},
+		]);
+		expect((await channel.members()).nadya).toMatchObject({
+			userId: "300",
+			chatId: "300",
+		});
+
+		// Pressed twice: said plainly, nothing happens.
+		calls = [];
+		await bot.handleUpdate(press(lucia, approve));
+		expect(sent().at(-1)?.text).toBe("Already approved.");
+
+		// Someone already in the company is pointed to the console instead.
+		const again = await store.graph.addNode({
+			key: "r-door",
+			kind: "responsibility",
+			name: "Door",
+		});
+		expect(again.key).toBe("r-door");
+		const second = await createRoleInvite(store, "r-door", "owner");
+		calls = [];
+		await bot.handleUpdate(text(nadya, `/join ${second.code}`));
+		expect(sent().at(-1)?.text).toMatch(/already part of/);
+	});
+
+	it("takes invitations from a t.me link, and stops guessing after five wrong codes", async () => {
+		const rio = { id: 400, first_name: "Rio" };
+		await store.graph.addNode({
+			key: "r-bar",
+			kind: "responsibility",
+			name: "Bar",
+		});
+		const { code } = await createRoleInvite(store, "r-bar", "owner");
+		await bot.handleUpdate(text(rio, `/start ${code}`));
+		expect(sent().at(-1)?.text).toMatch(/invited you to take on: Bar/);
+
+		const eve = { id: 500, first_name: "Eve" };
+		for (let i = 0; i < 5; i++)
+			await bot.handleUpdate(text(eve, `/join WRONG${i}`));
+		expect(sent().at(-1)?.text).toMatch(/invitation didn't work/);
+		await bot.handleUpdate(text(eve, "/start ANYTHING"));
+		expect(sent().at(-1)?.text).toBe(
+			"Too many codes that didn't work. Try again in an hour.",
+		);
 	});
 
 	it("doesn't pair anyone with a wrong code", async () => {

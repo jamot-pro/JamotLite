@@ -79,6 +79,17 @@ export {
 } from "./jobs/worker.js";
 export { assertSafeUrl } from "./net/ssrf.js";
 export {
+	acceptInvite,
+	type Candidate,
+	candidateBrief,
+	createRoleInvite,
+	decideInvite,
+	INVITES,
+	type Invite,
+	invitesView,
+	onboardingBrief,
+} from "./people/invites.js";
+export {
 	addSteward,
 	STEWARD_LIMITS,
 	setStewardResponsibilities,

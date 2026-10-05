@@ -271,6 +271,29 @@ export interface StewardsView {
 		name: string;
 		owner: { key: string; name: string } | null;
 	}[];
+	/** Invitations to open roles not yet decided (VISION.md, D52). */
+	invites: InviteRow[];
+}
+
+/**
+ * An invitation to an open role: "open" until someone uses the code, then
+ * "waiting" for the founder's yes or no (D52).
+ */
+export interface InviteRow {
+	id: string;
+	responsibility: { key: string; name: string };
+	status: "open" | "waiting";
+	/** Who used the code, once someone has. */
+	candidate: string | null;
+	expiresAt: string;
+}
+
+/** A one-time invitation code for an open role, and the bot to send it to. */
+export interface RoleInviteCode {
+	code: string;
+	expiresAt: string;
+	/** The bot's username, for a t.me link; null when Telegram isn't connected yet. */
+	bot: string | null;
 }
 
 /** A new person, or changes to one (absent fields stay as they are). */
