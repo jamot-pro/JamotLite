@@ -37,7 +37,8 @@ or a customer count (decision D33). The gate:
   steward to do it for real)
 - [ ] The first steward's first pull request is reviewed, merged and in the ledger
 - [ ] Jamot runs on its own runtime, with the stewards' Telegram group (first issue 8)
-  (the runtime is live on Render since 2026-10-03; the group is being built)
+  (the runtime is live on Render since 2026-10-03; to connect the group: add the
+  bot to it and send `/here` there from the owner's Telegram — D49)
 
 When the first three stewards have each merged a pull request, we've launched.
 

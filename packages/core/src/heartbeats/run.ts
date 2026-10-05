@@ -34,10 +34,17 @@ export interface Issue {
 	title: string;
 	proposal: string;
 	actions?: OwnerAction[];
+	/**
+	 * Who besides the owner may read it (D48, D49): "company" — the stewards'
+	 * group; "team:<key>" — that team's people and the group. Absent: the
+	 * owner only — money, customers waiting, failures.
+	 */
+	scope?: "company" | `team:${string}`;
 }
 
 interface OpenIssue {
 	title: string;
+	scope?: Issue["scope"];
 	openedAt: string;
 	notifiedAt: string | null;
 }
@@ -73,6 +80,8 @@ export async function runHeartbeat(
 
 	// Monitor + evaluate
 	const issues: Issue[] = [];
+	// The people of each team this heartbeat watches: they hear their team's issues.
+	const teamPeople = new Map<string, string[]>();
 	const founder = company.founderKey
 		? nodes.find((n) => n.key === company.founderKey)
 		: undefined;
@@ -90,6 +99,7 @@ export async function runHeartbeat(
 				const take = founder ? `assign:${r.key}:${founder.key}` : null;
 				issues.push({
 					key: `unowned:${r.key}`,
+					scope: "company",
 					title: `Nobody owns “${r.name}”`,
 					proposal: "Take it yourself, or find the person or agent who should.",
 					...(take && take.length <= 64
@@ -109,9 +119,14 @@ export async function runHeartbeat(
 				.filter((e) => e.toNodeId === target.id && e.relation === "member_of")
 				.map((e) => byId.get(e.fromNodeId))
 				.filter((n) => n?.kind === "human" || n?.kind === "agent");
+			teamPeople.set(
+				target.key,
+				members.filter((m) => m?.kind === "human").map((m) => m?.key as string),
+			);
 			if (members.length === 0) {
 				issues.push({
 					key: `empty-team:${target.key}`,
+					scope: `team:${target.key}`,
 					title: `Nobody is in ${target.name}`,
 					proposal: "Add a person or an agent to it.",
 				});
@@ -120,6 +135,7 @@ export async function runHeartbeat(
 				if (members.some((m) => m?.key === q.key)) {
 					issues.push({
 						key: `quiet:${q.key}`,
+						scope: `team:${target.key}`,
 						title: `${q.name} has been quiet since ${q.lastSeen?.slice(0, 10)}`,
 						proposal:
 							"Check in with them — what they own may need a new owner.",
@@ -136,7 +152,7 @@ export async function runHeartbeat(
 	const current = new Map(issues.map((i) => [i.key, i]));
 	const resolved = Object.entries(open)
 		.filter(([key]) => !current.has(key))
-		.map(([key, issue]) => ({ key, title: issue.title }));
+		.map(([key, issue]) => ({ key, title: issue.title, scope: issue.scope }));
 	const opened = issues.filter((i) => !open[i.key]);
 	const remind = issues.filter((i) => {
 		const was = open[i.key];
@@ -147,23 +163,32 @@ export async function runHeartbeat(
 		);
 	});
 
-	let notified = false;
-	if (opened.length + remind.length + resolved.length > 0) {
+	/** The message, with only the issues `see` lets through; null if none. */
+	const compose = (see: (scope: Issue["scope"]) => boolean) => {
+		const now_ = [...opened, ...remind].filter((i) => see(i.scope));
+		const fixed = resolved.filter((r) => see(r.scope));
+		if (now_.length + fixed.length === 0) return null;
 		const lines = [`💓 ${heartbeat.name} — ${company.name}`];
-		if (opened.length + remind.length > 0) {
+		if (now_.length > 0) {
 			lines.push("", "Needs you:");
-			for (const i of [...opened, ...remind])
+			for (const i of now_)
 				lines.push(
 					`• ${i.title}${open[i.key] ? " (reminder)" : ""}`,
 					`  → ${i.proposal}`,
 				);
 		}
-		if (resolved.length > 0)
+		if (fixed.length > 0)
 			lines.push(
 				"",
 				"Fixed since last time:",
-				...resolved.map((r) => `✅ ${r.title}`),
+				...fixed.map((r) => `✅ ${r.title}`),
 			);
+		return lines.join("\n");
+	};
+
+	let notified = false;
+	if (opened.length + remind.length + resolved.length > 0) {
+		const lines = [compose(() => true) as string];
 		const actions = [...opened, ...remind]
 			.flatMap((i) => i.actions ?? [])
 			.slice(0, 6);
@@ -171,6 +196,23 @@ export async function runHeartbeat(
 			text: lines.join("\n"),
 			...(actions.length ? { actions } : {}),
 		});
+		// Others hear only what's theirs to hear: the stewards' group, what
+		// concerns the company's structure and its teams (D49); without a
+		// group, each team's linked people, their team's issues (D48). Money,
+		// customers and failures stay with the owner.
+		const forGroup = compose((scope) => scope !== undefined);
+		const inGroup =
+			forGroup && deps.notifier.toGroup
+				? await deps.notifier.toGroup({ text: forGroup }).catch(() => false)
+				: false;
+		if (!inGroup && deps.notifier.toMembers)
+			for (const [team, people] of teamPeople) {
+				const forTeam = compose((scope) => scope === `team:${team}`);
+				if (forTeam && people.length)
+					await deps.notifier
+						.toMembers(people, { text: forTeam })
+						.catch(() => 0);
+			}
 		if (!notified) {
 			await store.events.append({
 				type: "heartbeat.unrouted",
@@ -189,6 +231,7 @@ export async function runHeartbeat(
 		const reminded = remind.includes(i);
 		next[i.key] = {
 			title: i.title,
+			...(i.scope ? { scope: i.scope } : {}),
 			openedAt: was?.openedAt ?? now.toISOString(),
 			notifiedAt:
 				!was || reminded ? (told ?? was?.notifiedAt ?? null) : was.notifiedAt,

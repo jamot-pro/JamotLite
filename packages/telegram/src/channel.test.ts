@@ -174,6 +174,85 @@ describe("Telegram", () => {
 		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
 	});
 
+	it("links a steward to their place in the company, and tells them about their team (D48)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		const node = await store.graph.addNode({
+			key: "nadya",
+			kind: "human",
+			name: "Nadya Putri",
+		});
+		await expect(channel.createMemberPairingCode("ghost")).rejects.toThrow(
+			'There\'s no one "ghost" any more.',
+		);
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+		expect(sent().at(-1)?.text).toMatch(/linked to .* as Nadya Putri/);
+		expect((await channel.members()).nadya).toMatchObject({
+			userId: "300",
+			chatId: "300",
+			name: "Nadya Putri",
+		});
+		// The code works once, and isn't a message for the agents.
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+		expect(sent().at(-1)?.text).toMatch(/code didn't work/);
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		// Team alerts: to the steward, once, never twice to the owner.
+		await pairLucia();
+		calls = [];
+		expect(
+			await channel.toMembers?.(["nadya", "nadya", "ghost"], {
+				text: "💓 Floor sweep",
+			}),
+		).toBe(1);
+		expect(sent()).toMatchObject([{ chat_id: "300", text: "💓 Floor sweep" }]);
+
+		// A retired steward hears nothing more.
+		await store.graph.updateNode(node.id, {
+			config: { retiredAt: new Date().toISOString() },
+		});
+		expect(await channel.toMembers?.(["nadya"], { text: "x" })).toBe(0);
+	});
+
+	it("connects the stewards' group, posts heartbeats there, and leaves when removed (D49)", async () => {
+		const group = { id: -77, type: "group", title: "Jamot stewards" };
+		// Only the paired owner can connect a group.
+		await bot.handleUpdate(text(rossi, "/here", group));
+		expect(sent().at(-1)?.text).toMatch(/Only the company's owner/);
+		expect(await channel.group()).toBeNull();
+
+		await pairLucia();
+		await bot.handleUpdate(text(lucia, "/here@cafe_bot", group));
+		expect(await channel.group()).toMatchObject({
+			chatId: "-77",
+			title: "Jamot stewards",
+		});
+		expect(sent().at(-1)?.text).toMatch(/stewards' group/);
+
+		calls = [];
+		expect(await channel.toGroup?.({ text: "💓 Pulse" })).toBe(true);
+		expect(sent()).toMatchObject([{ chat_id: "-77", text: "💓 Pulse" }]);
+
+		// Talk in the group isn't for the agents; a mention gets pointed to a DM.
+		await bot.handleUpdate(text(rossi, "anyone around?", group));
+		await bot.handleUpdate(text(rossi, "hey @cafe_bot, who's waiting?", group));
+		expect(sent().at(-1)?.text).toMatch(/write to me privately/);
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		await bot.handleUpdate({
+			update_id: 9_999,
+			my_chat_member: {
+				chat: group,
+				from: person(200, "Lucia"),
+				date: 0,
+				old_chat_member: { status: "member", user: person(42, "Café") },
+				new_chat_member: { status: "left", user: person(42, "Café") },
+			},
+		} as unknown as Update);
+		expect(await channel.group()).toBeNull();
+		expect(await channel.toGroup?.({ text: "x" })).toBe(false);
+	});
+
 	it("doesn't pair anyone with a wrong code", async () => {
 		await channel.createPairingCode();
 		await bot.handleUpdate(text(rossi, "/start WRONGCODE"));

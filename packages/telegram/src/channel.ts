@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	isRetired,
 	type Notifier,
 	OWNER_LAST_SEEN,
 	type OwnerAction,
@@ -52,14 +53,37 @@ export interface TelegramChannel extends Notifier {
 	askOwnerToApprove(approvalIds: string[]): Promise<void>;
 	/** A one-time code (valid 24 h) the owner — or successor — sends as `/start <code>`. */
 	createPairingCode(role?: Role): Promise<string>;
+	/** A one-time code (24 h) that links a person of the company map (D48). */
+	createMemberPairingCode(nodeKey: string): Promise<string>;
 	owner(): Promise<TelegramOwner | null>;
 	successor(): Promise<TelegramOwner | null>;
+	/** People of the map who linked their Telegram, by node key. */
+	members(): Promise<Record<string, TelegramOwner>>;
+	/** The stewards' group the bot posts to (D49), if one is connected. */
+	group(): Promise<TelegramGroup | null>;
+}
+
+export interface TelegramGroup {
+	chatId: string;
+	title: string;
+	connectedAt: string;
 }
 
 const PAIRING_TTL_MS = 24 * 60 * 60 * 1000;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const holderKey = (role: Role) => `telegram.${role}`;
 const pairingKey = (role: Role) => `telegram.pairing.${role}`;
+/** Stewards linked to their node in the map, and their pending codes (D48). */
+export const MEMBERS_SETTING = "telegram.members";
+export const GROUP_SETTING = "telegram.group";
+const MEMBER_PAIRING = "telegram.pairing.members";
+type Pending = { codeHash: string; expiresAt: string };
+
+/** Unambiguous characters only: people type this. */
+function newCode(): string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+	return [...randomBytes(8)].map((b) => alphabet[b % alphabet.length]).join("");
+}
 
 export function createTelegramChannel(
 	bot: Bot,
@@ -85,8 +109,51 @@ export function createTelegramChannel(
 	}
 
 	bot.on("message:text", async (ctx) => {
-		// Groups come later; a company bot talks to people one to one.
-		if (ctx.chat.type !== "private" || !ctx.from) return;
+		if (!ctx.from) return;
+		// In a group, the bot posts the company's heartbeats and nothing else
+		// (D49): agents talk to people one to one.
+		if (ctx.chat.type === "group" || ctx.chat.type === "supergroup") {
+			const text = ctx.message.text.trim();
+			const command = /^\/(\w+)(?:@(\w+))?(?:\s|$)/.exec(text);
+			const me = bot.botInfo?.username;
+			if (command && (!command[2] || command[2] === me)) {
+				if (command[1] === "here") {
+					// Only the paired owner connects a group.
+					if ((await holder("owner"))?.userId !== String(ctx.from.id)) {
+						await ctx.reply(
+							"Only the company's owner can connect this group: they send /here from their own Telegram.",
+						);
+						return;
+					}
+					const title =
+						"title" in ctx.chat && ctx.chat.title ? ctx.chat.title : "group";
+					await store.settings.set(GROUP_SETTING, {
+						chatId: String(ctx.chat.id),
+						title,
+						connectedAt: new Date().toISOString(),
+					} satisfies TelegramGroup);
+					await store.events.append({
+						type: "group.connected",
+						source: "channel/telegram",
+						subject: String(ctx.chat.id),
+						data: { title },
+						idempotencyKey: `group-connected:${ctx.chat.id}:${ctx.message.message_id}`,
+					});
+					const company = await store.graph.getCompany();
+					await ctx.reply(
+						`This is now ${company?.name ?? "the company"}'s stewards' group. I'll post the heartbeats here; approvals stay in private.`,
+					);
+				}
+				return;
+			}
+			// Mentioned: point them to a private chat, where memory is kept per person.
+			if (me && text.includes(`@${me}`))
+				await ctx.reply(
+					"I post the company's heartbeats here. To talk to me, write to me privately.",
+				);
+			return;
+		}
+		if (ctx.chat.type !== "private") return;
 		const text = ctx.message.text;
 		const displayName =
 			[ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") ||
@@ -112,6 +179,14 @@ export function createTelegramChannel(
 					await seenOwner(who.userId);
 					return;
 				}
+			}
+			const member = await pairMember(code, who);
+			if (member) {
+				const company = await store.graph.getCompany();
+				await ctx.reply(
+					`You're now linked to ${company?.name ?? "the company"} as ${member}. Your team's heartbeats will reach you here.`,
+				);
+				return;
 			}
 			// A code that matched nothing is a pairing attempt, not a message
 			// for the agents: say so, instead of answering in silence.
@@ -176,6 +251,17 @@ export function createTelegramChannel(
 		await ctx.reply(await deps.act(data, person.name));
 	});
 
+	// Taken out of the stewards' group: stop posting there.
+	bot.on("my_chat_member", async (ctx) => {
+		const status = ctx.myChatMember.new_chat_member.status;
+		if (status !== "left" && status !== "kicked") return;
+		const group = await store.settings.get<TelegramGroup>(GROUP_SETTING);
+		if (group?.chatId === String(ctx.chat.id)) {
+			await store.settings.delete(GROUP_SETTING);
+			log(`[telegram] removed from ${group.title}: no group any more`);
+		}
+	});
+
 	bot.catch((err) => log(`[telegram] ${err.message}`));
 
 	async function pair(
@@ -216,6 +302,56 @@ export function createTelegramChannel(
 			});
 		});
 		return true;
+	}
+
+	/** Links a steward's Telegram to their node; returns their name, or null. */
+	async function pairMember(
+		code: string,
+		who: { userId: string; chatId: string; name: string },
+	): Promise<string | null> {
+		const pending =
+			(await store.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ?? {};
+		const hash = sha256(code);
+		const nodeKey = Object.keys(pending).find(
+			(k) =>
+				pending[k]?.codeHash === hash &&
+				Date.parse(pending[k]?.expiresAt ?? "") >= Date.now(),
+		);
+		if (!nodeKey) return null;
+		const node = (await store.graph.listNodes()).find(
+			(n) => n.kind === "human" && n.key === nodeKey && !isRetired(n),
+		);
+		if (!node) return null;
+		await store.transaction(async (tx) => {
+			let person = await tx.people.findByIdentity("telegram", who.userId);
+			if (!person) {
+				person = await tx.people.create({ displayName: node.name });
+				await tx.people.addIdentity(person.id, {
+					provider: "telegram",
+					value: who.userId,
+					verified: true,
+				});
+			}
+			const members =
+				(await tx.settings.get<Record<string, TelegramOwner>>(
+					MEMBERS_SETTING,
+				)) ?? {};
+			await tx.settings.set(MEMBERS_SETTING, {
+				...members,
+				[nodeKey]: { ...who, name: node.name, personId: person.id },
+			});
+			const left =
+				(await tx.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ?? {};
+			delete left[nodeKey]; // one use only
+			await tx.settings.set(MEMBER_PAIRING, left);
+			await tx.events.append({
+				type: "steward.paired",
+				source: "channel/telegram",
+				subject: nodeKey,
+				idempotencyKey: `steward-paired:${nodeKey}:${hash}`,
+			});
+		});
+		return node.name;
 	}
 
 	async function send(
@@ -365,11 +501,7 @@ export function createTelegramChannel(
 		},
 
 		async createPairingCode(role = "owner") {
-			// Unambiguous characters only: people type this.
-			const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-			const code = [...randomBytes(8)]
-				.map((b) => alphabet[b % alphabet.length])
-				.join("");
+			const code = newCode();
 			await store.settings.set(pairingKey(role), {
 				codeHash: sha256(code),
 				expiresAt: new Date(Date.now() + PAIRING_TTL_MS).toISOString(),
@@ -377,7 +509,74 @@ export function createTelegramChannel(
 			return code;
 		},
 
+		async createMemberPairingCode(nodeKey) {
+			const node = (await store.graph.listNodes()).find(
+				(n) => n.kind === "human" && n.key === nodeKey && !isRetired(n),
+			);
+			if (!node) throw new Error(`There's no one "${nodeKey}" any more.`);
+			const code = newCode();
+			const pending =
+				(await store.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ??
+				{};
+			await store.settings.set(MEMBER_PAIRING, {
+				...pending,
+				[nodeKey]: {
+					codeHash: sha256(code),
+					expiresAt: new Date(Date.now() + PAIRING_TTL_MS).toISOString(),
+				},
+			});
+			return code;
+		},
+
+		async toMembers(nodeKeys, message) {
+			const members =
+				(await store.settings.get<Record<string, TelegramOwner>>(
+					MEMBERS_SETTING,
+				)) ?? {};
+			const live = new Set(
+				(await store.graph.listNodes())
+					.filter((n) => n.kind === "human" && !isRetired(n))
+					.map((n) => n.key),
+			);
+			// Whoever decides already got it, with the buttons.
+			const told = new Set((await deciders()).map((d) => d.chatId));
+			let reached = 0;
+			for (const key of new Set(nodeKeys)) {
+				const m = members[key];
+				if (!m || !live.has(key) || told.has(m.chatId)) continue;
+				told.add(m.chatId);
+				try {
+					await bot.api.sendMessage(m.chatId, message.text);
+					reached++;
+				} catch (err) {
+					log(
+						`[telegram] couldn't reach ${m.name}: ${err instanceof Error ? err.message : err}`,
+					);
+				}
+			}
+			return reached;
+		},
+
+		async toGroup(message) {
+			const group = await store.settings.get<TelegramGroup>(GROUP_SETTING);
+			if (!group) return false;
+			try {
+				await bot.api.sendMessage(group.chatId, message.text);
+				return true;
+			} catch (err) {
+				log(
+					`[telegram] couldn't post to ${group.title}: ${err instanceof Error ? err.message : err}`,
+				);
+				return false;
+			}
+		},
+
+		group: () => store.settings.get<TelegramGroup>(GROUP_SETTING),
 		owner: () => holder("owner"),
 		successor: () => holder("successor"),
+		members: async () =>
+			(await store.settings.get<Record<string, TelegramOwner>>(
+				MEMBERS_SETTING,
+			)) ?? {},
 	};
 }

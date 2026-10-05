@@ -16,6 +16,17 @@ export interface Notifier {
 		text: string;
 		actions?: OwnerAction[];
 	}): Promise<boolean>;
+	/**
+	 * Tells people of the company map who linked their Telegram (D48) — a
+	 * team's stewards about their team's heartbeat. No buttons: deciding stays
+	 * with the owner. Returns how many it reached.
+	 */
+	toMembers?(nodeKeys: string[], message: { text: string }): Promise<number>;
+	/**
+	 * Posts to the company's group — the stewards' group (D49) — when it has
+	 * one. No buttons. Returns false when there's no group.
+	 */
+	toGroup?(message: { text: string }): Promise<boolean>;
 }
 
 /** Settings the channel keeps current and the heartbeats read. */

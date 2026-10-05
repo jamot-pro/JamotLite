@@ -3,7 +3,9 @@ export {
 	AgentError,
 	addAgent,
 	agentsView,
+	placeInTeam,
 	retireAgent,
+	retireMember,
 	setAgentTools,
 	updateAgent,
 } from "./agents/manage.js";
@@ -76,6 +78,13 @@ export {
 	type WorkerOptions,
 } from "./jobs/worker.js";
 export { assertSafeUrl } from "./net/ssrf.js";
+export {
+	addSteward,
+	STEWARD_LIMITS,
+	setStewardResponsibilities,
+	stewardsView,
+	updateSteward,
+} from "./people/stewards.js";
 export {
 	computeReadiness,
 	type Gap,

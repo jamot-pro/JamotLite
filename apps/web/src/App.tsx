@@ -9,6 +9,7 @@ import { OverviewPage } from "./pages/Overview.js";
 import { People } from "./pages/People.js";
 import { Runs } from "./pages/Runs.js";
 import { Settings } from "./pages/Settings.js";
+import { Stewards } from "./pages/Stewards.js";
 import {
 	Banner,
 	Brand,
@@ -22,6 +23,7 @@ import {
 const PAGES = [
 	{ path: "/", label: "Overview", Page: OverviewPage },
 	{ path: "/map", label: "Company map", Page: CompanyMap },
+	{ path: "/stewards", label: "Stewards", Page: Stewards },
 	{ path: "/agents", label: "Agents", Page: Agents },
 	{ path: "/people", label: "People", Page: People },
 	{ path: "/approvals", label: "Approvals", Page: Approvals },
