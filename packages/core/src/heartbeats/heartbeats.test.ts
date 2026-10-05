@@ -250,12 +250,24 @@ describe("a heartbeat run", () => {
 			},
 		};
 		await addSteward(store, { name: "Citra", teamKey: "kitchen" }, "owner");
+		// A customer waiting: the owner hears their name, the group never does.
+		await receiveMessage(store, {
+			channel: "telegram",
+			threadId: "9",
+			messageId: "1",
+			from: { userId: "9", displayName: "Rossi" },
+			text: "Hello?",
+			at: "2026-10-01T08:00:00.000Z",
+		});
 		await runHeartbeat(
 			{ store, notifier: withGroup, now: at("2026-10-01T10:00:00Z") },
 			"h-pulse",
 		);
-		expect(posted).toHaveLength(1);
 		expect(toOwner).toHaveLength(1);
+		expect(toOwner[0]?.text).toContain("Rossi has been waiting");
+		expect(posted).toHaveLength(1);
+		expect(posted[0]).toContain("Nobody owns “Head chef”");
+		expect(posted[0]).not.toContain("Rossi");
 		expect(told).toEqual([]);
 	});
 
