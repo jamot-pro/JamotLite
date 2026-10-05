@@ -130,6 +130,10 @@ going*, not *guaranteed to succeed*. That part is still up to the people.
 7. **A network no one owns** 🌱 — independent Jamot networks connected by open
    protocols; your identity and reputation travel with you.
 
+Where it's heading next: [docs/VISION.md](docs/VISION.md), the founder's
+operating system. You bring the idea; agents do the work first, people from
+your network fill the gaps, and every contribution is on the record.
+
 Every decision behind Jamot Lite, and exactly what's in and out of this
 version, is in [docs/RUNTIME.md](docs/RUNTIME.md).
 
