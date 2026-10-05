@@ -30,10 +30,14 @@ or a customer count (decision D33). The gate:
 
 - [x] Every responsibility has an owner role and a first issue ([FIRST_ISSUES.md](docs/FIRST_ISSUES.md))
 - [x] Onboarding, the code map and the workflow are written (START_HERE, ARCHITECTURE, CONTRIBUTING)
-- [ ] `main` holds v0.1 and these docs, and `v0.1.0` is tagged (pull requests #1 and #2, first issue 7)
+- [x] `main` holds v0.1 and these docs, and `v0.1.0` is tagged (pull requests #1 and #2, first issue 7)
 - [ ] The first steward goes from invite to green tests in under an hour, following START_HERE alone
+  (dry run 2026-10-05: a fresh clone was green in under a minute with a warm
+  package cache; the company started and answered `/health` — waiting on a
+  steward to do it for real)
 - [ ] The first steward's first pull request is reviewed, merged and in the ledger
 - [ ] Jamot runs on its own runtime, with the stewards' Telegram group (first issue 8)
+  (the runtime is live on Render since 2026-10-03; the group is being built)
 
 When the first three stewards have each merged a pull request, we've launched.
 
