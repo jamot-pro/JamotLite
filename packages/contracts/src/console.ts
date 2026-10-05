@@ -259,6 +259,10 @@ export interface StewardRow {
 	paired: boolean;
 	/** Outside AIs connected as this person. */
 	connections: number;
+	/** When they were last active on Telegram, if Jamot has seen them (D53). */
+	lastSeen: string | null;
+	/** A check-in waiting for their answer, or a pause they chose (D53). */
+	away: { state: "asked" | "paused"; at: string } | null;
 }
 
 export interface StewardsView {

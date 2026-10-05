@@ -16,3 +16,8 @@ export function newHumanKey(nodes: StoredNode[], name: string): string {
 	for (let i = 2; taken.has(key); i++) key = `${base}-${i}`;
 	return key;
 }
+
+/** When each steward was last active on Telegram, by node key (D53). */
+export const STEWARDS_LAST_SEEN = "stewards.lastSeen";
+/** Check-ins, pauses and releases, by node key (D53). */
+export const CHECKINS = "roles.checkins";

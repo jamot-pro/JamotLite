@@ -1,4 +1,9 @@
-import { createRoleInvite, OWNER_LAST_SEEN, SUCCESSION } from "@jamot/core";
+import {
+	createRoleInvite,
+	OWNER_LAST_SEEN,
+	STEWARDS_LAST_SEEN,
+	SUCCESSION,
+} from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import { openCompanyStore } from "@jamot/sqlite";
 import { Bot } from "grammy";
@@ -347,6 +352,70 @@ describe("Telegram", () => {
 		expect(sent().at(-1)?.text).toBe(
 			"Too many codes that didn't work. Try again in an hour.",
 		);
+	});
+
+	it("checks in with a quiet steward, and only they can answer (D53)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		const node = await store.graph.addNode({
+			key: "nadya",
+			kind: "human",
+			name: "Nadya",
+		});
+		const bar = await store.graph.addNode({
+			key: "r-bar",
+			kind: "responsibility",
+			name: "Bar",
+		});
+		await store.graph.addEdge({
+			fromNodeId: node.id,
+			toNodeId: bar.id,
+			relation: "responsible_for",
+		});
+		await pairLucia();
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+
+		// Writing to the bot counts as being here.
+		await bot.handleUpdate(text(nadya, "Morning! Bar is stocked."));
+		expect(
+			Object.keys((await store.settings.get(STEWARDS_LAST_SEEN)) ?? {}),
+		).toEqual(["nadya"]);
+
+		calls = [];
+		expect(
+			await channel.toMember?.("nadya", {
+				text: "How's it going?",
+				actions: [{ label: "Hand it over", action: "handover:nadya" }],
+			}),
+		).toBe(true);
+		expect(sent()).toMatchObject([{ chat_id: "300", text: "How's it going?" }]);
+		expect(await channel.toMember?.("ghost", { text: "x" })).toBe(false);
+
+		// Someone else can't answer for them — not even the owner.
+		calls = [];
+		await bot.handleUpdate(press(lucia, "handover:nadya"));
+		expect(
+			calls.find((c) => c.method === "answerCallbackQuery")?.payload,
+		).toMatchObject({
+			text: "This question was for someone else.",
+		});
+		expect(await store.graph.listEdges()).toHaveLength(1);
+
+		calls = [];
+		await bot.handleUpdate(press(nadya, "handover:nadya"));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "200",
+				text: expect.stringMatching(/^🤝 Nadya handed over Bar\./),
+			},
+			{
+				chat_id: 300,
+				text: expect.stringMatching(
+					/^Thank you for everything you did for Bar/,
+				),
+			},
+		]);
+		expect(await store.graph.listEdges()).toHaveLength(0);
 	});
 
 	it("doesn't pair anyone with a wrong code", async () => {
