@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	isRetired,
 	type Notifier,
 	OWNER_LAST_SEEN,
 	type OwnerAction,
@@ -52,14 +53,28 @@ export interface TelegramChannel extends Notifier {
 	askOwnerToApprove(approvalIds: string[]): Promise<void>;
 	/** A one-time code (valid 24 h) the owner — or successor — sends as `/start <code>`. */
 	createPairingCode(role?: Role): Promise<string>;
+	/** A one-time code (24 h) that links a person of the company map (D48). */
+	createMemberPairingCode(nodeKey: string): Promise<string>;
 	owner(): Promise<TelegramOwner | null>;
 	successor(): Promise<TelegramOwner | null>;
+	/** People of the map who linked their Telegram, by node key. */
+	members(): Promise<Record<string, TelegramOwner>>;
 }
 
 const PAIRING_TTL_MS = 24 * 60 * 60 * 1000;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const holderKey = (role: Role) => `telegram.${role}`;
 const pairingKey = (role: Role) => `telegram.pairing.${role}`;
+/** Stewards linked to their node in the map, and their pending codes (D48). */
+export const MEMBERS_SETTING = "telegram.members";
+const MEMBER_PAIRING = "telegram.pairing.members";
+type Pending = { codeHash: string; expiresAt: string };
+
+/** Unambiguous characters only: people type this. */
+function newCode(): string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+	return [...randomBytes(8)].map((b) => alphabet[b % alphabet.length]).join("");
+}
 
 export function createTelegramChannel(
 	bot: Bot,
@@ -112,6 +127,14 @@ export function createTelegramChannel(
 					await seenOwner(who.userId);
 					return;
 				}
+			}
+			const member = await pairMember(code, who);
+			if (member) {
+				const company = await store.graph.getCompany();
+				await ctx.reply(
+					`You're now linked to ${company?.name ?? "the company"} as ${member}. Your team's heartbeats will reach you here.`,
+				);
+				return;
 			}
 			// A code that matched nothing is a pairing attempt, not a message
 			// for the agents: say so, instead of answering in silence.
@@ -216,6 +239,56 @@ export function createTelegramChannel(
 			});
 		});
 		return true;
+	}
+
+	/** Links a steward's Telegram to their node; returns their name, or null. */
+	async function pairMember(
+		code: string,
+		who: { userId: string; chatId: string; name: string },
+	): Promise<string | null> {
+		const pending =
+			(await store.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ?? {};
+		const hash = sha256(code);
+		const nodeKey = Object.keys(pending).find(
+			(k) =>
+				pending[k]?.codeHash === hash &&
+				Date.parse(pending[k]?.expiresAt ?? "") >= Date.now(),
+		);
+		if (!nodeKey) return null;
+		const node = (await store.graph.listNodes()).find(
+			(n) => n.kind === "human" && n.key === nodeKey && !isRetired(n),
+		);
+		if (!node) return null;
+		await store.transaction(async (tx) => {
+			let person = await tx.people.findByIdentity("telegram", who.userId);
+			if (!person) {
+				person = await tx.people.create({ displayName: node.name });
+				await tx.people.addIdentity(person.id, {
+					provider: "telegram",
+					value: who.userId,
+					verified: true,
+				});
+			}
+			const members =
+				(await tx.settings.get<Record<string, TelegramOwner>>(
+					MEMBERS_SETTING,
+				)) ?? {};
+			await tx.settings.set(MEMBERS_SETTING, {
+				...members,
+				[nodeKey]: { ...who, name: node.name, personId: person.id },
+			});
+			const left =
+				(await tx.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ?? {};
+			delete left[nodeKey]; // one use only
+			await tx.settings.set(MEMBER_PAIRING, left);
+			await tx.events.append({
+				type: "steward.paired",
+				source: "channel/telegram",
+				subject: nodeKey,
+				idempotencyKey: `steward-paired:${nodeKey}:${hash}`,
+			});
+		});
+		return node.name;
 	}
 
 	async function send(
@@ -365,11 +438,7 @@ export function createTelegramChannel(
 		},
 
 		async createPairingCode(role = "owner") {
-			// Unambiguous characters only: people type this.
-			const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-			const code = [...randomBytes(8)]
-				.map((b) => alphabet[b % alphabet.length])
-				.join("");
+			const code = newCode();
 			await store.settings.set(pairingKey(role), {
 				codeHash: sha256(code),
 				expiresAt: new Date(Date.now() + PAIRING_TTL_MS).toISOString(),
@@ -377,7 +446,59 @@ export function createTelegramChannel(
 			return code;
 		},
 
+		async createMemberPairingCode(nodeKey) {
+			const node = (await store.graph.listNodes()).find(
+				(n) => n.kind === "human" && n.key === nodeKey && !isRetired(n),
+			);
+			if (!node) throw new Error(`There's no one "${nodeKey}" any more.`);
+			const code = newCode();
+			const pending =
+				(await store.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ??
+				{};
+			await store.settings.set(MEMBER_PAIRING, {
+				...pending,
+				[nodeKey]: {
+					codeHash: sha256(code),
+					expiresAt: new Date(Date.now() + PAIRING_TTL_MS).toISOString(),
+				},
+			});
+			return code;
+		},
+
+		async toMembers(nodeKeys, message) {
+			const members =
+				(await store.settings.get<Record<string, TelegramOwner>>(
+					MEMBERS_SETTING,
+				)) ?? {};
+			const live = new Set(
+				(await store.graph.listNodes())
+					.filter((n) => n.kind === "human" && !isRetired(n))
+					.map((n) => n.key),
+			);
+			// Whoever decides already got it, with the buttons.
+			const told = new Set((await deciders()).map((d) => d.chatId));
+			let reached = 0;
+			for (const key of new Set(nodeKeys)) {
+				const m = members[key];
+				if (!m || !live.has(key) || told.has(m.chatId)) continue;
+				told.add(m.chatId);
+				try {
+					await bot.api.sendMessage(m.chatId, message.text);
+					reached++;
+				} catch (err) {
+					log(
+						`[telegram] couldn't reach ${m.name}: ${err instanceof Error ? err.message : err}`,
+					);
+				}
+			}
+			return reached;
+		},
+
 		owner: () => holder("owner"),
 		successor: () => holder("successor"),
+		members: async () =>
+			(await store.settings.get<Record<string, TelegramOwner>>(
+				MEMBERS_SETTING,
+			)) ?? {},
 	};
 }

@@ -240,3 +240,52 @@ export interface AgentInput {
 export interface AgentToolsInput {
 	tools: string[];
 }
+
+/** A person who runs the company, as the Stewards page shows them (D48). */
+export interface StewardRow {
+	key: string;
+	name: string;
+	role: string | null;
+	/** Their Telegram and GitHub handles, as the owner wrote them. */
+	telegram: string | null;
+	github: string | null;
+	teams: { key: string; name: string }[];
+	owns: { key: string; name: string }[];
+	/** The company's founder: always in it, never retired. */
+	founder: boolean;
+	/** Their Telegram is linked: the bot knows them, team alerts reach them. */
+	paired: boolean;
+	/** Outside AIs connected as this person. */
+	connections: number;
+}
+
+export interface StewardsView {
+	stewards: StewardRow[];
+	retired: { key: string; name: string; retiredAt: string }[];
+	teams: { key: string; name: string }[];
+	/** Every responsibility and who owns it now (a person, an agent or a team). */
+	responsibilities: {
+		key: string;
+		name: string;
+		owner: { key: string; name: string } | null;
+	}[];
+}
+
+/** A new person, or changes to one (absent fields stay as they are). */
+export interface StewardInput {
+	name?: string;
+	role?: string;
+	telegram?: string;
+	github?: string;
+	teamKey?: string | null;
+}
+
+/** The responsibilities a person owns, by key — the whole list. */
+export interface StewardResponsibilitiesInput {
+	responsibilities: string[];
+}
+
+/** A one-time code a steward sends the bot as `/start <code>`. */
+export interface PairingCode {
+	code: string;
+}

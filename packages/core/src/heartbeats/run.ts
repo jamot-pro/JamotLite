@@ -73,6 +73,8 @@ export async function runHeartbeat(
 
 	// Monitor + evaluate
 	const issues: Issue[] = [];
+	// The people of the teams this heartbeat watches: they hear about it too.
+	const teamPeople = new Set<string>();
 	const founder = company.founderKey
 		? nodes.find((n) => n.key === company.founderKey)
 		: undefined;
@@ -109,6 +111,7 @@ export async function runHeartbeat(
 				.filter((e) => e.toNodeId === target.id && e.relation === "member_of")
 				.map((e) => byId.get(e.fromNodeId))
 				.filter((n) => n?.kind === "human" || n?.kind === "agent");
+			for (const m of members) if (m?.kind === "human") teamPeople.add(m.key);
 			if (members.length === 0) {
 				issues.push({
 					key: `empty-team:${target.key}`,
@@ -171,6 +174,10 @@ export async function runHeartbeat(
 			text: lines.join("\n"),
 			...(actions.length ? { actions } : {}),
 		});
+		if (teamPeople.size > 0 && deps.notifier.toMembers)
+			await deps.notifier
+				.toMembers([...teamPeople], { text: lines.join("\n") })
+				.catch(() => 0);
 		if (!notified) {
 			await store.events.append({
 				type: "heartbeat.unrouted",

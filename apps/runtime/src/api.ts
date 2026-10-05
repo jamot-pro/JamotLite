@@ -10,15 +10,20 @@ import type {
 	Me,
 	MessageRow,
 	OverviewView,
+	PairingCode,
 	PersonProfile,
 	PersonRow,
 	RunsView,
 	SettingsView,
+	StewardInput,
+	StewardResponsibilitiesInput,
+	StewardsView,
 } from "@jamot/contracts";
 import {
 	AgentError,
 	addAgent,
 	addConnection,
+	addSteward,
 	agentsView,
 	type Connection,
 	computeVitals,
@@ -27,10 +32,14 @@ import {
 	isRetired,
 	listConnections,
 	retireAgent,
+	retireMember,
 	revokeConnection,
 	type Secrets,
 	setAgentTools,
+	setStewardResponsibilities,
+	stewardsView,
 	updateAgent,
+	updateSteward,
 } from "@jamot/core";
 import type { CompanyStore } from "@jamot/ports";
 import type { TelegramChannel } from "@jamot/telegram";
@@ -279,6 +288,93 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 					return { message: await retireAgent(store, req.params.key, by) };
 				} catch (err) {
 					return refused(reply, err);
+				}
+			},
+		);
+
+		// Stewards (RUNTIME D48): the people who run the company, changed only
+		// from here, like agents.
+		owner.get(
+			"/api/stewards",
+			async (): Promise<StewardsView> =>
+				stewardsView(store, {
+					paired: new Set(Object.keys(await deps.telegram.members())),
+				}),
+		);
+		owner.post<{ Body: StewardInput }>(
+			"/api/stewards",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					const { message } = await addSteward(store, req.body ?? {}, by);
+					return { message };
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.put<{ Params: { key: string }; Body: StewardInput }>(
+			"/api/stewards/:key",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					return {
+						message: await updateSteward(
+							store,
+							req.params.key,
+							req.body ?? {},
+							by,
+						),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.put<{
+			Params: { key: string };
+			Body: StewardResponsibilitiesInput;
+		}>(
+			"/api/stewards/:key/responsibilities",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				const keys = req.body?.responsibilities;
+				if (!Array.isArray(keys) || !keys.every((k) => typeof k === "string"))
+					return reply
+						.code(400)
+						.send({ error: "Say which responsibilities, as a list." });
+				try {
+					return {
+						message: await setStewardResponsibilities(
+							store,
+							req.params.key,
+							keys,
+							by,
+						),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Params: { key: string } }>(
+			"/api/stewards/:key/retire",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					return {
+						message: await retireMember(store, "human", req.params.key, by),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Params: { key: string } }>(
+			"/api/stewards/:key/pairing",
+			async (req, reply): Promise<PairingCode | FastifyReply> => {
+				try {
+					return {
+						code: await deps.telegram.createMemberPairingCode(req.params.key),
+					};
+				} catch (err) {
+					return reply.code(400).send({ error: (err as Error).message });
 				}
 			},
 		);

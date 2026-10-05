@@ -174,6 +174,46 @@ describe("Telegram", () => {
 		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
 	});
 
+	it("links a steward to their place in the company, and tells them about their team (D48)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		const node = await store.graph.addNode({
+			key: "nadya",
+			kind: "human",
+			name: "Nadya Putri",
+		});
+		await expect(channel.createMemberPairingCode("ghost")).rejects.toThrow(
+			'There\'s no one "ghost" any more.',
+		);
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+		expect(sent().at(-1)?.text).toMatch(/linked to .* as Nadya Putri/);
+		expect((await channel.members()).nadya).toMatchObject({
+			userId: "300",
+			chatId: "300",
+			name: "Nadya Putri",
+		});
+		// The code works once, and isn't a message for the agents.
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+		expect(sent().at(-1)?.text).toMatch(/code didn't work/);
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		// Team alerts: to the steward, once, never twice to the owner.
+		await pairLucia();
+		calls = [];
+		expect(
+			await channel.toMembers?.(["nadya", "nadya", "ghost"], {
+				text: "💓 Floor sweep",
+			}),
+		).toBe(1);
+		expect(sent()).toMatchObject([{ chat_id: "300", text: "💓 Floor sweep" }]);
+
+		// A retired steward hears nothing more.
+		await store.graph.updateNode(node.id, {
+			config: { retiredAt: new Date().toISOString() },
+		});
+		expect(await channel.toMembers?.(["nadya"], { text: "x" })).toBe(0);
+	});
+
 	it("doesn't pair anyone with a wrong code", async () => {
 		await channel.createPairingCode();
 		await bot.handleUpdate(text(rossi, "/start WRONGCODE"));

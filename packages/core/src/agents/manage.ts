@@ -179,8 +179,8 @@ async function activeAgent(tx: CompanyPorts, key: string) {
 	return { node, nodes, edges: await tx.graph.listEdges() };
 }
 
-/** Moves an agent into one team (or none), ending its other memberships. */
-async function placeInTeam(
+/** Moves an agent or a person into one team (or none), ending its other memberships. */
+export async function placeInTeam(
 	tx: CompanyPorts,
 	agent: StoredNode,
 	teamKey: string | null,
@@ -358,23 +358,38 @@ export async function setAgentTools(
 }
 
 /**
- * Retires an agent: it stops answering, owning and being reachable, and its
- * history stays. A company keeps at least one agent.
+ * Retires an agent or a person: it stops answering, owning and being
+ * reachable, and its history stays. A company keeps at least one agent, and
+ * never retires its founder.
  */
-export async function retireAgent(
+export async function retireMember(
 	store: CompanyStore,
+	kind: "agent" | "human",
 	key: string,
 	by: string,
 	now = new Date(),
 ): Promise<string> {
 	return store.transaction(async (tx) => {
-		const { node, nodes, edges } = await activeAgent(tx, key);
-		const others = nodes.filter(
-			(n) => n.kind === "agent" && n.id !== node.id && !isRetired(n),
+		const nodes = await tx.graph.listNodes();
+		const node = nodes.find(
+			(n) => n.kind === kind && n.key === key && !isRetired(n),
 		);
-		if (others.length === 0)
+		if (!node)
 			throw new AgentError(
-				`${node.name} is the company's only agent: add another before retiring it.`,
+				`There's no ${kind === "agent" ? "agent" : "one"} "${key}" any more.`,
+			);
+		const edges = await tx.graph.listEdges();
+		if (kind === "agent") {
+			const others = nodes.filter(
+				(n) => n.kind === "agent" && n.id !== node.id && !isRetired(n),
+			);
+			if (others.length === 0)
+				throw new AgentError(
+					`${node.name} is the company's only agent: add another before retiring it.`,
+				);
+		} else if ((await tx.graph.getCompany())?.founderKey === node.key)
+			throw new AgentError(
+				`${node.name} founded the company and stays in it. Name a successor in Settings instead.`,
 			);
 		const owned = edges
 			.filter(
@@ -391,7 +406,7 @@ export async function retireAgent(
 			config: { ...node.config, retiredAt: now.toISOString() },
 		});
 		await tx.events.append({
-			type: "agent.retired",
+			type: `${kind === "agent" ? "agent" : "steward"}.retired`,
 			source: "console",
 			idempotencyKey: `console:${randomUUID()}`,
 			subject: node.key,
@@ -402,3 +417,11 @@ export async function retireAgent(
 			: `Retired ${node.name}.`;
 	});
 }
+
+/** Retires an agent (see retireMember). */
+export const retireAgent = (
+	store: CompanyStore,
+	key: string,
+	by: string,
+	now = new Date(),
+) => retireMember(store, "agent", key, by, now);

@@ -6,6 +6,7 @@ import { openCompanyStore } from "@jamot/sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { receiveMessage } from "../channels/intake.js";
 import { importCompanyFile } from "../company/import.js";
+import { addSteward } from "../people/stewards.js";
 import { computeReadiness } from "../readiness/readiness.js";
 import { budgetForTier, computeVitals } from "../survival/vitals.js";
 import { handleOwnerAction } from "./actions.js";
@@ -202,6 +203,36 @@ describe("a heartbeat run", () => {
 			"h-kitchen",
 		);
 		expect(run.issues.map((i) => i.title)).toEqual(["Nobody is in Kitchen"]);
+	});
+
+	it("tells a team's linked stewards about their team's heartbeat (D48)", async () => {
+		const told: [string[], string][] = [];
+		const withMembers: Notifier = {
+			...notifier,
+			async toMembers(keys, m) {
+				told.push([keys, m.text]);
+				return keys.length;
+			},
+		};
+		const deps = { store, notifier: withMembers };
+		await runHeartbeat(
+			{ ...deps, now: at("2026-10-01T10:00:00Z") },
+			"h-kitchen",
+		);
+		// Nobody in the kitchen yet: only the owner hears.
+		expect(told).toEqual([]);
+		const { key } = await addSteward(
+			store,
+			{ name: "Citra", teamKey: "kitchen" },
+			"owner",
+		);
+		await runHeartbeat(
+			{ ...deps, now: at("2026-10-01T10:30:00Z") },
+			"h-kitchen",
+		);
+		expect(told).toHaveLength(1);
+		expect(told[0]?.[0]).toEqual([key]);
+		expect(told[0]?.[1]).toContain("✅ Nobody is in Kitchen");
 	});
 
 	it("notices a customer waiting too long for an answer", async () => {

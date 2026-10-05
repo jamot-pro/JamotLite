@@ -474,3 +474,57 @@ describe("the Agents page (D47)", () => {
 		expect(await body(bad)).toEqual({ error: "Give the agent a name." });
 	});
 });
+
+describe("the Stewards page (D48)", () => {
+	it("is the owner's only", async () => {
+		expect((await get("/api/stewards")).status).toBe(401);
+		expect(
+			(
+				await fetch(`${base}/api/stewards/founder/pairing`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: "{}",
+				})
+			).status,
+		).toBe(401);
+	});
+
+	it("adds a steward, gives them a responsibility and a pairing code", async () => {
+		const cookie = await signIn();
+		const added = await send(
+			"POST",
+			"/api/stewards",
+			{ name: "Nadya", telegram: "nadya_p", teamKey: "floor" },
+			cookie,
+		);
+		expect((await body(added)).message).toMatch(/^Added Nadya\./);
+		const owns = await send(
+			"PUT",
+			"/api/stewards/nadya/responsibilities",
+			{ responsibilities: ["r-floor"] },
+			cookie,
+		);
+		expect(await body(owns)).toEqual({
+			message: "Nadya now owns Floor manager.",
+		});
+		const code = await body(
+			await send("POST", "/api/stewards/nadya/pairing", {}, cookie),
+		);
+		expect(code.code).toMatch(/^[A-Z2-9]{8}$/);
+
+		const view = await body(await get("/api/stewards", cookie));
+		const nadya = view.stewards.find((s: { key: string }) => s.key === "nadya");
+		expect(nadya).toMatchObject({
+			telegram: "nadya_p",
+			owns: [{ key: "r-floor", name: "Floor manager" }],
+			paired: false,
+		});
+		expect(
+			(await send("POST", "/api/stewards/nobody/pairing", {}, cookie)).status,
+		).toBe(400);
+		expect(
+			(await send("PUT", "/api/stewards/nadya/responsibilities", {}, cookie))
+				.status,
+		).toBe(400);
+	});
+});
