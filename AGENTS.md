@@ -33,7 +33,7 @@ look for what, and the code conventions: [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 
 | Path | What lives there |
 |---|---|
-| `packages/contracts` | Shared types (zod): org graph, the charter (`DreamConfig`), company file. Change a shape here first. |
+| `packages/contracts` | Shared types (zod): org graph, the charter (`DreamConfig`), company file, and what the console's API returns (`console.ts`). Change a shape here first. |
 | `packages/company-file` | Reads and writes `company.yaml` |
 | `packages/ports` | Storage interfaces the domain code uses (async, one company per database) |
 | `packages/sqlite` | SQLite adapters (`node:sqlite`) and migrations |
@@ -42,7 +42,7 @@ look for what, and the code conventions: [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 | `packages/core` | Domain logic: company import/export, message intake, reply agents, approvals, secrets, the job worker |
 | `packages/mcp` | The company as an MCP server (`/mcp`), and MCP tools for agents |
 | `apps/runtime` | One company, one process: wires everything, serves `/api`, `/mcp` and the console; the `jamot` CLI |
-| `apps/web` | The web console (Vite + React), served by the runtime |
+| `apps/web` | The web console (Vite + React), served by the runtime. `src/ui`: tokens and components; `src/pages`: screens made of them; [DESIGN.md](apps/web/DESIGN.md) |
 | `scripts/` | `build.mjs` (the bundle) and `install.sh` |
 | `templates/` | The company templates, as `company.yaml` files |
 | `jamot.company.yaml` | Jamot itself, run as a Jamot company: its charter, responsibilities and heartbeats |
@@ -66,6 +66,9 @@ pnpm test          # vitest
 pnpm jamot --help  # the CLI, from source
 pnpm build         # dist/: jamot.mjs, templates, console
 pnpm ledger        # merged pull requests missing from CONTRIBUTIONS.md
+pnpm dev:company   # a seeded company on :3000 for building the console
+pnpm dev:web       # the console with live reload on :5173 (/dev/ui: every component)
+pnpm ui-check      # the console's UI rules (rule 13)
 ```
 
 Workflow: branch `<area>/<short-name>` from `main`; one pull request per
@@ -104,3 +107,25 @@ prefix; the area's owner in `.github/CODEOWNERS` reviews; squash-merge.
    profile: never in logs, the repository, exports of the company map, the
    ledger, or another person's prompt — and never used to decide roles,
    reviews or allocations (D31). Tests use made-up values.
+13. **Screens are made of components, data comes from contracts** (D46). A
+   page in `apps/web/src/pages` uses only components from `apps/web/src/ui`
+   — no class names, no inline styles, no raw layout tags — and the shapes it
+   reads from `@jamot/contracts`, which the runtime's routes are typed with.
+   What a screen shows is decided on the server, not in the page. A new look
+   is a change to `src/ui`, never to every page. `pnpm ui-check` enforces
+   it; [apps/web/DESIGN.md](apps/web/DESIGN.md) is the guide.
+
+## Building the console with Claude Code
+
+The repository carries its own setup in `.claude/`:
+
+- **Preview:** start `company` (`pnpm dev:company`: a seeded restaurant on
+  the demo model, nothing leaves the machine; the password is in
+  `scripts/dev-company.ts`) and `console` (`pnpm dev:web`, port 5173). Check
+  every change there — desktop, phone width, dark — and `/dev/ui`, which
+  shows every component in every state.
+- **Skills:** `new-screen` (a screen end to end), `restyle` (a new look,
+  through tokens and components only), `ui-review` (before the pull request).
+- **Hook:** after each edit in `apps/web` or `packages/contracts`, the file is
+  formatted, the console typechecked and the UI rules checked; a problem
+  comes back straight away.

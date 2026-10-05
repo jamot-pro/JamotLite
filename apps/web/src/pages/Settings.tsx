@@ -1,26 +1,37 @@
+import type { McpInfo, SettingsView } from "@jamot/contracts";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
-
-interface SettingsData {
-	model: { provider: string; modelId: string; baseUrl?: string } | null;
-	modelKeySet: boolean;
-	owner: { name: string } | null;
-	successor: { name: string } | null;
-	version: string;
-}
+import {
+	Actions,
+	Button,
+	ButtonLink,
+	Card,
+	Field,
+	Form,
+	Input,
+	Item,
+	List,
+	Loading,
+	Muted,
+	Notice,
+	Page,
+	Pre,
+	Secret,
+	Select,
+} from "../ui/index.js";
 
 export function Settings() {
-	const [s, setS] = useState<SettingsData | null>(null);
+	const [s, setS] = useState<SettingsView | null>(null);
 	const [provider, setProvider] = useState("anthropic");
 	const [modelId, setModelId] = useState("");
 	const [apiKey, setApiKey] = useState("");
 	const [notice, setNotice] = useState<string | null>(null);
 	const [code, setCode] = useState<{ role: string; code: string } | null>(null);
-	const [mcp, setMcp] = useState<{ url: string; token: string } | null>(null);
+	const [mcp, setMcp] = useState<McpInfo | null>(null);
 
 	const load = useCallback(
 		() =>
-			api<SettingsData>("/settings").then((d) => {
+			api<SettingsView>("/settings").then((d) => {
 				setS(d);
 				if (d.model) {
 					setProvider(d.model.provider);
@@ -32,26 +43,19 @@ export function Settings() {
 	useEffect(() => {
 		load();
 	}, [load]);
-	if (!s) return <p className="muted">Loading…</p>;
+	if (!s) return <Loading />;
 
 	return (
-		<>
-			<header className="head">
-				<h1>Settings</h1>
-				<span className="muted small">Jamot {s.version}</span>
-			</header>
-			{notice && <p className="notice">{notice}</p>}
+		<Page title="Settings" actions={<Muted small>Jamot {s.version}</Muted>}>
+			{notice && <Notice>{notice}</Notice>}
 
-			<section className="card">
-				<h2>Model</h2>
-				<p className="muted small">
+			<Card title="Model">
+				<Muted small block>
 					The model your agents think with. The key is stored encrypted and
 					never shown again.
-				</p>
-				<form
-					className="stack"
-					onSubmit={async (e) => {
-						e.preventDefault();
+				</Muted>
+				<Form
+					onSubmit={async () => {
 						await api("/settings/model", {
 							method: "PUT",
 							body: { provider, modelId, ...(apiKey ? { apiKey } : {}) },
@@ -61,9 +65,8 @@ export function Settings() {
 						load();
 					}}
 				>
-					<label>
-						Provider
-						<select
+					<Field label="Provider">
+						<Select
 							value={provider}
 							onChange={(e) => setProvider(e.target.value)}
 						>
@@ -71,56 +74,54 @@ export function Settings() {
 							<option value="openai">OpenAI</option>
 							<option value="openrouter">OpenRouter</option>
 							<option value="ollama">Ollama (on this machine)</option>
-						</select>
-					</label>
-					<label>
-						Model
-						<input
+						</Select>
+					</Field>
+					<Field label="Model">
+						<Input
 							value={modelId}
 							onChange={(e) => setModelId(e.target.value)}
 							placeholder="claude-sonnet-5"
 						/>
-					</label>
+					</Field>
 					{provider !== "ollama" && (
-						<label>
-							API key{" "}
-							{s.modelKeySet && (
-								<span className="muted small">
-									(one is stored — leave empty to keep it)
-								</span>
-							)}
-							<input
+						<Field
+							label="API key"
+							hint={
+								s.modelKeySet
+									? "(one is stored — leave empty to keep it)"
+									: undefined
+							}
+						>
+							<Input
 								type="password"
 								value={apiKey}
 								onChange={(e) => setApiKey(e.target.value)}
 								autoComplete="off"
 							/>
-						</label>
+						</Field>
 					)}
-					<button type="submit" disabled={!modelId}>
+					<Button type="submit" disabled={!modelId}>
 						Save
-					</button>
-				</form>
-			</section>
+					</Button>
+				</Form>
+			</Card>
 
-			<section className="card">
-				<h2>Telegram</h2>
-				<ul className="list">
-					<li>
+			<Card title="Telegram">
+				<List>
+					<Item>
 						<span>Owner</span>
 						<span>{s.owner ? `✅ ${s.owner.name}` : "not paired"}</span>
-					</li>
-					<li>
+					</Item>
+					<Item>
 						<span>Successor — contacted if the owner goes silent</span>
 						<span>{s.successor ? `✅ ${s.successor.name}` : "not named"}</span>
-					</li>
-				</ul>
-				<div className="row">
+					</Item>
+				</List>
+				<Actions>
 					{(["owner", "successor"] as const).map((role) => (
-						<button
+						<Button
 							key={role}
-							type="button"
-							className="secondary"
+							variant="secondary"
 							onClick={async () =>
 								setCode({
 									role,
@@ -134,59 +135,56 @@ export function Settings() {
 							}
 						>
 							Pairing code for the {role}
-						</button>
+						</Button>
 					))}
-				</div>
+				</Actions>
 				{code && (
-					<p className="notice">
+					<Notice>
 						From the {code.role}'s Telegram, send the company's bot:{" "}
 						<code>/start {code.code}</code> — it works once, for 24 hours.
-					</p>
+					</Notice>
 				)}
-			</section>
+			</Card>
 
-			<section className="card">
-				<h2>Your AI</h2>
-				<p className="muted small">
+			<Card title="Your AI">
+				<Muted small block>
 					Connect Claude, Cursor or any MCP client to this company. It can read
 					and take notes; it can't approve anything.
-				</p>
+				</Muted>
 				{mcp ? (
 					<>
 						<p>
 							URL <code>{mcp.url}</code>
 						</p>
 						<p>
-							Token <code className="secret">{mcp.token}</code>
+							Token <Secret>{mcp.token}</Secret>
 						</p>
-						<pre>{`claude mcp add --transport http my-company ${mcp.url} --header "Authorization: Bearer ${mcp.token}"`}</pre>
+						<Pre>{`claude mcp add --transport http my-company ${mcp.url} --header "Authorization: Bearer ${mcp.token}"`}</Pre>
 					</>
 				) : (
-					<button
-						type="button"
-						className="secondary"
-						onClick={async () => setMcp(await api("/mcp"))}
+					<Button
+						variant="secondary"
+						onClick={async () => setMcp(await api<McpInfo>("/mcp"))}
 					>
 						Show address and token
-					</button>
+					</Button>
 				)}
-			</section>
+			</Card>
 
-			<section className="card">
-				<h2>Your company, as a file</h2>
-				<p className="muted small">
+			<Card title="Your company, as a file">
+				<Muted small block>
 					The structure of the company — teams, responsibilities, agents,
 					heartbeats. Fork it, share it, start another company from it. For a
 					full export with its memory, run <code>jamot export</code>.
-				</p>
-				<a
-					className="button secondary"
+				</Muted>
+				<ButtonLink
+					variant="secondary"
 					href="/api/company.yaml"
 					download="company.yaml"
 				>
 					Download company.yaml
-				</a>
-			</section>
-		</>
+				</ButtonLink>
+			</Card>
+		</Page>
 	);
 }

@@ -1,6 +1,23 @@
+import type { ActionResult, OverviewView } from "@jamot/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { PageProps } from "../App.js";
-import { api, type Overview, usd, when } from "../api.js";
+import { api, usd, when } from "../api.js";
+import {
+	Badge,
+	Bullet,
+	Bullets,
+	Button,
+	Card,
+	Item,
+	Label,
+	List,
+	Loading,
+	Muted,
+	Notice,
+	Page,
+	Tile,
+	Tiles,
+} from "../ui/index.js";
 
 const TIER = {
 	normal: "Healthy",
@@ -9,13 +26,16 @@ const TIER = {
 } as const;
 
 export function OverviewPage({ go }: PageProps) {
-	const [data, setData] = useState<Overview | null>(null);
+	const [data, setData] = useState<OverviewView | null>(null);
 	const [note, setNote] = useState<string | null>(null);
-	const load = useCallback(() => api<Overview>("/overview").then(setData), []);
+	const load = useCallback(
+		() => api<OverviewView>("/overview").then(setData),
+		[],
+	);
 	useEffect(() => {
 		load();
 	}, [load]);
-	if (!data) return <p className="muted">Loading…</p>;
+	if (!data) return <Loading />;
 	const { company, charter, vitals } = data;
 	const readiness = vitals.people.readiness;
 	const money = vitals.money;
@@ -24,85 +44,79 @@ export function OverviewPage({ go }: PageProps) {
 	const owned = readiness.dimensions.find((d) => d.key === "responsibilities");
 
 	return (
-		<>
-			<header className="head">
-				<div>
-					<h1>{company.name}</h1>
-					{charter?.mission && <p className="dream">{charter.mission}</p>}
-				</div>
-				{readiness.covered && (
-					<span className="badge ok">JAMOT — fully covered</span>
-				)}
-			</header>
-
-			<section className="tiles">
-				<div className="tile">
-					<span className="label">Responsibilities owned</span>
-					<span className="value">
-						{Math.round((owned?.score ?? 0) * 100)}%
-					</span>
-					<span className="muted small">
-						{vitals.people.unowned.length === 0
+		<Page
+			title={company?.name}
+			subtitle={charter?.mission}
+			actions={
+				readiness.covered && <Badge tone="ok">JAMOT — fully covered</Badge>
+			}
+		>
+			<Tiles>
+				<Tile
+					label="Responsibilities owned"
+					value={`${Math.round((owned?.score ?? 0) * 100)}%`}
+					hint={
+						vitals.people.unowned.length === 0
 							? "every one has an owner"
-							: `${vitals.people.unowned.length} still without an owner`}
-					</span>
-				</div>
-				<div className={`tile tier-${vitals.tier}`}>
-					<span className="label">Survival</span>
-					<span className="value">{TIER[vitals.tier]}</span>
-					<span className="muted small">
-						{money.currency && money.balance !== null
+							: `${vitals.people.unowned.length} still without an owner`
+					}
+				/>
+				<Tile
+					label="Survival"
+					value={TIER[vitals.tier]}
+					tone={
+						vitals.tier === "critical"
+							? "bad"
+							: vitals.tier === "low_funding"
+								? "warn"
+								: undefined
+					}
+					hint={
+						money.currency && money.balance !== null
 							? `${(money.balance / 100).toFixed(2)} ${money.currency}${money.runwayDays !== null ? ` · ${money.runwayDays} days of runway` : ""}`
-							: "Money isn't tracked yet"}
-					</span>
-				</div>
-				<div className="tile">
-					<span className="label">Waiting for an answer</span>
-					<span className="value">{vitals.work.waiting.length}</span>
-					<span className="muted small">
-						{vitals.work.failedReplies24h} failed replies today
-					</span>
-				</div>
-				<button
-					type="button"
-					className="tile clickable"
+							: "Money isn't tracked yet"
+					}
+				/>
+				<Tile
+					label="Waiting for an answer"
+					value={vitals.work.waiting.length}
+					hint={`${vitals.work.failedReplies24h} failed replies today`}
+				/>
+				<Tile
+					label="Approvals"
+					value={data.pendingApprovals}
+					hint="waiting for you"
 					onClick={() => go("/approvals")}
-				>
-					<span className="label">Approvals</span>
-					<span className="value">{data.pendingApprovals}</span>
-					<span className="muted small">waiting for you</span>
-				</button>
-				<div className="tile">
-					<span className="label">Agents, last 30 days</span>
-					<span className="value">{usd(money.llmCostMicroUsd30d)}</span>
-					<span className="muted small">model spend</span>
-				</div>
-			</section>
+				/>
+				<Tile
+					label="Agents, last 30 days"
+					value={usd(money.llmCostMicroUsd30d)}
+					hint="model spend"
+				/>
+			</Tiles>
 
-			{note && <p className="notice">{note}</p>}
+			{note && <Notice>{note}</Notice>}
 
-			<section className="card">
-				<h2>Needs you</h2>
+			<Card title="Needs you">
 				{vitals.people.unowned.length === 0 &&
 				data.issues.length === 0 &&
 				vitals.work.waiting.length === 0 ? (
-					<p className="muted">
+					<Muted block>
 						Nothing right now. Every responsibility has an owner and nobody is
 						waiting.
-					</p>
+					</Muted>
 				) : (
-					<ul className="list">
+					<List>
 						{vitals.people.unowned.map((r) => (
-							<li key={r.key}>
+							<Item key={r.key}>
 								<span>
 									Nobody owns <strong>{r.name}</strong>
 								</span>
-								{company.founderKey && (
-									<button
-										type="button"
-										className="small"
+								{company?.founderKey && (
+									<Button
+										size="small"
 										onClick={async () => {
-											const res = await api<{ message: string }>(
+											const res = await api<ActionResult>(
 												`/responsibilities/${r.key}/owner`,
 												{
 													method: "POST",
@@ -114,17 +128,17 @@ export function OverviewPage({ go }: PageProps) {
 										}}
 									>
 										I'll take it
-									</button>
+									</Button>
 								)}
-							</li>
+							</Item>
 						))}
 						{vitals.work.waiting.map((w) => (
-							<li key={w.conversationId}>
+							<Item key={w.conversationId}>
 								<span>
 									<strong>{w.personName}</strong> has been waiting since{" "}
 									{when(w.since)}
 								</span>
-							</li>
+							</Item>
 						))}
 						{data.issues
 							.filter(
@@ -133,72 +147,70 @@ export function OverviewPage({ go }: PageProps) {
 									!i.key.startsWith("waiting:"),
 							)
 							.map((i) => (
-								<li key={i.key}>
+								<Item key={i.key}>
 									<span>{i.title}</span>
-									<span className="muted small">since {when(i.since)}</span>
-								</li>
+									<Muted small>since {when(i.since)}</Muted>
+								</Item>
 							))}
-					</ul>
+					</List>
 				)}
-			</section>
+			</Card>
 
-			<section className="card">
-				<h2>How ready the company is</h2>
-				<ul className="list">
+			<Card title="How ready the company is">
+				<List>
 					{readiness.dimensions.map((d) => (
-						<li key={d.key}>
+						<Item key={d.key}>
 							<span>
 								{d.score === 1 ? "✅" : "⚠️"} {d.label}
 								{d.missing.length > 0 && (
-									<span className="muted small">
+									<Muted small>
 										{" "}
 										— {d.missing.map((m) => m.name).join(" · ")}
-									</span>
+									</Muted>
 								)}
 							</span>
-							<span className="muted small">{Math.round(d.score * 100)}%</span>
-						</li>
+							<Muted small>{Math.round(d.score * 100)}%</Muted>
+						</Item>
 					))}
-				</ul>
-			</section>
+				</List>
+			</Card>
 
 			{charter && (
-				<section className="card">
-					<h2>The charter</h2>
+				<Card title="The charter">
 					{charter.vision && (
 						<>
-							<h3>Vision</h3>
+							<Label>Vision</Label>
 							<p>{charter.vision}</p>
 						</>
 					)}
 					{charter.mission && (
 						<>
-							<h3>Mission</h3>
+							<Label>Mission</Label>
 							<p>{charter.mission}</p>
 						</>
 					)}
 					{charter.values.length > 0 && (
 						<>
-							<h3>Values — rules the company never breaks</h3>
-							<ul className="plain">
+							<Label>Values — rules the company never breaks</Label>
+							<Bullets>
 								{charter.values.map((v) => (
-									<li key={v}>{v}</li>
+									<Bullet key={v}>{v}</Bullet>
 								))}
-							</ul>
+							</Bullets>
 						</>
 					)}
 					{charter.goals.length > 0 && (
 						<>
-							<h3>Goals</h3>
-							<ul className="plain">
+							<Label>Goals</Label>
+							<Bullets>
 								{charter.goals.map((g) => (
-									<li key={g}>{g}</li>
+									<Bullet key={g}>{g}</Bullet>
 								))}
-							</ul>
+							</Bullets>
 						</>
 					)}
-				</section>
+				</Card>
 			)}
-		</>
+		</Page>
 	);
 }

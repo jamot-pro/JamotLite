@@ -1,0 +1,53 @@
+/*
+ * Design tokens: every colour, radius and font the console uses. A new look
+ * starts here (apps/web/DESIGN.md). Components read these; pages never do.
+ */
+:root {
+	--bg: #f7f6f3;
+	--surface: #ffffff;
+	--text: #1f1d1a;
+	--muted: #6b665e;
+	--line: #e6e2da;
+	--accent: #c2410c;
+	--accent-text: #ffffff;
+	--ok: #15803d;
+	--warn: #b45309;
+	--bad: #b91c1c;
+	--radius: 10px;
+	--radius-small: 7px;
+	--font: 15px / 1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+	--nav-width: 220px;
+	--page-width: 1150px;
+	color-scheme: light;
+}
+/* Dark: by the system's setting, or forced with data-theme on <html> (the
+   /dev/ui gallery switches it to check both). */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #151412;
+		--surface: #1e1c19;
+		--text: #edeae4;
+		--muted: #a39d93;
+		--line: #34312c;
+		--accent: #fb923c;
+		--accent-text: #1a1208;
+		--ok: #4ade80;
+		--warn: #fbbf24;
+		--bad: #f87171;
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #151412;
+	--surface: #1e1c19;
+	--text: #edeae4;
+	--muted: #a39d93;
+	--line: #34312c;
+	--accent: #fb923c;
+	--accent-text: #1a1208;
+	--ok: #4ade80;
+	--warn: #fbbf24;
+	--bad: #f87171;
+	color-scheme: dark;
+}

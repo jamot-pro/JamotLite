@@ -19,7 +19,10 @@
 		"ledger": "node scripts/ledger.mjs",
 		"smoke": "node scripts/smoke-bundle.mjs",
 		"demo-check": "node scripts/demo-check.mjs",
-		"isolation-check": "node scripts/isolation-check.mjs"
+		"isolation-check": "node scripts/isolation-check.mjs",
+		"dev:company": "tsx scripts/dev-company.ts",
+		"dev:web": "pnpm --filter @jamot/web dev",
+		"ui-check": "node scripts/ui-check.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",
