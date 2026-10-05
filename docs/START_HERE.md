@@ -108,12 +108,22 @@ pnpm jamot ask "What's missing in this company?"
 pnpm jamot status
 ```
 
-Working on the console? Keep the runtime running and start Vite next to it —
-it proxies `/api` to port 3000:
+No model key yet? `pnpm jamot demo` starts a throwaway company on a scripted
+demo model and opens it in the browser: no keys, nothing leaves your machine.
+
+Working on the console? Use the seeded development company instead — a
+restaurant with people, conversations, runs and a proposal waiting, on the
+demo model — and the console with live reload:
 
 ```bash
-pnpm --filter @jamot/web dev                  # http://127.0.0.1:5173
+pnpm dev:company                              # :3000 (password in scripts/dev-company.ts)
+pnpm dev:web                                  # http://127.0.0.1:5173 — /dev/ui shows every component
 ```
+
+The console's rules and building blocks are in
+[apps/web/DESIGN.md](../apps/web/DESIGN.md). Building it with Claude Code? The
+repository carries the setup in `.claude/`: preview configurations, a check
+after every edit, and the `new-screen`, `restyle` and `ui-review` skills.
 
 Want a real bot? Create one with [@BotFather](https://t.me/BotFather), run
 `pnpm jamot secret set telegram.botToken`, start without `--no-telegram`, and

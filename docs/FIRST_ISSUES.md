@@ -1,7 +1,8 @@
 # First issues — one per responsibility
 
 Issues 1–8 and 10 are one per responsibility; issue 9 is the stewards' own
-onboarding.
+onboarding. When a first issue is done, the next one for that responsibility
+takes its place, so every role always has a real way in.
 Each new steward starts with the first issue of the responsibility they own
 ([STEWARDS.md](../STEWARDS.md)). Each is sized to ship a first pull request in
 a week; the whole issue may take longer. "Done when" is the acceptance test.
@@ -60,24 +61,28 @@ Jamot; make it a rule the runtime checks, for every company.
   `packages/contracts`.
 - **Size:** M.
 
-## 4. Console and onboarding — the charter, everywhere · [GitHub #6](https://github.com/jamot-pro/JamotLite/issues/6)
+## 4. Console and onboarding — a new structure and look for the console · [GitHub #37](https://github.com/jamot-pro/JamotLite/issues/37)
 
-**Goal.** Jamot's words are Company and its **charter**: Vision, Mission,
-Values, Goals. Lite still says "Dream" (J-Nesys has already moved; see its
-`docs/SPEC.md` glossary).
+**Goal.** The console was built screen by screen; now it gets a design. Decide
+who it's for first (the owner of a small business, on their phone, most days),
+then give it the structure and the look that follow from that. The groundwork
+makes this cheap: the look lives in `apps/web/src/ui` (tokens and components),
+pages are made only of components, and `/dev/ui` shows every component in
+every state (D46). *Done before:* "the charter, everywhere" (#6, merged in #30).
 
 - **Done when:**
-  - `jamot setup` asks for the vision, mission, values and goals (with the
-    template's as defaults);
-  - the Overview shows the charter; the API returns `vision`;
-  - "Dream" is gone from everything a user reads: console, CLI, templates,
-    README, agent instructions. The code name `dream` may stay, as it did in
-    J-Nesys;
-  - the seven templates get a vision; **Believers** become **Stewards /
-    Backers / Taskers** where they appear.
-- **Start in:** `apps/runtime/src/cli/`, `apps/web/src/pages/Overview.tsx`,
-  `templates/`, `packages/core/src/agents/spec.ts`.
-- **Size:** M. Good first issue.
+  - a one-page proposal in the pull request: who the console is for, the
+    navigation (what's on the first screen, what moves, what merges), and two
+    or three screenshots or a mock-up — agreed with the founder before code;
+  - the new look is in tokens and components only (the `restyle` skill), and
+    the new structure in `App.tsx` and the pages, still made only of
+    components (`pnpm ui-check` passes);
+  - every screen is checked at desktop and phone width, light and dark, with
+    before and after screenshots in the pull request;
+  - `apps/web/DESIGN.md` describes the new structure.
+- **Start in:** `apps/web/DESIGN.md`, `apps/web/src/ui/`, `apps/web/src/App.tsx`,
+  `.claude/skills/restyle/`. Run `pnpm dev:company` and `pnpm dev:web`.
+- **Size:** M–L. Good first issue for someone who likes design.
 
 ## 5. Templates and first companies — the Bali café, live · [GitHub #7](https://github.com/jamot-pro/JamotLite/issues/7)
 
@@ -169,28 +174,26 @@ Design and Gene Keys, calculated from their birth details (decision D31).
 - **Size:** M–L. First pull request: the questions and the profile fields;
   the calculation next.
 
-## 10. Fleet and isolation — two companies, one machine, fully independent · [GitHub #12](https://github.com/jamot-pro/JamotLite/issues/12)
+## 10. Fleet and isolation — the watchdog: every company's health in one command · [GitHub #38](https://github.com/jamot-pro/JamotLite/issues/38)
 
-**Goal.** One operator runs many companies on their own infrastructure, and no
-company can cause a problem for another: separate processes, data, secrets,
-bots and budgets (decision D1: "isolation by process"; D35). Prove it with two
-companies before building any fleet tooling.
+**Goal.** The first piece of the fleet control plane designed in RUNTIME.md §9:
+an operator with several companies on one machine sees, in one command, which
+are up, which are down and how old their backups are — without the control
+plane ever opening a company's database. *Done before:* two companies on one
+machine, fully independent (#12, merged in #28).
 
 - **Done when:**
-  - a recipe, `docs/recipes/many-companies-one-machine.md`, runs two companies
-    side by side — each with its own `JAMOT_HOME`, port, Telegram bot, model
-    key and spending cap — as two services (systemd or launchd), and as two
-    containers with memory and CPU limits;
-  - an isolation check (`scripts/isolation-check.mjs`, run in CI) starts two
-    runtimes with `--no-telegram`, kills one, and shows the other still
-    answers `/health` and runs its heartbeats;
-  - a second runtime refuses to start on a `JAMOT_HOME` that is already in
-    use, with a sentence saying which process holds it;
-  - one company reaching its spending cap, or its disk filling, is shown not
-    to affect the other — results in the pull request;
-  - the next step, a fleet control plane (provisioning, upgrades one company
-    at a time, backups, watchdog), is designed in RUNTIME.md §9 from what this
-    check taught us — designed, not built.
-- **Start in:** `apps/runtime/src/runtime.ts`, `apps/runtime/src/cli/`,
-  `Dockerfile`, RUNTIME.md §9 ("Out — many companies, one operator").
+  - `jamot fleet status` lists every company in `JAMOT_HOME`: running or not
+    (from its `runtime.lock` and `/health`), its port, the age of its last
+    backup, and whether replication is on — reading only lock files, backup
+    folders and `/health`;
+  - a company that stopped answering is reported in a plain sentence, and
+    the command's exit code says whether everything is healthy (for cron or a
+    monitor);
+  - the run lock records the port, so the watchdog knows where to ask;
+  - `pnpm isolation-check` also runs `jamot fleet status` and shows one company
+    down, one up;
+  - a decision-log line in RUNTIME.md.
+- **Start in:** `apps/runtime/src/lock.ts`, `apps/runtime/src/cli/`,
+  `scripts/isolation-check.mjs`, RUNTIME.md §9.
 - **Size:** M.
