@@ -1,16 +1,24 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import {
+	Button,
+	Center,
+	ErrorText,
+	Field,
+	Form,
+	Input,
+	Muted,
+} from "../ui/index.js";
 
 export function Login({ onSignedIn }: { onSignedIn: () => void }) {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	return (
-		<main className="center">
-			<form
-				className="card login"
-				onSubmit={async (e) => {
-					e.preventDefault();
+		<Center>
+			<Form
+				card
+				onSubmit={async () => {
 					setBusy(true);
 					setError(null);
 					try {
@@ -24,26 +32,25 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
 				}}
 			>
 				<h1>💓 Jamot</h1>
-				<p className="muted">
+				<Muted block>
 					The organization that doesn't die when people leave.
-				</p>
-				<label>
-					Password
-					<input
+				</Muted>
+				<Field label="Password">
+					<Input
 						type="password"
 						autoComplete="current-password"
 						value={password}
 						onChange={(e) => setPassword(e.target.value)}
 					/>
-				</label>
-				{error && <p className="error">{error}</p>}
-				<button type="submit" disabled={busy || password.length === 0}>
+				</Field>
+				{error && <ErrorText>{error}</ErrorText>}
+				<Button type="submit" disabled={busy || password.length === 0}>
 					{busy ? "Signing in…" : "Sign in"}
-				</button>
-				<p className="muted small">
+				</Button>
+				<Muted small block>
 					Forgot it? Run <code>jamot password</code> on the machine.
-				</p>
-			</form>
-		</main>
+				</Muted>
+			</Form>
+		</Center>
 	);
 }

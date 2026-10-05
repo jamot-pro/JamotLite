@@ -1,4 +1,17 @@
 import { stringifyCompanyFile } from "@jamot/company-file";
+import type {
+	ActionResult,
+	ApprovalsView,
+	MapView,
+	McpInfo,
+	Me,
+	MessageRow,
+	OverviewView,
+	PersonProfile,
+	PersonRow,
+	RunsView,
+	SettingsView,
+} from "@jamot/contracts";
 import {
 	addConnection,
 	type Connection,
@@ -104,19 +117,22 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 		return { ok: true };
 	});
 
-	app.get("/api/me", async (req) => ({
-		signedIn: signedIn(req),
-		passwordSet: (await store.settings.get(PASSWORD_SETTING)) !== null,
-		// A demo company (jamot demo) runs on scripted replies: the console says so.
-		demo:
-			(await store.settings.get<{ provider?: string }>("model"))?.provider ===
-			"demo",
-	}));
+	app.get(
+		"/api/me",
+		async (req): Promise<Me> => ({
+			signedIn: signedIn(req),
+			passwordSet: (await store.settings.get(PASSWORD_SETTING)) !== null,
+			// A demo company (jamot demo) runs on scripted replies: the console says so.
+			demo:
+				(await store.settings.get<{ provider?: string }>("model"))?.provider ===
+				"demo",
+		}),
+	);
 
 	app.register(async (owner) => {
 		owner.addHook("preHandler", guard);
 
-		owner.get("/api/overview", async () => {
+		owner.get("/api/overview", async (): Promise<OverviewView> => {
 			const company = await store.graph.getCompany();
 			const dream = (await store.graph.listNodes()).find(
 				(n) => n.kind === "dream",
@@ -149,7 +165,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			};
 		});
 
-		owner.get("/api/map", async () => {
+		owner.get("/api/map", async (): Promise<MapView> => {
 			const nodes = await store.graph.listNodes();
 			const edges = await store.graph.listEdges();
 			return {
@@ -172,7 +188,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 		owner.post<{ Params: { key: string }; Body: { ownerKey?: string } }>(
 			"/api/responsibilities/:key/owner",
-			async (req) => {
+			async (req): Promise<ActionResult> => {
 				return {
 					message: await handleOwnerAction(
 						store,
@@ -185,7 +201,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 		owner.get<{ Querystring: { search?: string } }>(
 			"/api/people",
-			async (req) => {
+			async (req): Promise<PersonRow[]> => {
 				const people = await store.people.list({
 					search: req.query.search ?? "",
 					limit: 100,
@@ -202,7 +218,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 		owner.get<{ Params: { id: string } }>(
 			"/api/people/:id",
-			async (req, reply) => {
+			async (req, reply): Promise<PersonProfile | FastifyReply> => {
 				const person = await store.people.get(req.params.id);
 				if (!person) return reply.code(404).send({ error: "no such person" });
 				return {
@@ -223,7 +239,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 		owner.get<{ Params: { id: string } }>(
 			"/api/conversations/:id/messages",
-			async (req) =>
+			async (req): Promise<MessageRow[]> =>
 				store.conversations.listMessages(req.params.id, { limit: 200 }),
 		);
 
@@ -252,7 +268,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 				: store.memory.list({ scope: "company", limit: 50 }),
 		);
 
-		owner.get("/api/runs", async () => {
+		owner.get("/api/runs", async (): Promise<RunsView> => {
 			const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 			return {
 				last30Days: await store.runs.totals({ since }),
@@ -260,9 +276,12 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			};
 		});
 
-		owner.get("/api/approvals", async () => ({
-			pending: await store.approvals.list({ status: "pending", limit: 100 }),
-		}));
+		owner.get(
+			"/api/approvals",
+			async (): Promise<ApprovalsView> => ({
+				pending: await store.approvals.list({ status: "pending", limit: 100 }),
+			}),
+		);
 
 		owner.post<{
 			Params: { id: string };
@@ -281,14 +300,17 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			return { ok: true };
 		});
 
-		owner.get("/api/settings", async () => ({
-			model: await store.settings.get("model"),
-			modelKeySet: (await deps.secrets.list()).includes("model.apiKey"),
-			owner: await deps.telegram.owner(),
-			successor: await deps.telegram.successor(),
-			survival: await store.settings.get("survival"),
-			version: deps.version,
-		}));
+		owner.get(
+			"/api/settings",
+			async (): Promise<SettingsView> => ({
+				model: await store.settings.get("model"),
+				modelKeySet: (await deps.secrets.list()).includes("model.apiKey"),
+				owner: await deps.telegram.owner(),
+				successor: await deps.telegram.successor(),
+				survival: await store.settings.get("survival"),
+				version: deps.version,
+			}),
+		);
 
 		owner.put<{
 			Body: {
@@ -382,10 +404,13 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			}),
 		);
 
-		owner.get("/api/mcp", async (req) => ({
-			url: `${req.protocol}://${req.headers.host ?? "127.0.0.1"}/mcp`,
-			token: await deps.mcpToken(),
-		}));
+		owner.get(
+			"/api/mcp",
+			async (req): Promise<McpInfo> => ({
+				url: `${req.protocol}://${req.headers.host ?? "127.0.0.1"}/mcp`,
+				token: await deps.mcpToken(),
+			}),
+		);
 
 		owner.get("/api/company.yaml", async (_req, reply) => {
 			reply.header("content-type", "text/yaml; charset=utf-8");
@@ -396,7 +421,7 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 
 async function openIssues(
 	store: CompanyStore,
-): Promise<{ key: string; title: unknown; since: string }[]> {
+): Promise<{ key: string; title: string; since: string }[]> {
 	const resolved = new Map<string, number>();
 	for (const e of await store.events.list({
 		type: "issue.resolved",
@@ -405,7 +430,7 @@ async function openIssues(
 		if (e.subject && !resolved.has(e.subject)) resolved.set(e.subject, e.seq);
 	}
 	const seen = new Set<string>();
-	const open: { key: string; title: unknown; since: string }[] = [];
+	const open: { key: string; title: string; since: string }[] = [];
 	for (const e of await store.events.list({
 		type: "issue.opened",
 		limit: 1000,
@@ -413,7 +438,7 @@ async function openIssues(
 		if (!e.subject || seen.has(e.subject)) continue;
 		seen.add(e.subject);
 		if (e.seq > (resolved.get(e.subject) ?? 0))
-			open.push({ key: e.subject, title: e.data.title, since: e.time });
+			open.push({ key: e.subject, title: String(e.data.title), since: e.time });
 	}
 	return open;
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import type { Me } from "@jamot/contracts";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, SignedOut } from "./api.js";
 import { Approvals } from "./pages/Approvals.js";
 import { CompanyMap } from "./pages/CompanyMap.js";
@@ -7,6 +8,15 @@ import { OverviewPage } from "./pages/Overview.js";
 import { People } from "./pages/People.js";
 import { Runs } from "./pages/Runs.js";
 import { Settings } from "./pages/Settings.js";
+import {
+	Banner,
+	Brand,
+	Center,
+	NavLink,
+	PageLink,
+	Shell,
+	SignOut,
+} from "./ui/index.js";
 
 const PAGES = [
 	{ path: "/", label: "Overview", Page: OverviewPage },
@@ -17,6 +27,12 @@ const PAGES = [
 	{ path: "/settings", label: "Settings", Page: Settings },
 ] as const;
 
+// Every component in every state, for building and restyling the console.
+// Only in development: a production build leaves it out entirely.
+const Gallery = import.meta.env.DEV
+	? lazy(() => import("./dev/Gallery.js").then((m) => ({ default: m.Gallery })))
+	: null;
+
 export function App() {
 	const [path, setPath] = useState(location.pathname);
 	const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -25,7 +41,7 @@ export function App() {
 	useEffect(() => {
 		const onPop = () => setPath(location.pathname);
 		addEventListener("popstate", onPop);
-		api<{ signedIn: boolean; demo?: boolean }>("/me").then(
+		api<Me>("/me").then(
 			(me) => {
 				setSignedIn(me.signedIn);
 				setDemo(me.demo === true);
@@ -53,7 +69,13 @@ export function App() {
 		return () => removeEventListener("unhandledrejection", onRejection);
 	}, []);
 
-	if (signedIn === null) return <main className="center muted">Loading…</main>;
+	if (Gallery && path === "/dev/ui")
+		return (
+			<Suspense fallback={<Center muted>Loading…</Center>}>
+				<Gallery />
+			</Suspense>
+		);
+	if (signedIn === null) return <Center muted>Loading…</Center>;
 	if (!signedIn) return <Login onSignedIn={() => setSignedIn(true)} />;
 
 	const current =
@@ -62,53 +84,36 @@ export function App() {
 		PAGES[0];
 	const { Page } = current;
 	return (
-		<div className="shell">
-			<nav className="nav">
-				<div className="brand">💓 Jamot</div>
-				{PAGES.map((p) => (
-					<a
-						key={p.path}
-						href={p.path}
-						className={p === current ? "active" : ""}
-						onClick={(e) => {
-							e.preventDefault();
-							go(p.path);
+		<Shell
+			nav={
+				<>
+					<Brand>💓 Jamot</Brand>
+					{PAGES.map((p) => (
+						<NavLink key={p.path} to={p.path} active={p === current} go={go}>
+							{p.label}
+						</NavLink>
+					))}
+					<SignOut
+						onClick={async () => {
+							await api("/logout", { method: "POST", body: {} });
+							setSignedIn(false);
 						}}
-					>
-						{p.label}
-					</a>
-				))}
-				<button
-					type="button"
-					className="link signout"
-					onClick={async () => {
-						await api("/logout", { method: "POST", body: {} });
-						setSignedIn(false);
-					}}
-				>
-					Sign out
-				</button>
-			</nav>
-			<main className="page">
-				{demo && (
-					<p className="demo-banner" role="status">
-						This is a demo company: its agents answer with a scripted demo
-						model, and nothing reaches real people. Add a real model in{" "}
-						<a
-							href="/settings"
-							onClick={(e) => {
-								e.preventDefault();
-								go("/settings");
-							}}
-						>
-							Settings
-						</a>{" "}
-						to make it real.
-					</p>
-				)}
-				<Page go={go} />
-			</main>
-		</div>
+					/>
+				</>
+			}
+		>
+			{demo && (
+				<Banner>
+					This is a demo company: its agents answer with a scripted demo model,
+					and nothing reaches real people. Add a real model in{" "}
+					<PageLink to="/settings" go={go}>
+						Settings
+					</PageLink>{" "}
+					to make it real.
+				</Banner>
+			)}
+			<Page go={go} />
+		</Shell>
 	);
 }
 

@@ -1,0 +1,17 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "company",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["dev:company"],
+			"port": 3000
+		},
+		{
+			"name": "console",
+			"runtimeExecutable": "pnpm",
+			"runtimeArgs": ["dev:web"],
+			"port": 5173
+		}
+	]
+}

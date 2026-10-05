@@ -1,22 +1,30 @@
+import type { ApprovalRow, ApprovalsView } from "@jamot/contracts";
 import { useCallback, useEffect, useState } from "react";
-import { type Approval, api, when } from "../api.js";
+import { api, when } from "../api.js";
+import {
+	Actions,
+	Button,
+	Card,
+	Loading,
+	Muted,
+	Notice,
+	Page,
+	Pre,
+} from "../ui/index.js";
 
 /** What agents are waiting for a person to decide. */
 export function Approvals() {
-	const [pending, setPending] = useState<Approval[] | null>(null);
+	const [pending, setPending] = useState<ApprovalRow[] | null>(null);
 	const [note, setNote] = useState<string | null>(null);
 	const load = useCallback(
-		() =>
-			api<{ pending: Approval[] }>("/approvals").then((r) =>
-				setPending(r.pending),
-			),
+		() => api<ApprovalsView>("/approvals").then((r) => setPending(r.pending)),
 		[],
 	);
 	useEffect(() => {
 		load();
 	}, [load]);
 
-	const decide = async (a: Approval, approved: boolean) => {
+	const decide = async (a: ApprovalRow, approved: boolean) => {
 		await api(`/approvals/${a.id}`, { method: "POST", body: { approved } });
 		setNote(
 			`${approved ? "Approved" : "Declined"}: ${a.tool}. The agent carries on.`,
@@ -25,38 +33,28 @@ export function Approvals() {
 	};
 
 	return (
-		<>
-			<header className="head">
-				<h1>Approvals</h1>
-			</header>
-			{note && <p className="notice">{note}</p>}
+		<Page title="Approvals">
+			{note && <Notice>{note}</Notice>}
 			{!pending ? (
-				<p className="muted">Loading…</p>
+				<Loading />
 			) : pending.length === 0 ? (
-				<section className="card muted">Nothing is waiting for you.</section>
+				<Card muted>Nothing is waiting for you.</Card>
 			) : (
 				pending.map((a) => (
-					<section className="card" key={a.id}>
-						<h2>
-							{a.agentKey} wants to use {a.tool}
-						</h2>
-						<pre>{JSON.stringify(a.args, null, 2)}</pre>
-						<p className="muted small">Waiting since {when(a.createdAt)}</p>
-						<div className="row">
-							<button type="button" onClick={() => decide(a, true)}>
-								Approve
-							</button>
-							<button
-								type="button"
-								className="secondary"
-								onClick={() => decide(a, false)}
-							>
+					<Card key={a.id} title={`${a.agentKey} wants to use ${a.tool}`}>
+						<Pre>{JSON.stringify(a.args, null, 2)}</Pre>
+						<Muted small block>
+							Waiting since {when(a.createdAt)}
+						</Muted>
+						<Actions>
+							<Button onClick={() => decide(a, true)}>Approve</Button>
+							<Button variant="secondary" onClick={() => decide(a, false)}>
 								Decline
-							</button>
-						</div>
-					</section>
+							</Button>
+						</Actions>
+					</Card>
 				))
 			)}
-		</>
+		</Page>
 	);
 }

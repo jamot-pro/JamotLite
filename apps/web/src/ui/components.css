@@ -1,32 +1,7 @@
-:root {
-	--bg: #f7f6f3;
-	--surface: #ffffff;
-	--text: #1f1d1a;
-	--muted: #6b665e;
-	--line: #e6e2da;
-	--accent: #c2410c;
-	--accent-text: #ffffff;
-	--ok: #15803d;
-	--warn: #b45309;
-	--bad: #b91c1c;
-	--radius: 10px;
-	color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #151412;
-		--surface: #1e1c19;
-		--text: #edeae4;
-		--muted: #a39d93;
-		--line: #34312c;
-		--accent: #fb923c;
-		--accent-text: #1a1208;
-		--ok: #4ade80;
-		--warn: #fbbf24;
-		--bad: #f87171;
-		color-scheme: dark;
-	}
-}
+/*
+ * The components' styles (src/ui/index.tsx). Only components use these class
+ * names; pages are built from components and carry no classes of their own.
+ */
 * {
 	box-sizing: border-box;
 }
@@ -34,11 +9,7 @@ body {
 	margin: 0;
 	background: var(--bg);
 	color: var(--text);
-	font:
-		15px / 1.5 system-ui,
-		-apple-system,
-		"Segoe UI",
-		sans-serif;
+	font: var(--font);
 }
 h1 {
 	font-size: 1.6rem;
@@ -56,11 +27,7 @@ h3 {
 	margin: 1rem 0 0.3rem;
 }
 code {
-	font:
-		0.85em ui-monospace,
-		SFMono-Regular,
-		Menlo,
-		monospace;
+	font: 0.85em var(--font-mono);
 	background: var(--bg);
 	padding: 0.1em 0.35em;
 	border-radius: 4px;
@@ -92,7 +59,7 @@ pre {
 
 .shell {
 	display: grid;
-	grid-template-columns: 220px 1fr;
+	grid-template-columns: var(--nav-width) 1fr;
 	min-height: 100vh;
 }
 .nav {
@@ -132,7 +99,7 @@ pre {
 }
 .page {
 	padding: 2rem clamp(1rem, 4vw, 3rem);
-	max-width: 1150px;
+	max-width: var(--page-width);
 	width: 100%;
 }
 
@@ -250,7 +217,7 @@ button,
 	background: var(--accent);
 	color: var(--accent-text);
 	border: 0;
-	border-radius: 7px;
+	border-radius: var(--radius-small);
 	padding: 0.45rem 0.9rem;
 	cursor: pointer;
 	text-decoration: none;
@@ -288,7 +255,7 @@ select {
 	color: var(--text);
 	background: var(--surface);
 	border: 1px solid var(--line);
-	border-radius: 7px;
+	border-radius: var(--radius-small);
 	padding: 0.45rem 0.6rem;
 	width: 100%;
 }
@@ -325,7 +292,8 @@ label {
 	gap: 0.8rem;
 	max-width: 420px;
 }
-.list select {
+.list select,
+.head select {
 	width: auto;
 }
 
