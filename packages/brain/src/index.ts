@@ -6,6 +6,7 @@ export {
 	demoReply,
 } from "./demo.js";
 export {
+	complete,
 	connectModel,
 	type ModelChoice,
 	type ModelProvider,

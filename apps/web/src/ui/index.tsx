@@ -325,13 +325,13 @@ export function Form({
 	children,
 }: Children & {
 	layout?: "stack" | "row";
-	/** The form is the card (the sign-in box). */
-	card?: boolean;
+	/** The form is the card (the sign-in box); "wide" for a longer read. */
+	card?: boolean | "wide";
 	onSubmit: (e: FormEvent<HTMLFormElement>) => void | Promise<void>;
 }) {
 	return (
 		<form
-			className={card ? "card login" : layout}
+			className={card ? `card login${card === "wide" ? " wide" : ""}` : layout}
 			onSubmit={(e) => {
 				e.preventDefault();
 				void onSubmit(e);

@@ -10,18 +10,19 @@
 		"node": ">=22.19"
 	},
 	"scripts": {
-		"typecheck": "pnpm -r typecheck",
-		"test": "vitest run",
-		"lint": "biome ci .",
-		"format": "biome format --write .",
-		"jamot": "tsx apps/runtime/src/cli.ts",
 		"build": "pnpm --filter @jamot/web build && node scripts/build.mjs",
-		"ledger": "node scripts/ledger.mjs",
-		"smoke": "node scripts/smoke-bundle.mjs",
 		"demo-check": "node scripts/demo-check.mjs",
-		"isolation-check": "node scripts/isolation-check.mjs",
 		"dev:company": "tsx scripts/dev-company.ts",
+		"dev:setup": "tsx scripts/dev-setup.ts",
 		"dev:web": "pnpm --filter @jamot/web dev",
+		"format": "biome format --write .",
+		"isolation-check": "node scripts/isolation-check.mjs",
+		"jamot": "tsx apps/runtime/src/cli.ts",
+		"ledger": "node scripts/ledger.mjs",
+		"lint": "biome ci .",
+		"smoke": "node scripts/smoke-bundle.mjs",
+		"test": "vitest run",
+		"typecheck": "pnpm -r typecheck",
 		"ui-check": "node scripts/ui-check.mjs"
 	},
 	"devDependencies": {
