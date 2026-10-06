@@ -522,3 +522,18 @@ describe("usage and cost", () => {
 		}
 	});
 });
+
+describe("Google models", () => {
+	it("connects to Gemini with a Google key, priced from pi's catalog", () => {
+		const model = connectModel({
+			provider: "google",
+			modelId: "gemini-2.5-pro",
+			apiKey: "test-key",
+		});
+		expect(model.label).toBe("google/gemini-2.5-pro");
+		expect(model.model.cost.input).toBeGreaterThan(0);
+		expect(() =>
+			connectModel({ provider: "google", modelId: "gemini-made-up" }),
+		).toThrow('google has no model "gemini-made-up"');
+	});
+});
