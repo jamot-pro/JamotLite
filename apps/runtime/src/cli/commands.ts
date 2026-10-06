@@ -141,6 +141,14 @@ export interface SetupInput {
 
 export const TELEGRAM_TOKEN = /^\d{5,}:[A-Za-z0-9_-]{30,}$/;
 
+/** The model each provider uses unless the owner names another. */
+export const DEFAULT_MODELS = {
+	anthropic: "claude-sonnet-5",
+	openai: "gpt-5",
+	openrouter: "anthropic/claude-sonnet-5",
+	ollama: "llama3.1",
+} as const;
+
 /** Creates a company folder, ready for `jamot start`. Returns the owner's Telegram pairing code. */
 export async function setup(
 	input: SetupInput,

@@ -21,6 +21,7 @@ import { OverviewPage } from "./pages/Overview.js";
 import { People } from "./pages/People.js";
 import { Runs } from "./pages/Runs.js";
 import { Settings } from "./pages/Settings.js";
+import { Setup } from "./pages/Setup.js";
 import { Stewards } from "./pages/Stewards.js";
 import {
 	Banner,
@@ -65,6 +66,7 @@ export function App() {
 	const [path, setPath] = useState(location.pathname);
 	const [signedIn, setSignedIn] = useState<boolean | null>(null);
 	const [demo, setDemo] = useState(false);
+	const [setup, setSetup] = useState(false);
 
 	useEffect(() => {
 		const onPop = () => setPath(location.pathname);
@@ -73,6 +75,7 @@ export function App() {
 			(me) => {
 				setSignedIn(me.signedIn);
 				setDemo(me.demo === true);
+				setSetup(me.setup === true);
 			},
 			() => setSignedIn(false),
 		);
@@ -105,6 +108,8 @@ export function App() {
 		);
 	if (signedIn === null) return <Center muted>Loading…</Center>;
 	if (!signedIn) return <Login onSignedIn={() => setSignedIn(true)} />;
+	// No company yet: only the setup (D55), until the founder starts it.
+	if (setup) return <Setup onStarted={() => location.reload()} />;
 
 	const current =
 		PAGES.find((p) => p.path === path) ??

@@ -22,6 +22,17 @@ The first boot finds no company on the disk and sets it up from those values
 (`jamot start` does this whenever `JAMOT_TEMPLATE` is set and the folder is
 empty). Later boots and deploys just start it.
 
+### A new company, by interview
+
+To set up a company of your own instead of the one in `render.yaml`, leave
+`JAMOT_TEMPLATE` **unset** (delete it from the Blueprint's values) and keep
+`JAMOT_PASSWORD`, `JAMOT_MODEL_KEY` and `JAMOT_TELEGRAM_TOKEN`. The first boot
+opens the setup instead of a company: open the service's address, sign in
+with your password and answer nine questions — or send your bot the
+`/start <code>` from the logs and answer them on Telegram. When you press
+**Start my company**, it's created and starts on its own; you're its owner
+on Telegram already if you set it up there (RUNTIME D55). Then skip to step 4.
+
 ## 3. Become the owner
 
 In the service's **Logs**, find the line
