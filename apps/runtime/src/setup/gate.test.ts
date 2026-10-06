@@ -1,6 +1,12 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ModelAccess } from "@jamot/brain";
+import {
+	fakeModel,
+	fauxAssistantMessage,
+	fauxText,
+} from "@jamot/brain/testing";
 import { DreamConfig } from "@jamot/contracts";
 import { openCompanyStore } from "@jamot/sqlite";
 import { Bot } from "grammy";
@@ -40,10 +46,10 @@ function fakeBot(): Bot {
 	});
 	return b;
 }
-async function open(): Promise<Gate> {
+async function open(model: ModelAccess | null = null): Promise<Gate> {
 	logs = [];
 	bot = fakeBot();
-	return createSetupGate({ home, env, bot, log: (m) => logs.push(m) });
+	return createSetupGate({ home, env, bot, model, log: (m) => logs.push(m) });
 }
 
 beforeEach(async () => {
@@ -207,7 +213,7 @@ describe("the setup gate (D55)", () => {
 		await put(cookie, "people", "Rio bakes with me");
 		for (const _ of ["delegate", "successor"])
 			await bot.handleUpdate(text(andrea, "/skip"));
-		expect(said().at(-1)).toMatch(/^That's everything\. Here's your company:/);
+		expect(said().at(-1)).toMatch(/^Here's what you told me:/);
 		const keyboard = JSON.stringify(calls.at(-1)?.payload.reply_markup);
 		expect(keyboard).toContain("tpl:restaurant");
 
@@ -273,4 +279,151 @@ describe("the setup gate (D55)", () => {
 			readFileSync(join(home, "corner-shop", "secrets.key")).length,
 		).toBeGreaterThan(0);
 	}, 30_000);
+
+	describe("drafting the company from the answers (D56)", () => {
+		const plan = {
+			template: "restaurant",
+			summary: "Bread for the street",
+			vision: "Nobody eats factory bread",
+			mission: "Fresh bread for the street",
+			values: ["Never sell old bread as fresh"],
+			goals: ["100 regulars"],
+			teams: [{ key: "bakery", name: "Bakery", purpose: "The bread" }],
+			agents: [
+				{
+					key: "orders",
+					name: "Order taker",
+					role: "Takes orders",
+					instructions: "Collect orders.",
+					team: "bakery",
+				},
+			],
+			people: [
+				{ key: "rio", name: "Rio", role: "Night baker", team: "bakery" },
+			],
+			responsibilities: [
+				{ key: "r-bread", name: "Bread", team: "bakery", owner: "rio" },
+				{ key: "r-orders", name: "Orders", team: "bakery", owner: "orders" },
+				{
+					key: "r-delivery",
+					name: "Deliveries",
+					team: "bakery",
+					owner: "open",
+				},
+			],
+			successor: "Rio",
+		};
+		const model = (reply: string) =>
+			fakeModel(() => fauxAssistantMessage([fauxText(reply)]));
+		async function answered(cookie: string) {
+			await put(cookie, "name", "Sunrise Bakery");
+			await put(cookie, "founder", "Andrea");
+			await put(cookie, "what", "Fresh bread for the street");
+			await put(
+				cookie,
+				"people",
+				"Rio bakes with me; I need a delivery person",
+			);
+		}
+		const post = (cookie: string, url: string, payload: object = {}) =>
+			gate.app.inject({ method: "POST", url, headers: { cookie }, payload });
+
+		it("drafts on the web, drops the draft when an answer changes, and starts from it", async () => {
+			await gate.stop();
+			const m = model(`Here you go:\n${JSON.stringify(plan)}`);
+			gate = await open(m);
+			const cookie = await signIn();
+			expect((await post(cookie, "/api/setup/draft")).json()).toEqual({
+				error: "Answer the questions marked as needed first.",
+			});
+			await answered(cookie);
+			const state = (await post(cookie, "/api/setup/draft")).json();
+			expect(state.canDraft).toBe(true);
+			expect(state.draft).toMatchObject({
+				teams: [{ name: "Bakery" }],
+				people: [{ name: "Rio" }],
+				successor: "Rio",
+			});
+			// Drafted once: asking again without "again" reuses it.
+			await post(cookie, "/api/setup/draft");
+			expect(m.calls()).toBe(1);
+			// A changed answer drops it.
+			const changed = (await put(cookie, "why", "Bread matters")).json();
+			expect(changed.draft).toBeNull();
+			await post(cookie, "/api/setup/draft");
+			expect((await post(cookie, "/api/setup/finish")).json()).toEqual({
+				message: "Sunrise Bakery is set up. Starting it now…",
+			});
+			const dir = await gate.done;
+			const store = openCompanyStore(join(dir, "company.db"));
+			try {
+				const nodes = await store.graph.listNodes();
+				expect(
+					nodes.filter((n) => n.kind === "agent").map((n) => n.name),
+				).toEqual(["Order taker"]);
+				expect(
+					nodes
+						.filter((n) => n.kind === "human")
+						.map((n) => n.name)
+						.sort(),
+				).toEqual(["Andrea", "Rio"]);
+				expect((await store.graph.getCompany())?.founderKey).toBe("founder");
+				expect(await store.settings.get("setup.answers")).toMatchObject({
+					draft: { successor: "Rio" },
+				});
+			} finally {
+				store.close();
+			}
+		}, 30_000);
+
+		it("falls back to a starting point when the model can't draft", async () => {
+			await gate.stop();
+			gate = await open(model("Sorry, I can't help with that."));
+			const cookie = await signIn();
+			await answered(cookie);
+			expect((await post(cookie, "/api/setup/draft")).json().error).toMatch(
+				/pick the closest starting point/,
+			);
+			expect((await post(cookie, "/api/setup/finish")).json()).toEqual({
+				error: "Draft the company first, or pick the closest starting point.",
+			});
+			expect(
+				(await post(cookie, "/api/setup/finish", { template: "restaurant" }))
+					.statusCode,
+			).toBe(200);
+			await gate.done;
+		}, 30_000);
+
+		it("drafts on Telegram, and tells the founder what to do first", async () => {
+			await gate.stop();
+			gate = await open(model(JSON.stringify(plan)));
+			const cookie = await signIn();
+			const code = (
+				await gate.app.inject({ url: "/api/setup", headers: { cookie } })
+			).json().telegram.code;
+			await bot.handleUpdate(text(andrea, `/start ${code}`));
+			await bot.handleUpdate(text(andrea, "Sunrise Bakery"));
+			await bot.handleUpdate(text(andrea, "Fresh bread for the street"));
+			await bot.handleUpdate(text(andrea, "/skip"));
+			await bot.handleUpdate(text(andrea, "/skip"));
+			await bot.handleUpdate(text(andrea, "/skip"));
+			await bot.handleUpdate(text(andrea, "Rio bakes with me"));
+			await bot.handleUpdate(text(andrea, "/skip"));
+			await bot.handleUpdate(text(andrea, "Rio"));
+			expect(said().slice(-2)).toEqual([
+				"That's everything. Drafting your company…",
+				expect.stringMatching(
+					/^Here's your company:[\s\S]*• Deliveries — open — invite someone[\s\S]*Takes over if you go quiet: Rio/,
+				),
+			]);
+			expect(JSON.stringify(calls.at(-1)?.payload.reply_markup)).toContain(
+				"setup:start",
+			);
+			await bot.handleUpdate(press(andrea, "setup:start"));
+			await gate.done;
+			expect(said().at(-1)).toMatch(
+				/^Your company is running\. This week:\n1\. Invite someone for Deliveries/,
+			);
+		}, 30_000);
+	});
 });

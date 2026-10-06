@@ -414,6 +414,37 @@ export interface SetupState {
 	};
 	/** Every required question is answered. */
 	ready: boolean;
+	/** The company drafted from the answers, once drafted (D56). */
+	draft: SetupDraft | null;
+	/** A model is set, so the company can be drafted; otherwise pick a template. */
+	canDraft: boolean;
+}
+
+/**
+ * The company Jamot drafted from the founder's answers (D56) — what the
+ * review shows before "Start my company".
+ */
+export interface SetupDraft {
+	/** The template whose tools it starts from. */
+	basedOn: { id: string; name: string };
+	charter: {
+		vision: string | null;
+		mission: string;
+		values: string[];
+		goals: string[];
+	};
+	teams: { name: string; purpose: string }[];
+	responsibilities: {
+		name: string;
+		team: string | null;
+		owner:
+			| { kind: "founder" | "agent" | "person"; name: string }
+			| { kind: "open"; name: null };
+	}[];
+	agents: { name: string; role: string; team: string | null }[];
+	/** People the founder named, who join the map (and are invited after). */
+	people: { name: string; role: string }[];
+	successor: string | null;
 }
 
 export interface SetupAnswer {
@@ -422,6 +453,7 @@ export interface SetupAnswer {
 	value: string;
 }
 
+/** Start the company: from the draft, or from a template when there's none. */
 export interface SetupFinish {
-	template: string;
+	template?: string;
 }

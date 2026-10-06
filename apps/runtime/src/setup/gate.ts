@@ -10,10 +10,13 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { connectModel, type ModelAccess } from "@jamot/brain";
+import { stringifyCompanyFile } from "@jamot/company-file";
 import type {
 	ActionResult,
 	Me,
 	SetupAnswer,
+	SetupDraft,
 	SetupFinish,
 	SetupState,
 } from "@jamot/contracts";
@@ -36,6 +39,7 @@ import {
 	TELEGRAM_TOKEN,
 } from "../cli/commands.js";
 import { serveConsole } from "../http.js";
+import { type Draft, draftCompany } from "./draft.js";
 import { ANSWER_LIMIT, lines, QUESTIONS } from "./questions.js";
 
 /**
@@ -62,6 +66,11 @@ export interface GateOptions {
 	behindProxy?: boolean;
 	/** The bot, already made from the token (tests pass a fake one). */
 	bot?: Bot;
+	/**
+	 * The model that drafts the company (tests pass a fake one, or null for
+	 * none); made from the env when absent.
+	 */
+	model?: ModelAccess | null;
 	log?: (message: string) => void;
 }
 
@@ -84,10 +93,14 @@ interface SetupFile {
 	answers: Record<string, string>;
 	skipped: string[];
 	owner?: Founder;
+	/** The company drafted from these answers (D56); cleared when one changes. */
+	draft?: Draft;
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const MAX_FAILED_CODES = 5;
+/** Drafts per boot (D56). */
+const MAX_DRAFTS = 10;
 /** Wrong codes from anyone, per boot: Telegram accounts are free to make. */
 const MAX_FAILED_CODES_IN_ALL = 50;
 
@@ -125,6 +138,16 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			"set JAMOT_TELEGRAM_TOKEN to your bot's token (from @BotFather) to set the company up",
 		);
 	const model = modelFromEnv(env);
+	// The model that drafts the company. Without one, the founder picks a template.
+	let drafter: ModelAccess | null = opts.model ?? null;
+	if (opts.model === undefined)
+		try {
+			drafter = connectModel(model);
+		} catch (err) {
+			log(
+				`[setup] can't reach the model to draft the company (${err instanceof Error ? err.message : err}); the founder picks a template instead`,
+			);
+		}
 
 	const secretKey = loadOrCreateSecretKey(join(stateDir, "secrets.key"));
 	const sessions = createSessions(secretKey);
@@ -173,6 +196,7 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 		if (!value && q.required)
 			throw new GateError("This one is needed to set the company up.");
 		await change(() => {
+			if (value !== (state.answers[q.id] ?? "")) delete state.draft;
 			if (value) {
 				state.answers[q.id] = value;
 				state.skipped = state.skipped.filter((s) => s !== q.id);
@@ -200,7 +224,60 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				code: state.owner ? null : code,
 			},
 			ready: ready(),
+			draft: state.draft?.view ?? null,
+			canDraft: drafter !== null,
 		};
+	}
+
+	/**
+	 * Drafts the company from the answers (D56). One draft at a time; a draft
+	 * made while an answer changed is dropped.
+	 */
+	let drafting: Promise<Draft> | null = null;
+	// Each draft is a paid model call: a few are plenty.
+	let drafts = 0;
+	async function draft(again = false): Promise<Draft> {
+		if (!drafter)
+			throw new GateError(
+				"There's no model to draft with. Pick the closest starting point instead.",
+			);
+		if (!ready())
+			throw new GateError("Answer the questions marked as needed first.");
+		if (state.draft && !again) return state.draft;
+		if (drafting) return drafting;
+		if (drafts >= MAX_DRAFTS)
+			throw new GateError(
+				`That's ${MAX_DRAFTS} drafts. Start from one, change an answer, or pick the closest starting point.`,
+			);
+		drafts++;
+		const answers = { ...state.answers };
+		drafting = draftCompany(
+			drafter,
+			answers,
+			listTemplates(),
+			env.JAMOT_TIMEZONE,
+		)
+			.then((d) =>
+				change(() => {
+					if (JSON.stringify(answers) === JSON.stringify(state.answers)) {
+						state.draft = d;
+						save();
+					}
+					return d;
+				}),
+			)
+			.catch((err: unknown) => {
+				log(
+					`[setup] drafting failed: ${err instanceof Error ? err.message : err}`,
+				);
+				throw new GateError(
+					"Jamot couldn't draft the company this time. Try again, or pick the closest starting point instead.",
+				);
+			})
+			.finally(() => {
+				drafting = null;
+			});
+		return drafting;
 	}
 
 	let resolveDone: (dir: string) => void = () => {};
@@ -208,14 +285,28 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 		resolveDone = r;
 	});
 	let finishing = false;
+	/** The draft the company started from, for the founder's first steps. */
+	let started: SetupDraft | null = null;
+	const tellNextSteps = async () => {
+		if (state.owner && started)
+			await say(state.owner.chatId, nextSteps(started));
+	};
 
-	/** Creates the company from the answers and a starting point. */
+	/** Creates the company: from the draft, or from the answers and a template. */
 	async function finish(input: SetupFinish): Promise<string> {
 		if (finishing) throw new GateError("The company is already starting.");
 		if (!ready())
 			throw new GateError("Answer the questions marked as needed first.");
-		const template = listTemplates().find((t) => t.id === input?.template);
-		if (!template) throw new GateError("Pick a starting point from the list.");
+		const template = input?.template
+			? listTemplates().find((t) => t.id === input.template)
+			: undefined;
+		if (input?.template && !template)
+			throw new GateError("Pick a starting point from the list.");
+		const drafted = template ? undefined : state.draft;
+		if (!template && !drafted)
+			throw new GateError(
+				"Draft the company first, or pick the closest starting point.",
+			);
 		finishing = true;
 		try {
 			const a = state.answers;
@@ -229,24 +320,41 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				copyFileSync(join(stateDir, "secrets.key"), join(dir, "secrets.key"));
 				chmodSync(join(dir, "secrets.key"), 0o600);
 			}
+			// A draft becomes a company file the setup reads like a template.
+			let from = template?.id as string;
+			if (drafted) {
+				from = join(stateDir, "draft.company.yaml");
+				writeFileSync(from, stringifyCompanyFile(drafted.file), {
+					mode: 0o600,
+				});
+			}
+			const c = drafted?.view.charter;
 			const input: SetupInput = {
 				dir,
-				template: template.id,
+				template: from,
 				name: a.name as string,
 				ownerName: a.founder as string,
 				password,
-				charter: {
-					mission: a.what as string,
-					...(a.why ? { vision: a.why } : {}),
-					...(a.goals ? { goals: lines(a.goals) } : {}),
-					...(a.never ? { values: lines(a.never) } : {}),
-				},
+				charter: c
+					? {
+							mission: c.mission,
+							...(c.vision ? { vision: c.vision } : {}),
+							goals: c.goals,
+							values: c.values,
+						}
+					: {
+							mission: a.what as string,
+							...(a.why ? { vision: a.why } : {}),
+							...(a.goals ? { goals: lines(a.goals) } : {}),
+							...(a.never ? { values: lines(a.never) } : {}),
+						},
 				model,
 				telegramToken: token,
 				...(env.JAMOT_TIMEZONE ? { timezone: env.JAMOT_TIMEZONE } : {}),
 			};
 			await setup(input);
 			await keepAnswers(dir, state);
+			started = drafted?.view ?? null;
 			rmSync(stateDir, { recursive: true, force: true });
 			log(`[setup] ${a.name} is set up in ${dir}; starting it`);
 			resolveDone(dir);
@@ -280,6 +388,7 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 		"/api/logout",
 		"/api/setup",
 		"/api/setup/answer",
+		"/api/setup/draft",
 		"/api/setup/finish",
 	]);
 	app.addHook("onRequest", async (req, reply) => {
@@ -357,12 +466,24 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				}
 			},
 		);
+		owner.post<{ Body: { again?: boolean } }>(
+			"/api/setup/draft",
+			async (req, reply): Promise<SetupState | undefined> => {
+				try {
+					await draft(req.body?.again === true);
+					return view();
+				} catch (err) {
+					return refuse(reply, err);
+				}
+			},
+		);
 		owner.post<{ Body: SetupFinish }>(
 			"/api/setup/finish",
 			async (req, reply): Promise<ActionResult | undefined> => {
 				try {
 					const message = await change(() => finish(req.body));
 					if (state.owner) await say(state.owner.chatId, message);
+					await tellNextSteps();
 					return { message };
 				} catch (err) {
 					return refuse(reply, err);
@@ -414,12 +535,34 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			);
 			return;
 		}
+		if (drafter) {
+			await say(owner.chatId, "That's everything. Drafting your company…");
+			try {
+				const d = await draft();
+				// An answer changed while drafting: draft from the new answers.
+				if (state.draft !== d) return askNext();
+				await say(
+					owner.chatId,
+					`${draftText(d.view)}\n\nStart it like this? You can change everything later. (Send /back to change an answer.)`,
+					new InlineKeyboard()
+						.text("✅ Start my company", "setup:start")
+						.row()
+						.text("🔄 Draft again", "setup:redraft"),
+				);
+				return;
+			} catch (err) {
+				await say(
+					owner.chatId,
+					err instanceof Error ? err.message : String(err),
+				);
+			}
+		}
 		const keyboard = new InlineKeyboard();
 		for (const t of listTemplates()) keyboard.text(t.name, `tpl:${t.id}`).row();
 		await say(
 			owner.chatId,
 			[
-				"That's everything. Here's your company:",
+				"Here's what you told me:",
 				"",
 				...QUESTIONS.filter((x) => state.answers[x.id]).map(
 					(x) => `• ${x.title}\n  ${state.answers[x.id]}`,
@@ -509,7 +652,20 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 					text: "Only the founder can do this.",
 					show_alert: true,
 				});
-			const picked = /^tpl:(.+)$/.exec(ctx.callbackQuery.data);
+			const data = ctx.callbackQuery.data;
+			if (data === "setup:redraft") {
+				await ctx.answerCallbackQuery({ text: "Drafting again…" });
+				await ctx
+					.editMessageReplyMarkup({ reply_markup: undefined })
+					.catch(() => undefined);
+				await change(() => {
+					delete state.draft;
+					save();
+				});
+				return askNext();
+			}
+			const picked =
+				data === "setup:start" ? ["", ""] : /^tpl:(.+)$/.exec(data);
 			if (!picked) return ctx.answerCallbackQuery();
 			await ctx.answerCallbackQuery();
 			await ctx
@@ -517,8 +673,9 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				.catch(() => undefined);
 			try {
 				await ctx.reply(
-					await change(() => finish({ template: picked[1] as string })),
+					await change(() => finish(picked[1] ? { template: picked[1] } : {})),
 				);
+				await tellNextSteps();
 			} catch (err) {
 				await ctx.reply(err instanceof Error ? err.message : String(err));
 			}
@@ -600,6 +757,7 @@ async function keepAnswers(dir: string, state: SetupFile): Promise<void> {
 			await tx.settings.set("setup.answers", {
 				answers: state.answers,
 				skipped: state.skipped,
+				...(state.draft ? { draft: state.draft.view } : {}),
 				at: new Date().toISOString(),
 			});
 			const owner = state.owner;
@@ -628,4 +786,66 @@ async function keepAnswers(dir: string, state: SetupFile): Promise<void> {
 	} finally {
 		store.close();
 	}
+}
+
+/** The draft as a Telegram message. */
+export function draftText(d: SetupDraft): string {
+	const owner = (r: SetupDraft["responsibilities"][number]) =>
+		r.owner.kind === "open"
+			? "open — invite someone"
+			: r.owner.kind === "founder"
+				? "you"
+				: r.owner.kind === "agent"
+					? `${r.owner.name} (agent)`
+					: r.owner.name;
+	return [
+		"Here's your company:",
+		"",
+		...(d.charter.vision ? [`Why it exists: ${d.charter.vision}`] : []),
+		`Its mission: ${d.charter.mission}`,
+		...(d.charter.values.length
+			? ["What it holds to:", ...d.charter.values.map((v) => `• ${v}`)]
+			: []),
+		...(d.charter.goals.length
+			? ["Three months from now:", ...d.charter.goals.map((g) => `• ${g}`)]
+			: []),
+		"",
+		`Teams: ${d.teams.map((t) => t.name).join(", ")}`,
+		"Responsibilities:",
+		...d.responsibilities.map((r) => `• ${r.name} — ${owner(r)}`),
+		...(d.agents.length
+			? ["Agents:", ...d.agents.map((a) => `• ${a.name} — ${a.role}`)]
+			: []),
+		...(d.people.length
+			? ["People:", ...d.people.map((p) => `• ${p.name} — ${p.role}`)]
+			: []),
+		...(d.successor ? [`Takes over if you go quiet: ${d.successor}`] : []),
+	].join("\n");
+}
+
+/** What the founder does first, once the company runs. */
+export function nextSteps(d: SetupDraft): string {
+	const open = d.responsibilities.filter((r) => r.owner.kind === "open");
+	const steps = [
+		...(open.length
+			? [
+					`Invite someone for ${open.map((r) => r.name).join(", ")}: in the console, Stewards → Open roles.`,
+				]
+			: []),
+		...(d.people.length
+			? [
+					`Link ${d.people.map((p) => p.name).join(", ")} on Telegram: Stewards → Pairing code, one each.`,
+				]
+			: []),
+		...(d.successor
+			? [
+					`Make ${d.successor} your successor: send them the code from Settings.`,
+				]
+			: []),
+		"Talk to your agents right here: tell them what you need today.",
+	];
+	return [
+		"Your company is running. This week:",
+		...steps.map((s, i) => `${i + 1}. ${s}`),
+	].join("\n");
 }

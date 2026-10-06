@@ -540,6 +540,10 @@ label.check input {
 .login h1 {
 	font-size: 28px;
 }
+/* A form card with more to read: the setup's review. */
+.login.wide {
+	width: min(720px, 100%);
+}
 
 /* — notices and tags — */
 .notice {

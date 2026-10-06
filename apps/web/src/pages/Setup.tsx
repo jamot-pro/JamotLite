@@ -1,13 +1,17 @@
 import type {
 	ActionResult,
 	Me,
+	SetupDraft,
 	SetupQuestion,
 	SetupState,
 } from "@jamot/contracts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 import {
 	Actions,
+	Badge,
+	Bullet,
+	Bullets,
 	Button,
 	Card,
 	Cell,
@@ -16,6 +20,7 @@ import {
 	Field,
 	Form,
 	Input,
+	Label,
 	Loading,
 	Muted,
 	Notice,
@@ -206,12 +211,65 @@ function Question({
 					</Muted>
 				)}
 			</Form>
+			<SoFar state={state} />
 		</Center>
 	);
 }
 
+/** The company taking shape as the founder answers (D56). */
+function SoFar({ state }: { state: SetupState }) {
+	const a = state.answers;
+	const list = (v: string | undefined) =>
+		(v ?? "")
+			.split("\n")
+			.map((l) => l.replace(/^[-•*\s]+/, "").trim())
+			.filter(Boolean);
+	if (!a.name && !a.what) return null;
+	return (
+		<Card muted title={a.name ? `${a.name}, so far` : "Your company, so far"}>
+			{a.why && (
+				<>
+					<Label>Why it exists</Label>
+					<p>{a.why}</p>
+				</>
+			)}
+			{a.what && (
+				<>
+					<Label>Its mission</Label>
+					<p>{a.what}</p>
+				</>
+			)}
+			{list(a.never).length > 0 && (
+				<>
+					<Label>What it holds to</Label>
+					<Bullets>
+						{list(a.never).map((v) => (
+							<Bullet key={v}>{v}</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			{list(a.goals).length > 0 && (
+				<>
+					<Label>Three months from now</Label>
+					<Bullets>
+						{list(a.goals).map((g) => (
+							<Bullet key={g}>{g}</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			{a.founder && (
+				<Muted small block>
+					Founded by {a.founder}
+				</Muted>
+			)}
+		</Card>
+	);
+}
+
 function Review({
-	state,
+	state: initial,
 	onChange,
 	onStarted,
 }: {
@@ -219,32 +277,119 @@ function Review({
 	onChange: (index: number) => void;
 	onStarted: (message: string) => void;
 }) {
+	const [state, setState] = useState(initial);
 	const [template, setTemplate] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [drafting, setDrafting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	// Without a model, or when drafting failed: the founder picks a template.
+	const [pick, setPick] = useState(!initial.canDraft);
 	const chosen = state.templates.find((t) => t.id === template);
+
+	// Drafting takes a while: the founder may leave the review meanwhile.
+	const mounted = useRef(true);
+	useEffect(
+		() => () => {
+			mounted.current = false;
+		},
+		[],
+	);
+	const draft = useCallback(async (again: boolean) => {
+		setDrafting(true);
+		setError(null);
+		try {
+			const next = await api<SetupState>("/setup/draft", {
+				method: "POST",
+				body: { again },
+			});
+			if (mounted.current) setState(next);
+		} catch (err) {
+			if (!mounted.current) return;
+			setError(err instanceof Error ? err.message : String(err));
+			setPick(true);
+		} finally {
+			if (mounted.current) setDrafting(false);
+		}
+	}, []);
+	useEffect(() => {
+		if (initial.canDraft && initial.ready && !initial.draft) draft(false);
+	}, [initial, draft]);
+
+	const start = async () => {
+		setBusy(true);
+		setError(null);
+		try {
+			const { message } = await api<ActionResult>("/setup/finish", {
+				method: "POST",
+				body: pick ? { template } : {},
+			});
+			onStarted(message);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+			setBusy(false);
+		}
+	};
+	const d = state.draft;
 
 	return (
 		<Center>
-			<Form
-				card
-				onSubmit={async () => {
-					setBusy(true);
-					setError(null);
-					try {
-						const { message } = await api<ActionResult>("/setup/finish", {
-							method: "POST",
-							body: { template },
-						});
-						onStarted(message);
-					} catch (err) {
-						setError(err instanceof Error ? err.message : String(err));
-						setBusy(false);
-					}
-				}}
-			>
+			<Form card="wide" onSubmit={start}>
 				<Muted small>Setting up your company · review</Muted>
 				<h1>Here's your company</h1>
+				{drafting && (
+					<Notice>
+						Drafting your company from your answers… about half a minute.
+					</Notice>
+				)}
+				{d && !pick && <DraftView draft={d} />}
+				{pick && (
+					<>
+						<Field
+							label="Closest starting point"
+							hint="(Jamot starts from it and fits it to your answers; you can change everything later)"
+						>
+							<Select
+								value={template}
+								onChange={(e) => setTemplate(e.target.value)}
+							>
+								<option value="">Choose one</option>
+								{state.templates.map((t) => (
+									<option key={t.id} value={t.id}>
+										{t.name}
+									</option>
+								))}
+							</Select>
+						</Field>
+						{chosen && <Muted block>{chosen.summary}</Muted>}
+					</>
+				)}
+				{!state.ready && (
+					<ErrorText>Answer the first three questions to start.</ErrorText>
+				)}
+				{error && <ErrorText>{error}</ErrorText>}
+				<Actions>
+					<Button
+						type="submit"
+						disabled={
+							busy || drafting || !state.ready || (pick ? !template : !d)
+						}
+					>
+						{busy ? "Starting…" : "Start my company"}
+					</Button>
+					{state.canDraft && (
+						<Button
+							variant="secondary"
+							disabled={busy || drafting}
+							onClick={() => {
+								setPick(false);
+								draft(true);
+							}}
+						>
+							{d || pick ? "Draft again" : "Draft it"}
+						</Button>
+					)}
+				</Actions>
+				<Label>Your answers</Label>
 				<Table
 					columns={[
 						{ label: "Question" },
@@ -264,33 +409,98 @@ function Review({
 						</Row>
 					))}
 				</Table>
-				<Field
-					label="Closest starting point"
-					hint="(Jamot starts from it and fits it to your answers; you can change everything later)"
-				>
-					<Select
-						value={template}
-						onChange={(e) => setTemplate(e.target.value)}
-					>
-						<option value="">Choose one</option>
-						{state.templates.map((t) => (
-							<option key={t.id} value={t.id}>
-								{t.name}
-							</option>
-						))}
-					</Select>
-				</Field>
-				{chosen && <Muted block>{chosen.summary}</Muted>}
-				{!state.ready && (
-					<ErrorText>Answer the first three questions to start.</ErrorText>
-				)}
-				{error && <ErrorText>{error}</ErrorText>}
-				<Actions>
-					<Button type="submit" disabled={busy || !template || !state.ready}>
-						{busy ? "Starting…" : "Start my company"}
-					</Button>
-				</Actions>
 			</Form>
 		</Center>
+	);
+}
+
+/** The drafted company, as the founder reviews it. */
+function DraftView({ draft: d }: { draft: SetupDraft }) {
+	const owner = (r: SetupDraft["responsibilities"][number]) =>
+		r.owner.kind === "open" ? (
+			<Badge tone="bad">Open — you'll invite someone</Badge>
+		) : r.owner.kind === "founder" ? (
+			"You"
+		) : r.owner.kind === "agent" ? (
+			<>
+				{r.owner.name} <Badge>agent</Badge>
+			</>
+		) : (
+			r.owner.name
+		);
+	return (
+		<>
+			{d.charter.vision && (
+				<>
+					<Label>Why it exists</Label>
+					<p>{d.charter.vision}</p>
+				</>
+			)}
+			<Label>Its mission</Label>
+			<p>{d.charter.mission}</p>
+			{d.charter.values.length > 0 && (
+				<>
+					<Label>What it holds to</Label>
+					<Bullets>
+						{d.charter.values.map((v) => (
+							<Bullet key={v}>{v}</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			{d.charter.goals.length > 0 && (
+				<>
+					<Label>Three months from now</Label>
+					<Bullets>
+						{d.charter.goals.map((g) => (
+							<Bullet key={g}>{g}</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			<Label>Who does what</Label>
+			<Table
+				columns={[
+					{ label: "Responsibility" },
+					{ label: "Team" },
+					{ label: "Owner" },
+				]}
+			>
+				{d.responsibilities.map((r) => (
+					<Row key={r.name}>
+						<Cell>{r.name}</Cell>
+						<Cell small>{r.team}</Cell>
+						<Cell>{owner(r)}</Cell>
+					</Row>
+				))}
+			</Table>
+			{d.agents.length > 0 && (
+				<>
+					<Label>Agents</Label>
+					<Bullets>
+						{d.agents.map((a) => (
+							<Bullet key={a.name}>
+								<strong>{a.name}</strong> — {a.role}
+							</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			{d.people.length > 0 && (
+				<>
+					<Label>People</Label>
+					<Bullets>
+						{d.people.map((p) => (
+							<Bullet key={p.name}>
+								<strong>{p.name}</strong> — {p.role}
+							</Bullet>
+						))}
+					</Bullets>
+				</>
+			)}
+			{d.successor && (
+				<Muted block>Takes over if you go quiet: {d.successor}</Muted>
+			)}
+		</>
 	);
 }

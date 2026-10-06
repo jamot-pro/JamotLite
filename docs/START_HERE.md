@@ -117,6 +117,7 @@ demo model — and the console with live reload:
 
 ```bash
 pnpm dev:company                              # :3000 (password in scripts/dev-company.ts)
+pnpm dev:setup                                # or the setup gate on :3000, with a scripted model
 pnpm dev:web                                  # http://127.0.0.1:5173 — /dev/ui shows every component
 ```
 
