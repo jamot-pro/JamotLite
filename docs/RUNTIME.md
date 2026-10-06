@@ -180,6 +180,108 @@ is the hook — "the organization that doesn't die when people leave" — made
 concrete. Survival's People vital counts responsibilities with no skills as a
 bus-factor risk. Later, operators can publish skills on the hub.
 
+## 8c. Add-ons — more than the base, never inside it
+
+The base runtime is what every company needs: the company map, people and
+memory, Telegram and the web chat, heartbeats and survival, tasks, the record
+and MCP. Anything only some companies need — a product catalog, bookings,
+invoices, a till — is an **add-on**: a separate package, off until a company
+turns it on, that plugs into the runtime through one contract and touches the
+base only through its ports. A company can run several add-ons on top of the
+base. This section is the contract (D59); every add-on follows it.
+
+**What an add-on is**
+
+- One workspace package in `addons/<id>/`, named `@jamot/addon-<id>`, with
+  its own `package.json`, tests and README. `<id>` is short, lowercase and
+  unique (`catalog`, `bookings`).
+- It exports one object made with `defineAddon` from `@jamot/addon-kit`:
+  its id, name, version, a one-line summary, and what it adds (below).
+- It depends only on `@jamot/addon-kit`, `@jamot/ports`, `@jamot/contracts`
+  and the `Brain` types. The base never imports an add-on: no `if (catalog)`
+  in core, the channel or the console's frame.
+- The add-ons that ship are bundled into `jamot.mjs` and listed in the
+  runtime's registry; a company turns them on in `company.yaml`
+  (`addons: { catalog: { …its settings… } }`) or in the console (Settings →
+  Add-ons). Loading add-ons from npm or a URL is **FUTURE**: running someone
+  else's code inside the company's process is a security decision of its own.
+
+**What an add-on may add — and nothing else**
+
+| It may add | How | Rule |
+|---|---|---|
+| Tables | `migrations`, ids `<id>:0001_…`, applied after the base's | Every table is prefixed `<id>_`. Never alter or read a base table directly; never edit a migration that shipped |
+| Its storage | A port (async interface) and its SQLite adapter, inside the package | Domain code uses the port; the base's data only through `CompanyStore` |
+| Settings | Its section of `company.yaml`, checked by its own zod schema | Exported and imported with the company; secrets never here |
+| Secrets | The secret store, names `<id>.…` | Never in logs, prompts, API responses or `company.yaml` |
+| Agent tools | `agentTools(ctx)`: `BrainTool`s, names `<id>_…` | Anything with money, a contract or the physical world carries a policy (approval) in the same change |
+| MCP tools | `mcpTools(ctx, caller)`, names `<id>_…` | Each tool decides what *this caller* may see: shared token, a connection, or a customer. Never a person's name or contact unless they published it |
+| Console page | One page in `apps/web/src/addons/<id>/`, from `src/ui` components and contracts only | Shown only while the add-on is on; `pnpm ui-check` covers it |
+| HTTP routes | Under `/api/addons/<id>/…`, behind the console's session | Public routes only under `/addons/<id>/public/…`, read-only or rate-limited, never people |
+| Jobs | Handlers for job kinds `<id>.<kind>` | Same worker, same retries; a job that can't finish fails loudly |
+| A heartbeat check | `check(ctx, now)` returning issues, like the vitals | Joins the company heartbeat; never sends on its own |
+| Tasks | `createTask` with the requester (customer, agent, person) | Work that needs someone goes through the selector (D58), never around it |
+| Events | Types `<id>.<what>` in the shared event log | Append-only, with an idempotency key |
+
+It may not: change the base's tables, routes, commands, tools or screens;
+add a Telegram command of its own (people talk to agents, and agents have the
+add-on's tools); call another add-on except through a port that add-on
+publishes and lists in `requires`.
+
+**Rules every add-on keeps**
+
+1. **Off by default; on and off are safe.** Turning it on runs its
+   migrations; turning it off hides its tools, routes and page and keeps its
+   data. Turning it on again finds everything where it was.
+2. **The base works without it.** The runtime's tests pass with no add-on
+   on, and the add-on's own tests start a runtime with it on.
+3. **Money is integer minor units with an ISO currency**, like the ledger.
+   No floats, ever.
+4. **The agent proposes, a human decides** (AGENTS.md rule 3). An add-on
+   never moves money or commits the company without a policy gate.
+5. **People stay private.** An add-on publishes what the company offers,
+   never who works there; customer data is the customer's memory
+   (person scope).
+6. **Every interaction with a person becomes memory**, through the base's
+   intake, never another way.
+7. **Recorded like the rest.** A decision in §12, a line in the add-ons
+   table below, a ledger line, a README that says what it adds and what it
+   costs (tables, tools, jobs).
+
+**Add-ons**
+
+| Id | What it adds | Status |
+|---|---|---|
+| `catalog` | Products and orders: what the company sells, and orders that become tasks (C6) | planned |
+
+### The product catalog (`@jamot/addon-catalog`) — the first add-on
+
+Light e-commerce for a small business, built the way the good small shops
+do it:
+
+- **Products:** a SKU (unique), name, description, price in minor units and
+  one currency per company, whether prices include tax, images (URLs),
+  tags, and stock — a number, or "not tracked". A product is active or
+  archived, never deleted: old orders still point at it. Variants (size,
+  colour) are separate SKUs grouped by a parent, not a second model.
+- **Orders:** lines copy the product's name and price **at the time of the
+  order**, so a later price change never rewrites what a customer agreed to.
+  An order is created once per idempotency key; it moves *placed →
+  confirmed → fulfilled*, or *cancelled*; stock is reserved on confirmation
+  and released on cancellation.
+- **Every confirmed order becomes a task** ("Fulfil order 1042") for the
+  selector: an agent first (confirm the details, write the delivery note),
+  then the person who owns fulfilment.
+- **Payment:** none in the first version — paid on delivery or by invoice,
+  outside Jamot. A payment link comes later, with its policy gate.
+- **Agents** get `catalog_search`, `catalog_product` and `catalog_order`
+  (an order above the founder's limit waits for their approval).
+- **Over MCP** an outside agent can search the catalog, read a product, place
+  an order for its customer and follow it — the customer side of C6. The
+  public product list is also served as schema.org `Product` data, so other
+  agents and search engines can read it.
+- **Console:** a Catalog page — products, stock, orders — and a CSV import.
+
 ## 9. Growing up, out and across
 
 - **Up** — one company gets big: SQLite → Postgres, in-process jobs →
@@ -367,6 +469,7 @@ JamotLite/
 | D55 | **A new company is set up through a gate, by interview, on the web or Telegram** (2026-10-06). `jamot start` with no company, no `JAMOT_TEMPLATE` and a `JAMOT_PASSWORD` runs the setup gate instead of the runtime, on the same port. The console shows only the setup (after the password); every other route answers 503; the bot answers only the founder, who claims the setup with the code in the logs (or the console's *Continue on Telegram* link), and tells everyone else the company isn't open yet. Nine questions — name, the founder's name, what and for whom, why, three-month goals, what it never does, who's in and who's missing, what to hand to agents, who takes over — one at a time, with "I don't know yet" for all but the first three; the web and Telegram share the answers, kept in `.setup/setup.json` so a redeploy loses nothing. After a review and a starting point, *Start my company* creates it (the charter from the answers, the founder as owner, the Telegram founder already paired), keeps the answers in `setup.answers`, and the full runtime starts in the same process; the console session carries over. Agents, heartbeats, web chat and MCP don't exist before that. With `JAMOT_TEMPLATE` set, the first boot works as before | The founder's first minutes decide whether they stay. Templates fit known businesses, not a new idea; asking what Jamot needs, and nothing else running until it has it, is the onboarding VISION.md promises. Next: the company drafted from the answers (people, open roles, agents, successor), then the bot and model connected inside the gate |
 | D56 | **The setup drafts the company from the founder's answers; the founder reviews it** (2026-10-06). When the interview is done, one model call turns the answers into a plan — teams, responsibilities and who owns each (the founder, an agent, a person they named, or open for an invitation), agents with instructions, the people named, the successor. Code then checks and builds it: at most 4 teams, 4 agents and 8 responsibilities; a person the founder didn't name is dropped and what they'd own becomes open; every agent's instructions end with the law (propose; never pay, sign, hire or promise without the owner); a heartbeat for the charter and one per team, so readiness is whole except the open roles; tools only from the closest template, never invented; the result must pass the company-file schema. The review shows the charter, who does what, the agents and people; *Draft again* asks once more, a changed answer drops the draft, and when the model can't give a usable plan the founder picks a template as before (D55). On Telegram the draft comes as a message with *Start my company* / *Draft again*, and after the start a short "this week" list: invite for the open roles, link the people named, pair the successor. While answering, the console shows the company taking shape. `pnpm dev:setup` runs the gate with a scripted model for building its screens | The setup's promise is that Jamot configures itself from a few answers; the model is good at the plan, code is reliable at the rules, and nothing exists until the founder says start |
 | D57 | **A model that's down or busy never leaves a customer unanswered; a Telegram that stopped listening is told** (2026-10-06). Before, a model error ended the reply as "failed" with no retry. Now an error that passes — rate limit, overloaded, 5xx, timeout, network — first tries the **backup model** (Settings → Backup model; `model.fallback` and its key in the secret store; a `model.fallback_used` event), and if there's none or it fails too, the reply job is retried with the worker's backoff (10 s, 40 s, 90 s…). Only the last attempt records the failed answer the Overview counts. A refused request or a wrong key isn't retried. A retried reply reruns in the same session: errored turns are left out of what the model sees (pi does this), so at worst the agent sees the customer's question twice. When Telegram's long polling stops after starting — usually a 409 because another program polls the same token — the time and reason are kept (`telegram.stopped`, cleared on the next start) and the company heartbeat tells the owner, with what to do; sending still works, so the message gets through | From the architecture review (2026-10-06): the brain had one model and no plan B, and a stolen poll made the company deaf without anyone knowing. Both fixes stay inside the one process; the uptime check and replication are the owner's (Phase 1) |
+| D59 | **Add-ons: what only some companies need is a separate package, off by default, on top of the base** (2026-10-06). One contract for all of them (§8c): a workspace package `@jamot/addon-<id>` made with `defineAddon` from `@jamot/addon-kit`; its own prefixed tables and migrations, storage behind its own port, settings in its section of `company.yaml`, tools named `<id>_…` for agents and MCP, at most one console page made of the console's components, routes under `/api/addons/<id>`, job kinds `<id>.<kind>`, a heartbeat check, tasks through the selector. The base never imports an add-on; an add-on never changes the base. Bundled add-ons are listed in the runtime's registry and turned on per company; loading add-ons from npm is FUTURE. Money in minor units, policy on anything that commits the company, people never published. The product catalog is the first (C6) | The founder (2026-10-06): the catalog is an add-on, and more will follow on top of the base model. Without one contract each would reach into core and the base would stop being small; with it, a company carries only what it uses and the base stays the same for everyone |
 
 ### Open
 
