@@ -5,8 +5,10 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type { Connection } from "@jamot/core";
+import { Bot } from "grammy";
 import {
 	backup,
+	DEFAULT_MODELS,
 	doctor,
 	exportCompany,
 	importCompany,
@@ -30,6 +32,7 @@ import {
 } from "./cli/commands.js";
 import { companyDir, jamotHome, publicUrl, webRoot } from "./cli/paths.js";
 import { createRuntime } from "./runtime.js";
+import { createSetupGate, wantsSetupGate } from "./setup/gate.js";
 
 const HELP = `jamot ${VERSION} — one company, one runtime
 
@@ -61,13 +64,6 @@ const HELP = `jamot ${VERSION} — one company, one runtime
 
 Options: --company <id>  --data <dir>  --port <n>  --host <addr>  --no-telegram
 Companies live in ${jamotHome()} (set JAMOT_HOME to change it).`;
-
-const DEFAULT_MODELS = {
-	anthropic: "claude-sonnet-5",
-	openai: "gpt-5",
-	openrouter: "anthropic/claude-sonnet-5",
-	ollama: "llama3.1",
-} as const;
 
 async function main(argv: string[]): Promise<number> {
 	const { values, positionals } = parseArgs({
@@ -148,7 +144,16 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 			// in the environment (JAMOT_TEMPLATE, JAMOT_PASSWORD…).
 			if (process.env.JAMOT_TEMPLATE && !hasCompany(where))
 				await runSetup(undefined, where);
-			const dir = companyDir(where);
+			// No company and no template: the setup gate (D55) runs until the
+			// founder starts the company, then the company starts here.
+			const dir =
+				!hasCompany(where) && wantsSetupGate(process.env)
+					? await runSetupGate(where, {
+							port: Number(values.port ?? process.env.PORT ?? 3000),
+							host: values.host ?? process.env.HOST ?? "127.0.0.1",
+							telegram: values["no-telegram"] !== true,
+						})
+					: companyDir(where);
 			const runtime = await createRuntime({
 				dataDir: dir,
 				telegram: values["no-telegram"] !== true,
@@ -369,6 +374,42 @@ To start a real company: jamot setup.   Stop: Ctrl+C.
 			console.log(HELP);
 			return 1;
 	}
+}
+
+/** Runs the setup gate (D55) until the founder starts the company; returns its folder. */
+async function runSetupGate(
+	where: { data?: string; company?: string },
+	net: { port: number; host: string; telegram: boolean },
+): Promise<string> {
+	const token = process.env.JAMOT_TELEGRAM_TOKEN;
+	const gate = await createSetupGate({
+		home: jamotHome(),
+		...(where.data ? { dataDir: where.data } : {}),
+		env: process.env,
+		...(webRoot() ? { webRoot: webRoot() as string } : {}),
+		behindProxy: process.env.JAMOT_BEHIND_PROXY === "1",
+		...(net.telegram && token ? { bot: new Bot(token) } : {}),
+	});
+	const stopGate = async () => {
+		await gate.stop();
+		process.exit(0);
+	};
+	process.once("SIGINT", stopGate);
+	process.once("SIGTERM", stopGate);
+	const address = await gate.app.listen({ port: net.port, host: net.host });
+	console.log(`[setup] the setup is open at ${publicUrl() ?? address}`);
+	await gate
+		.startBot()
+		.catch((err: unknown) =>
+			console.log(
+				`[setup] Telegram isn't reachable (${err instanceof Error ? err.message : err}); the console works on its own`,
+			),
+		);
+	const dir = await gate.done;
+	await gate.stop();
+	process.removeListener("SIGINT", stopGate);
+	process.removeListener("SIGTERM", stopGate);
+	return dir;
 }
 
 function hasCompany(where: { data?: string; company?: string }): boolean {

@@ -86,31 +86,34 @@ export function createHttpServer(opts: HttpOptions): FastifyInstance {
 
 	if (opts.api) registerApi(app, opts.api);
 
-	const webRoot = opts.webRoot;
-	if (webRoot && existsSync(join(webRoot, "index.html"))) {
-		// wildcard: files are looked up on each request, so a rebuilt console is served without a restart.
-		app.register(fastifyStatic, {
-			root: webRoot,
-			wildcard: true,
-			index: "index.html",
-		});
-		// The console routes in the browser: unknown GETs outside /api get the app.
-		app.setNotFoundHandler((req, reply) => {
-			// Page routes the console handles in the browser (/map, /people…) get
-			// the app. A missing file (/assets/x.js) is a 404, never HTML.
-			const path = req.url.split("?")[0] ?? "";
-			const isPage =
-				!path.startsWith("/api") &&
-				!path.startsWith("/mcp") &&
-				!path.startsWith("/oauth") &&
-				!path.startsWith("/.well-known") &&
-				!/\.[a-z0-9]+$/i.test(path);
-			if (req.method === "GET" && isPage) {
-				return reply.type("text/html").sendFile("index.html");
-			}
-			return reply.code(404).send({ error: "not found" });
-		});
-	}
+	if (opts.webRoot) serveConsole(app, opts.webRoot);
 
 	return app;
+}
+
+/** Serves the built web console, with page routes falling back to the app. */
+export function serveConsole(app: FastifyInstance, webRoot: string): void {
+	if (!existsSync(join(webRoot, "index.html"))) return;
+	// wildcard: files are looked up on each request, so a rebuilt console is served without a restart.
+	app.register(fastifyStatic, {
+		root: webRoot,
+		wildcard: true,
+		index: "index.html",
+	});
+	// The console routes in the browser: unknown GETs outside /api get the app.
+	app.setNotFoundHandler((req, reply) => {
+		// Page routes the console handles in the browser (/map, /people…) get
+		// the app. A missing file (/assets/x.js) is a 404, never HTML.
+		const path = req.url.split("?")[0] ?? "";
+		const isPage =
+			!path.startsWith("/api") &&
+			!path.startsWith("/mcp") &&
+			!path.startsWith("/oauth") &&
+			!path.startsWith("/.well-known") &&
+			!/\.[a-z0-9]+$/i.test(path);
+		if (req.method === "GET" && isPage) {
+			return reply.type("text/html").sendFile("index.html");
+		}
+		return reply.code(404).send({ error: "not found" });
+	});
 }

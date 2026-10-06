@@ -10,6 +10,11 @@ export interface Me {
 	passwordSet: boolean;
 	/** A demo company (`jamot demo`): the console says so. */
 	demo: boolean;
+	/**
+	 * The runtime is being set up (D55): there's no company yet, and the
+	 * console shows only the setup until the founder starts it.
+	 */
+	setup?: boolean;
 }
 
 export interface Vitals {
@@ -377,4 +382,46 @@ export interface RewardInput {
 	nodeKey: string;
 	note: string;
 	contributionId?: string | null;
+}
+
+/** One question of the setup interview (D55). */
+export interface SetupQuestion {
+	id: string;
+	title: string;
+	hint: string;
+	/** "short": one line; "text": a few sentences; "lines": a list, one per line. */
+	kind: "short" | "text" | "lines";
+	/** Setup can't finish without it. */
+	required: boolean;
+	placeholder: string;
+}
+
+/** Where the setup stands — the same on the web and on Telegram. */
+export interface SetupState {
+	questions: SetupQuestion[];
+	answers: Record<string, string>;
+	/** Questions the founder chose to leave for later. */
+	skipped: string[];
+	/** Starting points the company can be built from. */
+	templates: { id: string; name: string; summary: string }[];
+	telegram: {
+		/** The bot's @username, once Telegram is connected. */
+		bot: string | null;
+		/** The founder's name, once they claimed the setup on Telegram. */
+		owner: string | null;
+		/** A code to claim the setup on Telegram (`/start <code>`). */
+		code: string | null;
+	};
+	/** Every required question is answered. */
+	ready: boolean;
+}
+
+export interface SetupAnswer {
+	id: string;
+	/** Empty: "I don't know yet". */
+	value: string;
+}
+
+export interface SetupFinish {
+	template: string;
 }
