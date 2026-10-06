@@ -231,6 +231,34 @@ on it (brief §4). It runs on charter-aware Lite (S2) with backups on (S4).
 the bundle and image; re-run [PRODUCT-BRIEF.md](PRODUCT-BRIEF.md) and update
 its scores. **Exit.** v0.2 installed from the release on a fresh machine.
 
+## After v0.2 · v0.3, "a founder's idea, carried" (C1–C5)
+
+The founder chose option C on 2026-10-05: Jamot as the founder's operating
+system ([VISION.md](VISION.md), RUNTIME D51). Each step is one pull request;
+S9 and S10 keep their dates. C2–C4 are additive (new migrations, new
+commands) and don't change how the live company runs today.
+
+- **C1 · Vision.** `docs/VISION.md`, D51, this section.
+- **C2 · Open roles and invites.** An unowned responsibility is an open role;
+  the founder makes an invite code for it (owner-only, single use, 24 hours,
+  stored hashed); the candidate sends `/join CODE` to the bot, sees the
+  charter and the role only, and accepts; the founder approves on Telegram or
+  in the console; the newcomer becomes a steward owning the role, paired, and
+  gets an onboarding brief. **Exit.** Tests for expiry, reuse, decline, and a
+  candidate never seeing money or customers.
+- **C3 · Dropped roles.** Last activity per steward; a kind check-in after N
+  quiet days (still on it, hand it over, pause); caretaker mode after M more:
+  the role goes back to open and the founder gets suggested candidates. Fits
+  with the company successor switch (D22), never duplicates it. **Exit.** Tests
+  for one check-in, one reminder, pause, and hand-over.
+- **C4 · Contributions.** Recorded automatically (roles taken, approvals
+  decided) and by hand (`/did`, confirmed by the founder); the founder records
+  rewards (notes, never payments); `/ledger` shows a person their own record;
+  the Overview shows the experiment's numbers (VISION.md). **Exit.** The
+  numbers on the live company match a hand count.
+- **C5 · Tasks and the orchestrator.** Agents first, then the responsibility's
+  owner. Planned after C4.
+
 ---
 
 ## Review — what the adversarial pass changed
@@ -260,3 +288,4 @@ one pull request is split before it's started, not halfway.
 |---|---|---|
 | 2026-10-03 | Plan written | From PRODUCT-BRIEF.md §6 |
 | 2026-10-03 | S3–S6, S8 opened as GitHub #14–#18; S2, S3 (with #9) and S7 labelled `v0.2` | So stewards can pick steps up on GitHub |
+| 2026-10-05 | v0.3 (C1–C5) added after S10 | The founder chose option C, the founder's operating system (VISION.md, D51) |
