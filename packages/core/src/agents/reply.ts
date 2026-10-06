@@ -26,6 +26,8 @@ export interface ReplyDeps {
 	onApprovalNeeded?: (approvalIds: string[]) => Promise<void>;
 	/** More tools for an agent — its MCP tools, for one. */
 	extraTools?: (agentKey: string) => BrainTool[] | Promise<BrainTool[]>;
+	/** Tools for talking with this person — tasks, for the founder and the stewards (D58). */
+	personTools?: (person: Person) => Promise<BrainTool[]>;
 	/** What a run may spend right now — survival lowers it when money runs low. */
 	budget?: () => Promise<AgentSpec["budget"]>;
 }
@@ -231,6 +233,7 @@ async function conversationAgent(
 				displayName: person.displayName,
 			}),
 			...((await deps.extraTools?.(node.key)) ?? []),
+			...((await deps.personTools?.(person)) ?? []),
 		],
 	});
 	return budget ? { ...spec, budget } : spec;

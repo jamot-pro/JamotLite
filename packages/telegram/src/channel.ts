@@ -1,8 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	AgentError,
 	acceptInvite,
 	answerCheckin,
+	answerTask,
 	type Candidate,
+	createTask,
 	decideContribution,
 	decideInvite,
 	isRetired,
@@ -16,6 +19,11 @@ import {
 	recordContribution,
 	recordSent,
 	SUCCESSION,
+	TASK_VERBS,
+	type TaskActor,
+	type TaskVerb,
+	taskAction,
+	tasksText,
 } from "@jamot/core";
 import type { CompanyPorts, CompanyStore } from "@jamot/ports";
 import { type Bot, GrammyError, InlineKeyboard } from "grammy";
@@ -281,6 +289,20 @@ export function createTelegramChannel(
 			);
 			return;
 		}
+		// Tasks (D58): the founder's and the stewards', never a customer's.
+		const tasks = /^\/(tasks|task|answer)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(
+			text.trim(),
+		);
+		if (tasks) {
+			await ctx.reply(
+				await taskCommand(
+					tasks[1] as "tasks" | "task" | "answer",
+					tasks[2]?.trim() ?? "",
+					who,
+				),
+			);
+			return;
+		}
 		await receiveMessage(store, {
 			channel: "telegram",
 			threadId: who.chatId,
@@ -311,6 +333,37 @@ export function createTelegramChannel(
 					{ store, notifier: self },
 					key,
 					checkin[1] as "still" | "handover" | "pause",
+				),
+			);
+			return;
+		}
+		// A task's buttons (D58): the founder decides; its person says Done or Can't.
+		const task = /^task:(\w+):(\d+)$/.exec(data);
+		if (task && TASK_VERBS.includes(task[1] as TaskVerb)) {
+			const name =
+				[ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") ||
+				ctx.from.username ||
+				"Someone";
+			const actor = await taskActor(String(ctx.from.id), name);
+			if (!actor)
+				return ctx.answerCallbackQuery({
+					text: "This isn't for you.",
+					show_alert: true,
+				});
+			await ctx.answerCallbackQuery();
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => undefined);
+			await seenOwner(String(ctx.from.id));
+			await seenMember(String(ctx.from.id));
+			await ctx.reply(
+				await taskAction(
+					{ store, notifier: self },
+					task[1] as TaskVerb,
+					Number(task[2]),
+					actor,
+				).catch((err: unknown) =>
+					err instanceof Error ? err.message : String(err),
 				),
 			);
 			return;
@@ -487,6 +540,56 @@ export function createTelegramChannel(
 			return message;
 		} catch (err) {
 			return err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	/**
+	 * Who is acting on a task: the owner (or the acting successor) as the
+	 * founder, or a linked steward. Null for anyone else.
+	 */
+	async function taskActor(
+		userId: string,
+		name: string,
+	): Promise<TaskActor | null> {
+		const decider = (await deciders()).find((p) => p.userId === userId);
+		if (decider) {
+			const company = await store.graph.getCompany();
+			return { founder: true, key: company?.founderKey ?? null, name };
+		}
+		const key = await memberKey(userId);
+		return key ? { founder: false, key, name } : null;
+	}
+
+	/** `/task …`, `/tasks` and `/answer 12 …` (D58). */
+	async function taskCommand(
+		command: "tasks" | "task" | "answer",
+		rest: string,
+		who: { userId: string; chatId: string; name: string },
+	): Promise<string> {
+		const actor = await taskActor(who.userId, who.name);
+		if (!actor)
+			return "Only the people who run the company keep tasks here. To ask for something, just write to me.";
+		const deps = { store, notifier: self };
+		if (command === "tasks") return tasksText(store, actor);
+		if (command === "answer") {
+			const m = /^#?(\d+)\s+([\s\S]+)$/.exec(rest);
+			if (!m)
+				return "Say the task's number and your answer — for example: /answer 12 Yes, up to €200.";
+			return answerTask(deps, Number(m[1]), m[2] as string, actor);
+		}
+		if (!rest)
+			return "Say what needs doing after /task — for example: /task Find three bakeries that could sell our bread.";
+		try {
+			const { message } = await createTask(deps, {
+				text: rest,
+				requesterKind: actor.founder ? "founder" : "member",
+				requesterKey: actor.key,
+				requesterName: actor.name,
+			});
+			return message;
+		} catch (err) {
+			if (err instanceof AgentError) return err.message;
+			throw err;
 		}
 	}
 

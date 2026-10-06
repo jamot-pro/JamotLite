@@ -139,3 +139,33 @@ export {
 	type Tier,
 	type Vitals,
 } from "./survival/vitals.js";
+export {
+	answerTask,
+	createTask,
+	followUpTasks,
+	handToPerson,
+	NUDGE_AFTER_DAYS,
+	OPEN_TASK,
+	pickTaskAgent,
+	routeTask,
+	TASK_LIMITS,
+	TASK_ROUTE_JOB,
+	TASK_RUN_JOB,
+	TASK_TELL_JOB,
+	TASK_VERBS,
+	TASKS_DIGEST_AT,
+	type TaskActor,
+	type TaskDeps,
+	type TaskVerb,
+	taskAction,
+	tasksText,
+	taskText,
+	tellAssignee,
+} from "./tasks/tasks.js";
+export {
+	conversationTaskTools,
+	decideTaskApproval,
+	runTask,
+	TASK_SESSION_PREFIX,
+	type TaskRunDeps,
+} from "./tasks/work.js";
