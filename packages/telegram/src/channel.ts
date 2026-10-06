@@ -97,6 +97,8 @@ const pairingKey = (role: Role) => `telegram.pairing.${role}`;
 /** Stewards linked to their node in the map, and their pending codes (D48). */
 export const MEMBERS_SETTING = "telegram.members";
 export const GROUP_SETTING = "telegram.group";
+/** Set when long polling stopped (another program took the bot); cleared on start. */
+export const TELEGRAM_STOPPED = "telegram.stopped";
 const MEMBER_PAIRING = "telegram.pairing.members";
 type Pending = { codeHash: string; expiresAt: string };
 /** Codes that didn't work, per person, before they must wait (D52). */
@@ -689,6 +691,9 @@ export function createTelegramChannel(
 					.start({
 						onStart: () => {
 							started = true;
+							void store.settings
+								.delete(TELEGRAM_STOPPED)
+								.catch(() => undefined);
 							resolve();
 						},
 					})
@@ -696,9 +701,12 @@ export function createTelegramChannel(
 						// After start, polling only ends on an error such as another
 						// program using the same bot token (409): say so.
 						if (!started) return reject(err);
-						log(
-							`[telegram] stopped receiving messages: ${err instanceof Error ? err.message : err}`,
-						);
+						const reason = err instanceof Error ? err.message : String(err);
+						log(`[telegram] stopped receiving messages: ${reason}`);
+						// Sending still works: the heartbeat tells the owner (D57).
+						void store.settings
+							.set(TELEGRAM_STOPPED, { at: new Date().toISOString(), reason })
+							.catch(() => undefined);
 					});
 			});
 		},

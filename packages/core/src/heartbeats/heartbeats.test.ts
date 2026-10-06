@@ -288,6 +288,27 @@ describe("a heartbeat run", () => {
 			"Rossi has been waiting for an answer since 08:00 UTC",
 		);
 	});
+
+	it("tells the owner when Telegram stopped receiving messages, and why (D57)", async () => {
+		await store.settings.set("telegram.stopped", {
+			at: "2026-10-01T07:00:00.000Z",
+			reason:
+				"Call to 'getUpdates' failed! (409: Conflict: terminated by other getUpdates request)",
+		});
+		const run = await runHeartbeat(
+			{ store, notifier, now: at("2026-10-01T09:00:00Z") },
+			"h-pulse",
+		);
+		const issue = run.issues.find((i) => i.key === "telegram-stopped");
+		expect(issue).toMatchObject({
+			title: "Telegram stopped receiving messages on 2026-10-01",
+			proposal: expect.stringMatching(
+				/^Another program is using the bot's token/,
+			),
+		});
+		// Only the owner hears it: it isn't a team's or the group's business.
+		expect(issue?.scope).toBeUndefined();
+	});
 });
 
 describe("survival", () => {

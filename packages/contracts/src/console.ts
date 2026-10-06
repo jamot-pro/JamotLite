@@ -45,7 +45,11 @@ export interface Vitals {
 		failedReplies24h: number;
 		deadJobs24h: number;
 	};
-	runtime: { lastBackupAt: string | null; diskFreeBytes: number | null };
+	runtime: {
+		lastBackupAt: string | null;
+		diskFreeBytes: number | null;
+		telegramStopped: { at: string; reason: string } | null;
+	};
 }
 
 export interface Charter {
@@ -177,6 +181,9 @@ export interface ApprovalsView {
 export interface SettingsView {
 	model: { provider: string; modelId: string; baseUrl?: string } | null;
 	modelKeySet: boolean;
+	/** The backup model for when the first is down or rate-limited (D57). */
+	fallback: { provider: string; modelId: string; baseUrl?: string } | null;
+	fallbackKeySet: boolean;
 	owner: { name: string } | null;
 	successor: { name: string } | null;
 	/** The stewards' Telegram group the bot posts heartbeats to (D49). */

@@ -20,6 +20,8 @@ export interface ReplyDeps {
 	brain: Brain;
 	/** The model agents use, built from settings and the secret store. */
 	model: () => Promise<ModelAccess>;
+	/** A second model for when the first is down or rate-limited; null when none is set. */
+	fallbackModel?: () => Promise<ModelAccess | null>;
 	/** Told when an agent's run is waiting for a person's approval. */
 	onApprovalNeeded?: (approvalIds: string[]) => Promise<void>;
 	/** More tools for an agent — its MCP tools, for one. */
@@ -27,6 +29,22 @@ export interface ReplyDeps {
 	/** What a run may spend right now — survival lowers it when money runs low. */
 	budget?: () => Promise<AgentSpec["budget"]>;
 }
+
+/**
+ * A model error worth trying again: rate limits, an overloaded or failing
+ * provider, the network. A wrong key or a refused request is not.
+ */
+export function isTransientModelError(message: string | undefined): boolean {
+	return /rate.?limit|too many requests|\b429\b|overloaded|\b529\b|\b5\d\d\b|server error|unavailable|timed? ?out|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|fetch failed|network|socket hang up/i.test(
+		message ?? "",
+	);
+}
+
+/**
+ * Thrown when no model could answer and it's worth trying later: the job is
+ * retried with backoff instead of the customer being left without an answer.
+ */
+export class ModelUnavailable extends Error {}
 
 /** The session of one agent in one conversation: "telegram:<chat id>:<agent key>". */
 export const sessionIdFor = (conversation: Conversation, agentKey: string) =>
@@ -40,6 +58,10 @@ export const sessionIdFor = (conversation: Conversation, agentKey: string) =>
 export async function replyToMessage(
 	deps: ReplyDeps,
 	job: { conversationId: string; messageId: string },
+	opts: {
+		/** The job's last attempt: record the failure instead of retrying. */
+		lastTry?: boolean;
+	} = {},
 ): Promise<RunOutcome | null> {
 	const { store } = deps;
 	const conversation = await store.conversations.get(job.conversationId);
@@ -76,12 +98,35 @@ export async function replyToMessage(
 		"Answer with the message to send them.",
 	].join("\n");
 
-	const outcome = await deps.brain.run({
-		agent,
-		sessionId: sessionIdFor(conversation, agent.key),
-		input,
-		trigger: `message:${inbound.id}`,
-	});
+	const run = (spec: AgentSpec) =>
+		deps.brain.run({
+			agent: spec,
+			sessionId: sessionIdFor(conversation, agent.key),
+			input,
+			trigger: `message:${inbound.id}`,
+		});
+	let outcome = await run(agent);
+	// The model is down or rate-limited (D57): the backup model answers now;
+	// if there's none, or it fails too, the job tries again later.
+	if (outcome.status === "error" && isTransientModelError(outcome.message)) {
+		const fallback = await deps.fallbackModel?.();
+		if (fallback) {
+			await store.events.append({
+				type: "model.fallback_used",
+				source: `agent/${agent.key}`,
+				subject: person.id,
+				data: { reason: outcome.message, model: fallback.label },
+				idempotencyKey: `fallback:${outcome.runId}`,
+			});
+			outcome = await run({ ...agent, model: fallback });
+		}
+		if (
+			outcome.status === "error" &&
+			isTransientModelError(outcome.message) &&
+			!opts.lastTry
+		)
+			throw new ModelUnavailable(outcome.message);
+	}
 	await afterRun(deps, {
 		outcome,
 		conversation,

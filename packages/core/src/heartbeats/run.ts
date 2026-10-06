@@ -314,6 +314,18 @@ function vitalIssues(v: Awaited<ReturnType<typeof computeVitals>>): Issue[] {
 				"Daily backups have stopped: look for `backup failed` in the logs, then run `jamot backup`.",
 		});
 	}
+	if (v.runtime.telegramStopped) {
+		const conflict = /409|conflict|terminated by other getUpdates/i.test(
+			v.runtime.telegramStopped.reason,
+		);
+		issues.push({
+			key: "telegram-stopped",
+			title: `Telegram stopped receiving messages on ${v.runtime.telegramStopped.at.slice(0, 10)}`,
+			proposal: conflict
+				? "Another program is using the bot's token (a second copy of Jamot, or a test). Stop it, then restart this service."
+				: "Restart the service; if it happens again, check the logs for `[telegram]`.",
+		});
+	}
 	if (
 		v.runtime.diskFreeBytes !== null &&
 		v.runtime.diskFreeBytes < 500 * 1024 * 1024
