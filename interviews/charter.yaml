@@ -1,0 +1,50 @@
+# The founder's interview: from an idea to a charter a company can run on.
+# Used by the setup (RUNTIME D55, D61). Change the goal, the facts or the
+# skills here — no code change. A deploy can point JAMOT_INTERVIEWS at a
+# folder with its own copy to override this one.
+id: charter
+name: Your company's charter
+goal: >-
+  Help a founder put their idea into words a company can run on: why it
+  exists, what it does and for whom, what success looks like in the next
+  three months, and the rules it never breaks — then who is already in it,
+  who is missing, and what the founder would rather not do themselves.
+  The answers become the company's charter and its first plan.
+opening: >-
+  Hi! I'm Jamot. Let's put your idea into words your company can run on —
+  a short conversation, and you can say "that's enough" any time.
+  To start: what are you building, and for whom?
+skills: [interviewing, charter-rules]
+maxTurns: 25
+fields:
+  - id: name
+    label: The company's name
+    required: true
+    hint: A working name is fine.
+  - id: founder
+    label: The founder's name
+    required: true
+  - id: what
+    label: What it does and for whom (the mission)
+    required: true
+    hint: Who it serves, what it gives them, how.
+  - id: why
+    label: Why it matters (the vision)
+    hint: The world it builds toward, in one sentence.
+  - id: goals
+    label: Goals for the next three months
+    kind: lines
+    hint: One per line, each with a number and a date.
+  - id: never
+    label: What the company never does (its values)
+    kind: lines
+    hint: One rule per line, something an agent can follow.
+  - id: people
+    label: Who is already in, and who is missing
+    hint: Names and what they do; the roles nobody has yet.
+  - id: delegate
+    label: What the founder would rather not do themselves
+    hint: Agents take these first.
+  - id: successor
+    label: Who takes over if the founder goes quiet
+    hint: A name is enough.

@@ -74,6 +74,22 @@ export {
 } from "./heartbeats/run.js";
 export { HEARTBEAT_JOB, planHeartbeats } from "./heartbeats/schedule.js";
 export {
+	ENOUGH,
+	factsText,
+	INTERVIEW_LIMITS,
+	type Interview,
+	InterviewDefinition,
+	type InterviewDeps,
+	InterviewError,
+	type InterviewMessage,
+	type InterviewState,
+	interviewTurn,
+	jsonIn,
+	loadInterview,
+	missingFacts,
+	startInterview,
+} from "./interviews/interviews.js";
+export {
 	createWorker,
 	type JobHandler,
 	type Worker,

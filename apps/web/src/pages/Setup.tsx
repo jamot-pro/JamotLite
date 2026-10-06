@@ -1,6 +1,7 @@
 import type {
 	ActionResult,
 	Me,
+	SetupConversation,
 	SetupDraft,
 	SetupQuestion,
 	SetupState,
@@ -10,12 +11,14 @@ import { api } from "../api.js";
 import {
 	Actions,
 	Badge,
+	Bubble,
 	Bullet,
 	Bullets,
 	Button,
 	Card,
 	Cell,
 	Center,
+	Chat,
 	ErrorText,
 	Field,
 	Form,
@@ -31,9 +34,10 @@ import {
 } from "../ui/index.js";
 
 /**
- * The setup interview (RUNTIME D55): the only screen a runtime with no
- * company shows. One question at a time, then a review and "Start my
- * company". The same answers as on Telegram — the founder can switch.
+ * The setup (RUNTIME D55): the only screen a runtime with no company shows.
+ * With a model, a conversation with Jamot (D61); without one, one question
+ * at a time. Then a review and "Start my company". The same setup as on
+ * Telegram — the founder can switch.
  */
 export function Setup({ onStarted }: { onStarted: () => void }) {
 	const [state, setState] = useState<SetupState | null>(null);
@@ -83,6 +87,8 @@ export function Setup({ onStarted }: { onStarted: () => void }) {
 			</Center>
 		);
 	if (!state || at === null) return <Loading />;
+	if (state.conversation)
+		return <Conversation initial={state} onStarted={setStarting} />;
 
 	if (at === "review")
 		return (
@@ -268,13 +274,132 @@ function SoFar({ state }: { state: SetupState }) {
 	);
 }
 
+/** The founder talks with Jamot until it has what the charter needs (D61). */
+function Conversation({
+	initial,
+	onStarted,
+}: {
+	initial: SetupState;
+	onStarted: (message: string) => void;
+}) {
+	const [state, setState] = useState(initial);
+	const c = state.conversation as SetupConversation;
+	const [talking, setTalking] = useState(!c.complete);
+	const [text, setText] = useState("");
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const send = async (said: string) => {
+		if (!said.trim()) return;
+		setBusy(true);
+		setError(null);
+		try {
+			const next = await api<SetupState>("/setup/say", {
+				method: "POST",
+				body: { text: said },
+			});
+			setState(next);
+			setText("");
+			if (next.conversation?.complete) setTalking(false);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(false);
+		}
+	};
+	const t = state.telegram;
+
+	if (!talking)
+		return (
+			<Review
+				state={state}
+				onChange={() => setTalking(true)}
+				onTalk={() => setTalking(true)}
+				onStarted={onStarted}
+			/>
+		);
+	return (
+		<Center>
+			<Form card="wide" onSubmit={() => send(text)}>
+				<Muted small>Setting up your company · a conversation with Jamot</Muted>
+				<h1>Tell Jamot about your idea</h1>
+				<Chat follow>
+					{c.messages.map((m) => (
+						<Bubble
+							key={`${m.at}-${m.from}-${m.text.slice(0, 16)}`}
+							direction={m.from === "person" ? "out" : "in"}
+							meta={m.from === "person" ? "You" : "Jamot"}
+						>
+							{m.text}
+						</Bubble>
+					))}
+				</Chat>
+				{busy && (
+					<Muted small block>
+						Jamot is thinking…
+					</Muted>
+				)}
+				<Field label="Your answer">
+					<TextArea
+						autoFocus
+						rows={3}
+						value={text}
+						maxLength={2000}
+						onChange={(e) => setText(e.target.value)}
+					/>
+				</Field>
+				{error && <ErrorText>{error}</ErrorText>}
+				<Actions>
+					<Button type="submit" disabled={busy || !text.trim()}>
+						{busy ? "Sending…" : "Send"}
+					</Button>
+					<Button
+						variant="secondary"
+						disabled={busy || c.missing.length > 0}
+						onClick={() => send("That's enough")}
+					>
+						That's enough — draft it
+					</Button>
+				</Actions>
+				{c.missing.length > 0 && (
+					<Muted small block>
+						Still needed: {c.missing.join(", ").toLowerCase()}.
+					</Muted>
+				)}
+				{t.bot && t.code && (
+					<Notice>
+						Rather talk on your phone?{" "}
+						<a
+							href={`https://t.me/${t.bot}?start=${t.code}`}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Continue on Telegram
+						</a>{" "}
+						— it's the same conversation.
+					</Notice>
+				)}
+				{t.owner && (
+					<Muted small block>
+						Also open on Telegram as {t.owner}: reload to see what you said
+						there.
+					</Muted>
+				)}
+			</Form>
+			<SoFar state={state} />
+		</Center>
+	);
+}
+
 function Review({
 	state: initial,
 	onChange,
+	onTalk,
 	onStarted,
 }: {
 	state: SetupState;
 	onChange: (index: number) => void;
+	/** In a conversation (D61): changes are told to Jamot, not edited here. */
+	onTalk?: () => void;
 	onStarted: (message: string) => void;
 }) {
 	const [state, setState] = useState(initial);
@@ -288,12 +413,13 @@ function Review({
 
 	// Drafting takes a while: the founder may leave the review meanwhile.
 	const mounted = useRef(true);
-	useEffect(
-		() => () => {
+	useEffect(() => {
+		// Set again on every mount: React's development mode mounts twice.
+		mounted.current = true;
+		return () => {
 			mounted.current = false;
-		},
-		[],
-	);
+		};
+	}, []);
 	const draft = useCallback(async (again: boolean) => {
 		setDrafting(true);
 		setError(null);
@@ -389,26 +515,40 @@ function Review({
 						</Button>
 					)}
 				</Actions>
-				<Label>Your answers</Label>
-				<Table
-					columns={[
-						{ label: "Question" },
-						{ label: "Your answer" },
-						{ label: "" },
-					]}
-				>
-					{state.questions.map((q, i) => (
-						<Row key={q.id}>
-							<Cell small>{q.title}</Cell>
-							<Cell>{state.answers[q.id] ?? <Muted>Later</Muted>}</Cell>
-							<Cell>
-								<Button size="small" variant="link" onClick={() => onChange(i)}>
-									Change
-								</Button>
-							</Cell>
-						</Row>
-					))}
-				</Table>
+				{onTalk ? (
+					<Actions>
+						<Button variant="link" disabled={busy} onClick={onTalk}>
+							Change something — tell Jamot
+						</Button>
+					</Actions>
+				) : (
+					<>
+						<Label>Your answers</Label>
+						<Table
+							columns={[
+								{ label: "Question" },
+								{ label: "Your answer" },
+								{ label: "" },
+							]}
+						>
+							{state.questions.map((q, i) => (
+								<Row key={q.id}>
+									<Cell small>{q.title}</Cell>
+									<Cell>{state.answers[q.id] ?? <Muted>Later</Muted>}</Cell>
+									<Cell>
+										<Button
+											size="small"
+											variant="link"
+											onClick={() => onChange(i)}
+										>
+											Change
+										</Button>
+									</Cell>
+								</Row>
+							))}
+						</Table>
+					</>
+				)}
 			</Form>
 		</Center>
 	);

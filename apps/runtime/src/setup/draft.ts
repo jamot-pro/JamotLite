@@ -6,6 +6,7 @@ import {
 	DreamConfig,
 	type SetupDraft,
 } from "@jamot/contracts";
+import { jsonIn } from "@jamot/core";
 import { z } from "zod";
 import { lines } from "./questions.js";
 
@@ -117,7 +118,9 @@ async function askModel(
 	model: ModelAccess,
 	answers: Record<string, string>,
 	templates: Template[],
+	opts: DraftOptions,
 ): Promise<Plan | null> {
+	const system = opts.rules ? `${SYSTEM}\n\n${opts.rules}` : SYSTEM;
 	const prompt = [
 		"The founder's answers:",
 		JSON.stringify(answers, null, 1),
@@ -126,15 +129,26 @@ async function askModel(
 		...templates.map((t) => `${t.id} — ${t.name}: ${t.summary}`),
 	].join("\n");
 	for (let attempt = 0; attempt < 2; attempt++) {
-		const text = await complete(model, { system: SYSTEM, prompt });
-		try {
-			const plan = Plan.safeParse(
-				JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)),
-			);
-			if (plan.success) return plan.data;
-		} catch {
-			// not JSON: ask once more
-		}
+		// A model error (a wrong key, an outage) is thrown: the founder is told.
+		const text = await complete(model, {
+			system,
+			prompt:
+				attempt === 0
+					? prompt
+					: `${prompt}\n\nYour last answer wasn't the JSON object asked for. Reply with the JSON object only.`,
+		});
+		const json = jsonIn(text);
+		const plan = Plan.safeParse(json);
+		if (plan.success) return plan.data;
+		// Why, without the founder's words: the shape, never the content.
+		opts.log?.(
+			json === null
+				? `[setup] the model's draft wasn't JSON (${text.length} characters)`
+				: `[setup] the model's draft didn't fit: ${plan.error.issues
+						.slice(0, 5)
+						.map((i) => `${i.path.join(".") || "(top)"} ${i.message}`)
+						.join("; ")}`,
+		);
 	}
 	return null;
 }
@@ -386,13 +400,20 @@ export function buildCompany(
  * Throws when the model can't give a usable plan — the founder then picks a
  * template instead.
  */
+export interface DraftOptions {
+	/** More rules for the drafter: the charter-rules skill (D61). */
+	rules?: string;
+	log?: (message: string) => void;
+}
+
 export async function draftCompany(
 	model: ModelAccess,
 	answers: Record<string, string>,
 	templates: Template[],
 	timezone?: string,
+	opts: DraftOptions = {},
 ): Promise<Draft> {
-	const plan = await askModel(model, answers, templates);
+	const plan = await askModel(model, answers, templates, opts);
 	if (!plan)
 		throw new Error(
 			"Jamot couldn't draft the company this time. Pick the closest starting point instead.",

@@ -29,6 +29,7 @@ await build({
 });
 
 cpSync(join(root, "templates"), join(dist, "templates"), { recursive: true });
+cpSync(join(root, "interviews"), join(dist, "interviews"), { recursive: true });
 cpSync(join(root, "apps/web/dist"), join(dist, "web"), { recursive: true });
 cpSync(join(root, "LICENSE"), join(dist, "LICENSE"));
 
@@ -41,7 +42,14 @@ const pkg = {
 	type: "module",
 	bin: { jamot: "./jamot.mjs" },
 	engines: { node: ">=22.19" },
-	files: ["jamot.mjs", "jamot.mjs.LEGAL.txt", "templates", "web", "LICENSE"],
+	files: [
+		"jamot.mjs",
+		"jamot.mjs.LEGAL.txt",
+		"templates",
+		"interviews",
+		"web",
+		"LICENSE",
+	],
 };
 writeFileSync(join(dist, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`);
 

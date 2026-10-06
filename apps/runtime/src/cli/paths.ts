@@ -63,6 +63,20 @@ export function templatesDir(): string {
 	return dir;
 }
 
+/**
+ * Where interviews are looked up (D61), first match wins: the deploy's own
+ * (`JAMOT_INTERVIEWS`), then the built-in ones. A company's own folder comes
+ * before these where there is a company.
+ */
+export function interviewDirs(): string[] {
+	const builtIn = firstExisting([
+		join(here, "interviews"),
+		join(here, "../../../../interviews"),
+	]);
+	if (!builtIn) throw new Error("the interviews are missing from this install");
+	return [process.env.JAMOT_INTERVIEWS ?? "", builtIn].filter(Boolean);
+}
+
 export function webRoot(): string | undefined {
 	return (
 		firstExisting(

@@ -46,10 +46,21 @@ function fakeBot(): Bot {
 	});
 	return b;
 }
-async function open(model: ModelAccess | null = null): Promise<Gate> {
+/** A gate; with a model it asks the questions unless `conversation` (D61). */
+async function open(
+	model: ModelAccess | null = null,
+	conversation = false,
+): Promise<Gate> {
 	logs = [];
 	bot = fakeBot();
-	return createSetupGate({ home, env, bot, model, log: (m) => logs.push(m) });
+	return createSetupGate({
+		home,
+		env,
+		bot,
+		model,
+		conversation,
+		log: (m) => logs.push(m),
+	});
 }
 
 beforeEach(async () => {
@@ -425,5 +436,203 @@ describe("the setup gate (D55)", () => {
 				/^Your company is running\. This week:\n1\. Invite someone for Deliveries/,
 			);
 		}, 30_000);
+	});
+});
+
+describe("a conversation with the founder (D61)", () => {
+	const plan = {
+		template: "restaurant",
+		summary: "Bread for the street",
+		vision: "Nobody eats factory bread",
+		mission: "Fresh bread for the families of our street",
+		values: ["Never sell yesterday's bread as fresh"],
+		goals: ["100 regular customers by 31 December"],
+		teams: [{ key: "bakery", name: "Bakery", purpose: "The bread" }],
+		agents: [],
+		people: [],
+		responsibilities: [
+			{ key: "r-bread", name: "Bread", team: "bakery", owner: "founder" },
+		],
+		successor: null,
+	};
+	/**
+	 * A model that plays the interviewer from `turns`, and drafts `plan` when
+	 * asked to set the company up. Records what the drafter was told.
+	 */
+	function scripted(turns: object[]) {
+		const drafterSaw: string[] = [];
+		const model = fakeModel((ctx) => {
+			const seen = JSON.stringify(ctx);
+			if (seen.includes("You set up companies in Jamot")) {
+				drafterSaw.push(seen);
+				return fauxAssistantMessage([fauxText(JSON.stringify(plan))]);
+			}
+			const next = turns.shift() ?? { say: "Anything else?", facts: {} };
+			return fauxAssistantMessage([fauxText(JSON.stringify(next))]);
+		});
+		return { model, drafterSaw };
+	}
+	const turns = () => [
+		{
+			facts: { what: "Fresh bread for the families of our street" },
+			say: "Lovely. What's it called, and what's your name?",
+		},
+		{
+			facts: { name: "Sunrise Bakery", founder: "Andrea" },
+			say: "What would make the next three months a success?",
+		},
+		{
+			facts: { goals: ["100 regular customers by 31 December"] },
+			say: "So: Sunrise Bakery, fresh bread for your street, 100 regulars by December. Right?",
+		},
+		{ facts: {}, say: "Perfect — drafting your company.", complete: true },
+	];
+
+	it("talks on the web, drafts with the charter rules, and starts the company", async () => {
+		await gate.stop();
+		const { model, drafterSaw } = scripted(turns());
+		gate = await open(model, true);
+		const cookie = await signIn();
+		const view = await gate.app.inject({
+			url: "/api/setup",
+			headers: { cookie },
+		});
+		expect(view.json().conversation).toMatchObject({
+			complete: false,
+			messages: [
+				{ from: "jamot", text: expect.stringMatching(/^Hi! I'm Jamot/) },
+			],
+		});
+		const say = (text: string) =>
+			gate.app.inject({
+				method: "POST",
+				url: "/api/setup/say",
+				headers: { cookie },
+				payload: { text },
+			});
+		await say("A bakery for the families on our street");
+		await say("Sunrise Bakery, I'm Andrea");
+		await say("100 regulars by December");
+		const last = (await say("Yes")).json();
+		expect(last.conversation.complete).toBe(true);
+		expect(last.conversation.missing).toEqual([]);
+		// The facts are the answers the draft is made from.
+		expect(last.answers).toEqual({
+			what: "Fresh bread for the families of our street",
+			name: "Sunrise Bakery",
+			founder: "Andrea",
+			goals: "100 regular customers by 31 December",
+		});
+		expect(last.conversation.messages.at(-1).text).toBe(
+			"Perfect — drafting your company.",
+		);
+
+		const drafted = await gate.app.inject({
+			method: "POST",
+			url: "/api/setup/draft",
+			headers: { cookie },
+			payload: {},
+		});
+		expect(drafted.json().draft.charter.mission).toBe(
+			"Fresh bread for the families of our street",
+		);
+		expect(drafterSaw.join("")).toContain("A good charter");
+		const finished = await gate.app.inject({
+			method: "POST",
+			url: "/api/setup/finish",
+			headers: { cookie },
+			payload: {},
+		});
+		expect(finished.json().message).toMatch(/^Sunrise Bakery is set up/);
+		const dir = await gate.done;
+		const store = openCompanyStore(join(dir, "company.db"));
+		const dream = (await store.graph.listNodes()).find(
+			(n) => n.kind === "dream",
+		);
+		expect(DreamConfig.parse(dream?.config).constraints).toContain(
+			"Never sell yesterday's bread as fresh",
+		);
+		store.close();
+	}, 30_000);
+
+	it("talks on Telegram with the founder only, and offers the draft when it has enough", async () => {
+		await gate.stop();
+		const { model } = scripted(turns());
+		gate = await open(model, true);
+		const cookie = await signIn();
+		const code = (
+			await gate.app.inject({ url: "/api/setup", headers: { cookie } })
+		).json().telegram.code;
+		await bot.handleUpdate(text(andrea, `/start ${code}`));
+		expect(said().at(-1)).toMatch(/^Hi Andrea![\s\S]*what are you building/);
+		await bot.handleUpdate(text(stranger, "hello"));
+		expect(said().at(-1)).toBe("This company isn't open yet. Check back soon!");
+		await bot.handleUpdate(text(andrea, "A bakery for our street"));
+		expect(said().at(-1)).toBe(
+			"Lovely. What's it called, and what's your name?",
+		);
+		await bot.handleUpdate(text(andrea, "Sunrise Bakery"));
+		await bot.handleUpdate(text(andrea, "100 regulars by December"));
+		await bot.handleUpdate(text(andrea, "Yes"));
+		expect(said().slice(-3)).toEqual([
+			"Perfect — drafting your company.",
+			"That's everything. Drafting your company…",
+			expect.stringMatching(/^Here's your company:/),
+		]);
+		expect(JSON.stringify(calls.at(-1)?.payload.reply_markup)).toContain(
+			"setup:start",
+		);
+	}, 30_000);
+
+	it("keeps going with plain questions when the model fails, and logs why a draft didn't fit", async () => {
+		await gate.stop();
+		gate = await open(
+			fakeModel(() => fauxAssistantMessage([fauxText("not json at all")])),
+			true,
+		);
+		const cookie = await signIn();
+		await gate.app.inject({ url: "/api/setup", headers: { cookie } });
+		const res = await gate.app.inject({
+			method: "POST",
+			url: "/api/setup/say",
+			headers: { cookie },
+			payload: { text: "A bakery" },
+		});
+		expect(res.json().conversation.messages.at(-1).text).toBe(
+			"The company's name? (A working name is fine.)",
+		);
+		// Drafting with a model that never sends JSON: the log says so,
+		// without the founder's words.
+		for (const [id, value] of [
+			["name", "Sunrise"],
+			["founder", "Andrea"],
+			["what", "Secret recipe bread"],
+		])
+			await put(cookie, id as string, value as string);
+		const drafted = await gate.app.inject({
+			method: "POST",
+			url: "/api/setup/draft",
+			headers: { cookie },
+			payload: {},
+		});
+		expect(drafted.statusCode).toBe(400);
+		expect(logs.join("\n")).toMatch(/the model's draft wasn't JSON/);
+		expect(logs.join("\n")).not.toContain("Secret recipe");
+	}, 30_000);
+
+	it("asks the questions one by one when there's no model", async () => {
+		const cookie = await signIn();
+		const view = await gate.app.inject({
+			url: "/api/setup",
+			headers: { cookie },
+		});
+		expect(view.json().conversation).toBe(null);
+		const res = await gate.app.inject({
+			method: "POST",
+			url: "/api/setup/say",
+			headers: { cookie },
+			payload: { text: "hi" },
+		});
+		expect(res.statusCode).toBe(400);
 	});
 });

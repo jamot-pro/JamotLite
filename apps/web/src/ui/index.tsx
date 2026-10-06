@@ -7,7 +7,7 @@ import type {
 	SelectHTMLAttributes,
 	TextareaHTMLAttributes,
 } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * The console's building blocks. Pages are made only of these (and plain
@@ -442,8 +442,17 @@ export function Center({ muted, children }: Children & { muted?: boolean }) {
 
 /* ── Conversations ──────────────────────────────────────────────────────── */
 
-export function Chat({ children }: Children) {
-	return <div className="chat">{children}</div>;
+/** A conversation; `follow` keeps the newest message in view as it grows. */
+export function Chat({ children, follow }: Children & { follow?: boolean }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (follow && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+	});
+	return (
+		<div className="chat" ref={ref}>
+			{children}
+		</div>
+	);
 }
 export function Bubble({
 	direction,

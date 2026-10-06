@@ -45,6 +45,7 @@ look for what, and the code conventions: [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 | `apps/web` | The web console (Vite + React), served by the runtime. `src/ui`: tokens and components; `src/pages`: screens made of them; [DESIGN.md](apps/web/DESIGN.md) |
 | `scripts/` | `build.mjs` (the bundle) and `install.sh` |
 | `templates/` | The company templates, as `company.yaml` files |
+| `interviews/` | What Jamot asks in a conversation (RUNTIME §8d): the founder's charter, a newcomer's welcome, and their skills — YAML and `SKILL.md`, changed without code |
 | `jamot.company.yaml` | Jamot itself, run as a Jamot company: its charter, responsibilities and heartbeats |
 | `STEWARDS.md`, `PURPOSE.md` | How the people who build Jamot work, and who owns it (private) |
 | `CONTRIBUTIONS.md` | The contribution ledger: append-only, one line per merged pull request |

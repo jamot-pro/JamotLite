@@ -74,6 +74,21 @@ const plan = {
 	successor: null,
 };
 
+const INTERVIEW: { fact: string; next: string; complete?: boolean }[] = [
+	{ fact: "what", next: "Lovely. What's the company called?" },
+	{ fact: "name", next: "And what's your name?" },
+	{
+		fact: "founder",
+		next: "What would make the next three months a success? A number and a date help.",
+	},
+	{ fact: "goals", next: "Last one: what will the company never do?" },
+	{
+		fact: "never",
+		next: "Thank you — I have what I need. Have a look at the draft.",
+		complete: true,
+	},
+];
+
 const gate = await createSetupGate({
 	home,
 	env: {
@@ -82,11 +97,27 @@ const gate = await createSetupGate({
 		JAMOT_MODEL: "anthropic",
 		JAMOT_MODEL_KEY: "not-a-real-key",
 	},
+	// Plays the interviewer (D61) one fact per turn from what was just said,
+	// and drafts the same bakery when asked to set the company up.
 	model: fakeModel(
-		() => fauxAssistantMessage([fauxText(JSON.stringify(plan))]),
-		{
-			tokensPerSecond: 400,
+		(ctx) => {
+			const seen = JSON.stringify(ctx);
+			if (seen.includes("You set up companies in Jamot"))
+				return fauxAssistantMessage([fauxText(JSON.stringify(plan))]);
+			const said = [...seen.matchAll(/Person: (.*?)\\n/g)].map((m) => m[1]);
+			const last = said.at(-1) ?? "";
+			const step = INTERVIEW[Math.min(said.length, INTERVIEW.length) - 1];
+			return fauxAssistantMessage([
+				fauxText(
+					JSON.stringify({
+						facts: step ? { [step.fact]: last } : {},
+						say: step?.next ?? "Anything else?",
+						complete: step?.complete ?? false,
+					}),
+				),
+			]);
 		},
+		{ tokensPerSecond: 400 },
 	),
 });
 const port = Number(process.env.PORT ?? 3000);
