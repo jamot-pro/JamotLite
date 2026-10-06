@@ -4,6 +4,11 @@ How the web console is built, so its look can change without rewriting it.
 Read this before touching anything in `apps/web` (AGENTS.md rule 13, RUNTIME
 D46).
 
+The look is J-Nesys's **Modernist** design system (RUNTIME D50): warm greys,
+near-black ink, one red accent, Archivo with heavy headings, cards with soft
+shadows on a grey ground, lucide icons. The frame is an icon rail beside one
+workspace card; on a phone the rail is a bottom bar.
+
 ## Three layers
 
 | Layer | Where | What changes it |
@@ -37,7 +42,8 @@ its style to `components.css`, and an example to `/dev/ui`), then use it.
 
 Shown in every state on **`/dev/ui`** (development only; `pnpm dev:web`).
 
-- **Frame:** `Shell`, `Brand`, `NavLink`, `SignOut`, `Page` (title, subtitle,
+- **Frame:** `Shell` (`nav`, `foot`, `title`), `Brand`, `NavLink` (`icon`),
+  `RailButton`, `ThemeSwitch`, `SignOut`, `Page` (title, subtitle,
   actions), `Banner`, `Center`
 - **Content:** `Card` (`title`, `tone="warn"`, `muted`), `Label`, `Tiles` +
   `Tile` (`label`, `value`, `hint`, `tone`, `onClick`), `Grid`, `Split`

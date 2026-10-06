@@ -1,3 +1,4 @@
+import { LogOut, Moon, Sun } from "lucide-react";
 import type {
 	ButtonHTMLAttributes,
 	FormEvent,
@@ -6,6 +7,7 @@ import type {
 	SelectHTMLAttributes,
 	TextareaHTMLAttributes,
 } from "react";
+import { useState } from "react";
 
 /**
  * The console's building blocks. Pages are made only of these (and plain
@@ -458,40 +460,145 @@ export function Bubble({
 
 /* ── The console's frame ────────────────────────────────────────────────── */
 
-export function Shell({ nav, children }: Children & { nav: ReactNode }) {
+/**
+ * The frame, as in J-Nesys's console (D50): an icon rail and a workspace,
+ * flat cards on the grey ground. `foot` holds the rail's bottom tools (theme,
+ * sign out); on a phone the rail becomes a bottom bar and they move to the
+ * workspace's header. `title` names what the workspace shows.
+ */
+export function Shell({
+	nav,
+	foot,
+	title,
+	children,
+}: Children & { nav: ReactNode; foot?: ReactNode; title?: ReactNode }) {
 	return (
 		<div className="shell">
-			<nav className="nav">{nav}</nav>
-			<main className="page">{children}</main>
+			<nav className="rail" aria-label="Sections">
+				<Brand />
+				<div className="rail-items">{nav}</div>
+				{foot && <div className="rail-foot">{foot}</div>}
+			</nav>
+			<main className="workspace">
+				<header className="workspace-head">
+					<span>{title}</span>
+					{foot && <span className="workspace-tools">{foot}</span>}
+				</header>
+				<div className="page">{children}</div>
+			</main>
 		</div>
 	);
 }
-export function Brand({ children }: Children) {
-	return <div className="brand">{children}</div>;
+
+/** The Jamot mark, light or dark with the theme. */
+export function Brand() {
+	return (
+		<div className="brand">
+			<img
+				className="brand-mark on-light"
+				src="/brand/jamot-logo.png"
+				alt="Jamot"
+			/>
+			<img
+				className="brand-mark on-dark"
+				src="/brand/jamot-logo-white.webp"
+				alt=""
+				aria-hidden="true"
+			/>
+		</div>
+	);
 }
+
+/** A section in the rail: its icon, and its name as a tooltip. */
 export function NavLink({
 	to,
 	active,
 	go,
+	icon,
 	children,
-}: Children & { to: string; active: boolean; go: (path: string) => void }) {
+}: Children & {
+	to: string;
+	active: boolean;
+	go: (path: string) => void;
+	icon: ReactNode;
+}) {
 	return (
 		<a
 			href={to}
-			className={active ? "active" : ""}
+			className={cx("rail-item", active && "active")}
+			aria-current={active ? "page" : undefined}
 			onClick={(e) => {
 				e.preventDefault();
 				go(to);
 			}}
 		>
-			{children}
+			{icon}
+			<span className="rail-label">{children}</span>
 		</a>
 	);
 }
-export function SignOut({ onClick }: { onClick: () => void }) {
+
+/** A tool at the foot of the rail. */
+export function RailButton({
+	label,
+	icon,
+	onClick,
+}: {
+	label: string;
+	icon: ReactNode;
+	onClick: () => void;
+}) {
 	return (
-		<button type="button" className="link signout" onClick={onClick}>
-			Sign out
+		<button
+			type="button"
+			className="rail-item"
+			aria-label={label}
+			onClick={onClick}
+		>
+			{icon}
+			<span className="rail-label">{label}</span>
 		</button>
 	);
+}
+
+const THEME_KEY = "jamot:theme";
+
+/** Applies the theme chosen before (the browser may not keep it: that's fine). */
+export function applySavedTheme(): void {
+	try {
+		const saved = localStorage.getItem(THEME_KEY);
+		if (saved === "light" || saved === "dark")
+			document.documentElement.setAttribute("data-theme", saved);
+	} catch {
+		// no storage: follow the system
+	}
+}
+
+/** Switches light and dark, and remembers the choice in this browser. */
+export function ThemeSwitch() {
+	const isDark = () =>
+		document.documentElement.getAttribute("data-theme") === "dark" ||
+		(!document.documentElement.hasAttribute("data-theme") &&
+			matchMedia("(prefers-color-scheme: dark)").matches);
+	const [dark, setDark] = useState(isDark);
+	return (
+		<RailButton
+			label={dark ? "Light theme" : "Dark theme"}
+			icon={dark ? <Sun /> : <Moon />}
+			onClick={() => {
+				const next = dark ? "light" : "dark";
+				document.documentElement.setAttribute("data-theme", next);
+				try {
+					localStorage.setItem(THEME_KEY, next);
+				} catch {
+					// not kept: it still applies now
+				}
+				setDark(!dark);
+			}}
+		/>
+	);
+}
+
+export function SignOut({ onClick }: { onClick: () => void }) {
+	return <RailButton label="Sign out" icon={<LogOut />} onClick={onClick} />;
 }
