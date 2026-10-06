@@ -27,6 +27,15 @@ export interface Notifier {
 	 * one. No buttons. Returns false when there's no group.
 	 */
 	toGroup?(message: { text: string }): Promise<boolean>;
+	/**
+	 * Asks one person of the map something only they can answer, with buttons
+	 * only they can press — a check-in when they've gone quiet (D53). Returns
+	 * false when they aren't linked on Telegram.
+	 */
+	toMember?(
+		nodeKey: string,
+		message: { text: string; actions?: OwnerAction[] },
+	): Promise<boolean>;
 }
 
 /** Settings the channel keeps current and the heartbeats read. */

@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
 	acceptInvite,
+	answerCheckin,
 	type Candidate,
 	decideInvite,
 	isRetired,
 	type Notifier,
+	noteStewardActivity,
 	OWNER_LAST_SEEN,
 	type OwnerAction,
 	onboardingBrief,
@@ -134,6 +136,23 @@ export function createTelegramChannel(
 		return people.filter((p): p is TelegramOwner => p !== null);
 	}
 
+	/** The node key of a linked steward with this Telegram account, if any. */
+	async function memberKey(userId: string): Promise<string | null> {
+		const members =
+			(await store.settings.get<Record<string, TelegramOwner>>(
+				MEMBERS_SETTING,
+			)) ?? {};
+		return (
+			Object.entries(members).find(([, m]) => m.userId === userId)?.[0] ?? null
+		);
+	}
+
+	/** A steward wrote: they're here (D53). */
+	async function seenMember(userId: string): Promise<void> {
+		const key = await memberKey(userId);
+		if (key) await noteStewardActivity(store, key);
+	}
+
 	async function seenOwner(userId: string): Promise<void> {
 		if ((await holder("owner"))?.userId === userId)
 			await store.settings.set(OWNER_LAST_SEEN, new Date().toISOString());
@@ -242,6 +261,7 @@ export function createTelegramChannel(
 		}
 
 		await seenOwner(who.userId);
+		await seenMember(who.userId);
 		await receiveMessage(store, {
 			channel: "telegram",
 			threadId: who.chatId,
@@ -254,6 +274,28 @@ export function createTelegramChannel(
 
 	bot.on("callback_query:data", async (ctx) => {
 		const data = ctx.callbackQuery.data;
+		// A check-in (D53) is answered by the steward it was for, and only them.
+		const checkin = /^(still|handover|pause):(.+)$/.exec(data);
+		if (checkin) {
+			const key = checkin[2] as string;
+			if ((await memberKey(String(ctx.from.id))) !== key)
+				return ctx.answerCallbackQuery({
+					text: "This question was for someone else.",
+					show_alert: true,
+				});
+			await ctx.answerCallbackQuery();
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => undefined);
+			await ctx.reply(
+				await answerCheckin(
+					{ store, notifier: self },
+					key,
+					checkin[1] as "still" | "handover" | "pause",
+				),
+			);
+			return;
+		}
 		const person = (await deciders()).find(
 			(p) => p.userId === String(ctx.from.id),
 		);
@@ -535,7 +577,7 @@ export function createTelegramChannel(
 		);
 	}
 
-	return {
+	const self: TelegramChannel = {
 		async start() {
 			// grammy retries network errors and Telegram outages silently and
 			// forever; make first contact ourselves so the reason is in the logs.
@@ -724,6 +766,25 @@ export function createTelegramChannel(
 			return reached;
 		},
 
+		async toMember(nodeKey, message) {
+			const m = (
+				await store.settings.get<Record<string, TelegramOwner>>(MEMBERS_SETTING)
+			)?.[nodeKey];
+			const live = (await store.graph.listNodes()).some(
+				(n) => n.kind === "human" && n.key === nodeKey && !isRetired(n),
+			);
+			if (!m || !live) return false;
+			try {
+				await send(m, message.text, message.actions);
+				return true;
+			} catch (err) {
+				log(
+					`[telegram] couldn't reach ${m.name}: ${err instanceof Error ? err.message : err}`,
+				);
+				return false;
+			}
+		},
+
 		async toGroup(message) {
 			const group = await store.settings.get<TelegramGroup>(GROUP_SETTING);
 			if (!group) return false;
@@ -754,4 +815,5 @@ export function createTelegramChannel(
 				MEMBERS_SETTING,
 			)) ?? {},
 	};
+	return self;
 }

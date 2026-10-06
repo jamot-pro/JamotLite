@@ -194,7 +194,7 @@ export async function decideInvite(
 	return store.transaction(async (tx) => {
 		const invites = (await tx.settings.get<Invites>(INVITES)) ?? {};
 		const inv = invites[inviteId];
-		if (!inv || inv.status !== "waiting" || !inv.candidate)
+		if (inv?.status !== "waiting" || !inv.candidate)
 			throw new AgentError(
 				inv?.status === "approved" || inv?.status === "declined"
 					? `Already ${inv.status}.`

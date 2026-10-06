@@ -79,6 +79,16 @@ export {
 } from "./jobs/worker.js";
 export { assertSafeUrl } from "./net/ssrf.js";
 export {
+	answerCheckin,
+	CHECKINS,
+	checkDroppedRoles,
+	DEFAULT_DROP,
+	DROP_SETTINGS,
+	handOver,
+	noteStewardActivity,
+	STEWARDS_LAST_SEEN,
+} from "./people/drops.js";
+export {
 	acceptInvite,
 	type Candidate,
 	candidateBrief,

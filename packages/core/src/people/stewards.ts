@@ -5,7 +5,7 @@ import { AgentError, placeInTeam } from "../agents/manage.js";
 import { isRetired } from "../company/retired.js";
 import { listConnections } from "../connections/connections.js";
 import { invitesView } from "./invites.js";
-import { newHumanKey } from "./keys.js";
+import { CHECKINS, newHumanKey, STEWARDS_LAST_SEEN } from "./keys.js";
 
 /**
  * The people who run the company — its stewards — managed from the console
@@ -35,6 +35,20 @@ export async function stewardsView(
 	const connections = (await listConnections(store)).filter(
 		(c) => !c.revokedAt,
 	);
+	const seen =
+		(await store.settings.get<Record<string, string>>(STEWARDS_LAST_SEEN)) ??
+		{};
+	const checkins =
+		(await store.settings.get<
+			Record<string, { askedAt?: string; pausedUntil?: string }>
+		>(CHECKINS)) ?? {};
+	const away = (key: string): StewardRow["away"] => {
+		const c = checkins[key];
+		if (c?.pausedUntil && Date.parse(c.pausedUntil) > Date.now())
+			return { state: "paused", at: c.pausedUntil };
+		if (c?.askedAt) return { state: "asked", at: c.askedAt };
+		return null;
+	};
 	const ownerOf = (r: StoredNode) => {
 		const e = edges.find(
 			(e) =>
@@ -70,6 +84,8 @@ export async function stewardsView(
 			founder: company?.founderKey === n.key,
 			paired: opts.paired.has(n.key),
 			connections: connections.filter((c) => c.nodeKey === n.key).length,
+			lastSeen: seen[n.key] ?? null,
+			away: away(n.key),
 		}));
 
 	return {

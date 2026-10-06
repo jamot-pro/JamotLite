@@ -1,4 +1,5 @@
 import type { CompanyStore, StoredNode } from "@jamot/ports";
+import { checkDroppedRoles } from "../people/drops.js";
 import { computeReadiness } from "../readiness/readiness.js";
 import {
 	computeVitals,
@@ -114,6 +115,7 @@ export async function runHeartbeat(
 			issues.push(...vitalIssues(vitals));
 			await trackTier(store, vitals.tier, vitals);
 			await checkSuccession(deps, now, company.name);
+			await checkDroppedRoles(deps, now);
 		} else if (target.kind === "team") {
 			const members = edges
 				.filter((e) => e.toNodeId === target.id && e.relation === "member_of")

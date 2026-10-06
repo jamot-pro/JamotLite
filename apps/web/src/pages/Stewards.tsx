@@ -158,6 +158,14 @@ function StewardCard({
 				) : (
 					<Badge>Telegram not linked</Badge>
 				)}
+				{s.away?.state === "paused" && (
+					<Badge>Paused until {when(s.away.at)}</Badge>
+				)}
+				{s.away?.state === "asked" && (
+					<Badge tone="bad">
+						Checked in on {when(s.away.at)}, no answer yet
+					</Badge>
+				)}
 				{s.connections > 0 && (
 					<Badge>
 						{s.connections} AI{s.connections === 1 ? "" : "s"} connected as them
@@ -211,6 +219,13 @@ function StewardCard({
 							<Muted>No handles yet</Muted>
 						)}
 					</p>
+					{s.paired && (
+						<Muted block small>
+							{s.lastSeen
+								? `Last heard from ${when(s.lastSeen)}`
+								: "Not heard from on Telegram yet"}
+						</Muted>
+					)}
 					<Label>Works in</Label>
 					<p>
 						{s.teams.length ? (
