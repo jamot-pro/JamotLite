@@ -8,8 +8,9 @@ to run another company (`/app/templates/<id>.yaml`).
 ## 1. Have these ready
 
 - A Telegram bot token: talk to [@BotFather](https://t.me/BotFather), `/newbot`.
-- A model API key (Anthropic by default; set `JAMOT_MODEL` to change it,
-  e.g. `openrouter/anthropic/claude-sonnet-5`).
+- A model API key (Anthropic by default; set `JAMOT_MODEL` to change it:
+  `google/gemini-2.5-pro` with a Google AI Studio key,
+  `openai/gpt-5`, or `openrouter/anthropic/claude-sonnet-5`).
 - A console password of at least 10 characters.
 
 ## 2. Create the service

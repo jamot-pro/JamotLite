@@ -131,7 +131,7 @@ export interface SetupInput {
 		goals?: string[];
 	};
 	model: {
-		provider: "anthropic" | "openai" | "openrouter" | "ollama";
+		provider: "anthropic" | "openai" | "google" | "openrouter" | "ollama";
 		modelId: string;
 		apiKey?: string;
 		baseUrl?: string;
@@ -145,6 +145,7 @@ export const TELEGRAM_TOKEN = /^\d{5,}:[A-Za-z0-9_-]{30,}$/;
 export const DEFAULT_MODELS = {
 	anthropic: "claude-sonnet-5",
 	openai: "gpt-5",
+	google: "gemini-2.5-pro",
 	openrouter: "anthropic/claude-sonnet-5",
 	ollama: "llama3.1",
 } as const;

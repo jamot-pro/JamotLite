@@ -94,6 +94,7 @@ export interface ApiDeps {
 export const MODEL_PROVIDERS = [
 	"anthropic",
 	"openai",
+	"google",
 	"openrouter",
 	"ollama",
 ] as const;

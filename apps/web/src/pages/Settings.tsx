@@ -73,6 +73,7 @@ export function Settings() {
 						>
 							<option value="anthropic">Anthropic</option>
 							<option value="openai">OpenAI</option>
+							<option value="google">Google (Gemini)</option>
 							<option value="openrouter">OpenRouter</option>
 							<option value="ollama">Ollama (on this machine)</option>
 						</Select>
@@ -255,6 +256,7 @@ function FallbackCard({
 						<option value="openrouter">OpenRouter</option>
 						<option value="anthropic">Anthropic</option>
 						<option value="openai">OpenAI</option>
+						<option value="google">Google (Gemini)</option>
 						<option value="ollama">Ollama (on this machine)</option>
 					</Select>
 				</Field>

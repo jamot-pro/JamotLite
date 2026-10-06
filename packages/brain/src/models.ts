@@ -7,11 +7,17 @@ import {
 } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import type { ModelAccess } from "./types.js";
 
-export type ModelProvider = "anthropic" | "openai" | "openrouter" | "ollama";
+export type ModelProvider =
+	| "anthropic"
+	| "openai"
+	| "google"
+	| "openrouter"
+	| "ollama";
 
 export interface ModelChoice {
 	provider: ModelProvider;
@@ -67,6 +73,7 @@ export function connectModel(choice: ModelChoice): ModelAccess {
 		const provider = {
 			anthropic: anthropicProvider,
 			openai: openaiProvider,
+			google: googleProvider,
 			openrouter: openrouterProvider,
 		}[choice.provider];
 		models.setProvider(provider());

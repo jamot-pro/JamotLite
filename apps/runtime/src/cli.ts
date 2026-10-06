@@ -514,7 +514,7 @@ async function runSetup(
 		modelId = env.JAMOT_MODEL.slice("openrouter/".length);
 	if (!provider)
 		provider = await answer(
-			"Model provider (anthropic, openai, openrouter, ollama) [anthropic]: ",
+			"Model provider (anthropic, openai, google, openrouter, ollama) [anthropic]: ",
 			"anthropic",
 		);
 	if (!(provider in DEFAULT_MODELS))
