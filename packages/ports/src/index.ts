@@ -44,3 +44,11 @@ export type {
 export type { SecretStore } from "./secrets.js";
 export type { SettingsStore } from "./settings.js";
 export type { CompanyPorts, CompanyStore } from "./store.js";
+export type {
+	NewTask,
+	Task,
+	TaskPatch,
+	TaskRequesterKind,
+	TaskStatus,
+	TaskStore,
+} from "./tasks.js";

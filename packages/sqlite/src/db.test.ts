@@ -69,7 +69,7 @@ describe("company database", () => {
 			"INSERT INTO messages (id, conversation_id, direction, status, text, created_at) VALUES ('m1', 'c1', 'in', 'received', 'hello', ?)",
 		).run(now);
 
-		expect(migrate(db)).toEqual(["0005_web_channel"]);
+		expect(migrate(db)).toEqual(["0005_web_channel", "0006_tasks"]);
 		expect(db.prepare("SELECT text FROM messages").all()).toEqual([
 			{ text: "hello" },
 		]);

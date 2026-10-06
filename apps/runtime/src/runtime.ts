@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type BrainTool,
+	complete,
 	connectModel,
 	createPiBrain,
 	DEMO_PROVIDER,
@@ -15,10 +16,12 @@ import type { CompanyFile } from "@jamot/contracts";
 import {
 	agentSpecFromNode,
 	budgetForTier,
+	conversationTaskTools,
 	createSecretBox,
 	createSecrets,
 	createWorker,
 	decideApproval,
+	decideTaskApproval,
 	HEARTBEAT_JOB,
 	handleOwnerAction,
 	importCompanyFile,
@@ -28,9 +31,17 @@ import {
 	REPLY_JOB,
 	type ReplyDeps,
 	replyToMessage,
+	routeTask,
 	runHeartbeat,
+	runTask,
 	type Secrets,
+	TASK_ROUTE_JOB,
+	TASK_RUN_JOB,
+	TASK_SESSION_PREFIX,
+	TASK_TELL_JOB,
+	type TaskDeps,
 	type Tier,
+	tellAssignee,
 	type Worker,
 } from "@jamot/core";
 import { mcpToolsForAgent } from "@jamot/mcp";
@@ -214,12 +225,58 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			budgetForTier(
 				(await store.settings.get<Tier>("survival.tier")) ?? "normal",
 			),
+		// The founder and the stewards can add tasks and ask where they stand
+		// by talking to an agent (D58); customers can't.
+		personTools: async (person) => {
+			const owner = await telegram.owner();
+			if (owner?.personId === person.id)
+				return conversationTaskTools(taskDeps(), {
+					founder: true,
+					key: (await store.graph.getCompany())?.founderKey ?? null,
+					name: owner.name,
+				});
+			const member = Object.entries(await telegram.members()).find(
+				([, m]) => m.personId === person.id,
+			);
+			return member
+				? conversationTaskTools(taskDeps(), {
+						founder: false,
+						key: member[0],
+						name: member[1].name,
+					})
+				: [];
+		},
+	};
+	const taskDeps = (): TaskDeps => ({
+		store,
+		notifier: telegram,
+		// The selector's one question, when a task could belong to several responsibilities.
+		ask: async (input) => complete(await model(), input),
+	});
+	/** A person's decision on a waiting tool call: in a conversation, or in a task (D58). */
+	const decide = async (decision: {
+		approvalId: string;
+		approved: boolean;
+		by: string;
+		note?: string;
+	}) => {
+		const approval = await store.approvals.get(decision.approvalId);
+		if (approval?.sessionId.startsWith(TASK_SESSION_PREFIX)) {
+			const { approvalId: _, ...rest } = decision;
+			await decideTaskApproval(
+				{ ...replyDeps, notifier: telegram },
+				approval,
+				rest,
+			);
+			return;
+		}
+		await decideApproval(replyDeps, decision);
 	};
 	telegram = createTelegramChannel(bot, {
 		store,
 		log,
 		decide: async (approvalId, approved, by) => {
-			await decideApproval(replyDeps, { approvalId, approved, by });
+			await decide({ approvalId, approved, by });
 		},
 		act: (action, by) => handleOwnerAction(store, action, by),
 	});
@@ -235,6 +292,19 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					// as a failed answer (the Overview counts it).
 					{ lastTry: job.attempts >= job.maxAttempts },
 				);
+			},
+			[TASK_ROUTE_JOB]: async (job) => {
+				await routeTask(taskDeps(), String(job.payload.taskId));
+			},
+			[TASK_RUN_JOB]: async (job) => {
+				await runTask(
+					{ ...replyDeps, notifier: telegram },
+					job.payload as { taskId: string; agentKey: string },
+					{ lastTry: job.attempts >= job.maxAttempts },
+				);
+			},
+			[TASK_TELL_JOB]: async (job) => {
+				await tellAssignee(taskDeps(), String(job.payload.taskId));
 			},
 			[HEARTBEAT_JOB]: async (job) => {
 				await runHeartbeat(
@@ -282,7 +352,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					secureCookies: opts.behindProxy === true,
 					mcpToken: async () => mcpToken as string,
 					decide: async (approvalId, approved, by, note) => {
-						await decideApproval(replyDeps, {
+						await decide({
 							approvalId,
 							approved,
 							by,
