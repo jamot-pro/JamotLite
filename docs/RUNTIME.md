@@ -185,26 +185,57 @@ bus-factor risk. Later, operators can publish skills on the hub.
 The base runtime is what every company needs: the company map, people and
 memory, Telegram and the web chat, heartbeats and survival, tasks, the record
 and MCP. Anything only some companies need — a product catalog, bookings,
-invoices, a till — is an **add-on**: a separate package, off until a company
+invoices, a till — is an **add-on**: a separate package in its own repository, off until a company
 turns it on, that plugs into the runtime through one contract and touches the
 base only through its ports. A company can run several add-ons on top of the
-base. This section is the contract (D59); every add-on follows it.
+base. This section is the contract (D59, D60); every add-on follows it.
 
-**What an add-on is**
+**What an add-on is** (D60: every add-on lives outside this repository)
 
-- One workspace package in `addons/<id>/`, named `@jamot/addon-<id>`, with
-  its own `package.json`, tests and README. `<id>` is short, lowercase and
-  unique (`catalog`, `bookings`).
-- It exports one object made with `defineAddon` from `@jamot/addon-kit`:
-  its id, name, version, a one-line summary, and what it adds (below).
-- It depends only on `@jamot/addon-kit`, `@jamot/ports`, `@jamot/contracts`
-  and the `Brain` types. The base never imports an add-on: no `if (catalog)`
-  in core, the channel or the console's frame.
-- The add-ons that ship are bundled into `jamot.mjs` and listed in the
-  runtime's registry; a company turns them on in `company.yaml`
-  (`addons: { catalog: { …its settings… } }`) or in the console (Settings →
-  Add-ons). Loading add-ons from npm or a URL is **FUTURE**: running someone
-  else's code inside the company's process is a security decision of its own.
+- **Its own public repository**, `jamot-pro/jamot-addon-<id>`, with its own code,
+  tests, README, version and releases. `<id>` is short, lowercase and unique
+  (`catalog`, `profiles`). This repository holds **no add-on code**: only the
+  kit and the loader.
+- It exports one object made with `defineAddon` from **`@jamot/addon-kit`**:
+  its id, name, version, the runtime versions it works with, a one-line
+  summary, and what it adds (below).
+- It depends only on `@jamot/addon-kit`, the one package this repository
+  publishes for add-ons. The kit carries the contract's types (the ports, the
+  contracts and the `Brain` types an add-on needs) and a test harness that
+  starts a runtime with the add-on on. The base never imports an add-on: no
+  `if (catalog)` in core, the channel or the console's frame.
+- **A release** is one bundled ES module, `addon.mjs`, plus a manifest
+  (id, version, runtime range, SHA-256 of the file), **signed with Jamot's
+  release key**, attached to a GitHub release of the add-on's repository.
+
+**How a company gets one**
+
+1. **The index.** A public file, `jamot-pro/jamot-addons/index.json`, lists
+   the add-ons Jamot has reviewed: id, name, summary, repository, latest
+   version. Settings → Add-ons shows it.
+2. **Turning one on** downloads the release into the company's data folder
+   (`<data>/addons/<id>/<version>/`), checks the signature against the key
+   built into the runtime, the SHA-256 and the runtime range, then loads it
+   and runs its migrations. Anything that fails a check is refused and
+   nothing is loaded. In `company.yaml` it reads
+   `addons: { catalog: { version: 0.1.0, …its settings… } }`.
+3. **It stays with the company.** The files are in the data folder, so they
+   come back with a backup or a restore, and a company that is offline keeps
+   running what it has. Only turning on a new one or updating needs GitHub.
+4. **Updates are never automatic.** The owner presses Update; the previous
+   version stays in the folder, so going back is one step. A new version
+   with new migrations says so before it's applied.
+5. **Unsigned code never runs in a company.** A developer runs their own
+   add-on locally with `jamot start --dev-addon <path>`, on a company with no
+   real people. Someone else's add-on is signed only after Jamot reviews it;
+   until then it can be a connected service instead (below).
+
+**Two kinds of extension.** An add-on runs inside the company's process and
+keeps its data in the company's database: for what a business owns (its
+products, its orders, its people's profiles). A **connected service** is
+anyone's server, reached over MCP (§8): it never runs inside the company and
+keeps its own data — for payments, couriers, suppliers. Settings → Add-ons
+shows both in one list.
 
 **What an add-on may add — and nothing else**
 
@@ -216,7 +247,7 @@ base. This section is the contract (D59); every add-on follows it.
 | Secrets | The secret store, names `<id>.…` | Never in logs, prompts, API responses or `company.yaml` |
 | Agent tools | `agentTools(ctx)`: `BrainTool`s, names `<id>_…` | Anything with money, a contract or the physical world carries a policy (approval) in the same change |
 | MCP tools | `mcpTools(ctx, caller)`, names `<id>_…` | Each tool decides what *this caller* may see: shared token, a connection, or a customer. Never a person's name or contact unless they published it |
-| Console page | One page in `apps/web/src/addons/<id>/`, from `src/ui` components and contracts only | Shown only while the add-on is on; `pnpm ui-check` covers it |
+| Console page | One page, described as data (sections, tables, forms) that the console draws with its own components | Shown only while the add-on is on; an add-on never ships its own scripts or styles to the browser |
 | HTTP routes | Under `/api/addons/<id>/…`, behind the console's session | Public routes only under `/addons/<id>/public/…`, read-only or rate-limited, never people |
 | Jobs | Handlers for job kinds `<id>.<kind>` | Same worker, same retries; a job that can't finish fails loudly |
 | A heartbeat check | `check(ctx, now)` returning issues, like the vitals | Joins the company heartbeat; never sends on its own |
@@ -250,11 +281,12 @@ publishes and lists in `requires`.
 
 **Add-ons**
 
-| Id | What it adds | Status |
-|---|---|---|
-| `catalog` | Products and orders: what the company sells, and orders that become tasks (C6) | planned |
+| Id | Repository | What it adds | Status |
+|---|---|---|---|
+| `catalog` | `jamot-pro/jamot-addon-catalog` | Products and orders: what the company sells, and orders that become tasks (C6) | planned |
+| `profiles` | `jamot-pro/jamot-addon-profiles` | Human Design and Gene Keys readings, an optional onboarding step, private to each person (D31) | planned |
 
-### The product catalog (`@jamot/addon-catalog`) — the first add-on
+### The product catalog (`jamot-addon-catalog`) — the first add-on
 
 Light e-commerce for a small business, built the way the good small shops
 do it:
@@ -471,6 +503,7 @@ JamotLite/
 | D57 | **A model that's down or busy never leaves a customer unanswered; a Telegram that stopped listening is told** (2026-10-06). Before, a model error ended the reply as "failed" with no retry. Now an error that passes — rate limit, overloaded, 5xx, timeout, network — first tries the **backup model** (Settings → Backup model; `model.fallback` and its key in the secret store; a `model.fallback_used` event), and if there's none or it fails too, the reply job is retried with the worker's backoff (10 s, 40 s, 90 s…). Only the last attempt records the failed answer the Overview counts. A refused request or a wrong key isn't retried. A retried reply reruns in the same session: errored turns are left out of what the model sees (pi does this), so at worst the agent sees the customer's question twice. When Telegram's long polling stops after starting — usually a 409 because another program polls the same token — the time and reason are kept (`telegram.stopped`, cleared on the next start) and the company heartbeat tells the owner, with what to do; sending still works, so the message gets through | From the architecture review (2026-10-06): the brain had one model and no plan B, and a stolen poll made the company deaf without anyone knowing. Both fixes stay inside the one process; the uptime check and replication are the owner's (Phase 1) |
 | D58 | **Tasks: someone asks the company to get something done, and the company decides who does it** (2026-10-06). A task is a row in its own `tasks` table (migration 0006: a short number, title, details, status, responsibility, assignee, who asked, result, note); the jobs queue moves it with three new kinds — `task.route` (the selector), `task.run` (an agent works on it) and `task.tell` (a person is told) — so retries, the backup model (D57) and the run lock apply unchanged. Tasks are not jobs: a job is machine work that is retried and can die, a task lives for days, waits on people and stays on the record. A status change only happens from the statuses it expects, so two presses of one button never both win. **Who may ask:** the founder (`/task …` on Telegram, or by telling an agent, which has an `add_task` tool) — it starts at once; a steward — it waits for the founder's yes. Customers can't (C6 opens that over MCP). **The selector:** asks the model which responsibility the task belongs to (an answer that isn't one of them is ignored), then gives it to an agent first: the one that owns it, else one in a team that needs it, else the company's default agent. **The agent's turn** ends with one of three tools: `finish_task` (done, with the result for whoever asked), `hand_to_person` (to the responsibility's owner, else the founder) or `ask_founder` (answered with `/answer 12 …`, then the same agent carries on). An agent that only answers in words never marks its own work done: the founder sees the answer and decides. A run that fails waits for the founder with three buttons — give it to a person, I'll do it, cancel. **People** get the task on Telegram with Done and Can't; their Done waits for the founder's confirmation, and a confirmed task goes on their record (D54) — the founder's own Done needs nobody. Someone not linked on Telegram can't be told, so the task waits for the founder. **Follow-up** is part of the company heartbeat: a person with no news for 3 days is asked once how it's going, and the founder gets one summary a day (done, under way, waiting for you, no news). `/tasks` shows the founder everything and a steward only theirs and what they asked for; agents talking with the founder or a steward can report the same, never to customers. No console page: people work in Telegram, and a Mini App will read the same table | The founder's operating system (VISION.md, C5) needs work to move without the founder pushing it: agents first, people where agents can't, the founder deciding. A queue per person is the founder's idea; separate from jobs so a person not answering never looks like a broken runtime |
 | D59 | **Add-ons: what only some companies need is a separate package, off by default, on top of the base** (2026-10-06). One contract for all of them (§8c): a workspace package `@jamot/addon-<id>` made with `defineAddon` from `@jamot/addon-kit`; its own prefixed tables and migrations, storage behind its own port, settings in its section of `company.yaml`, tools named `<id>_…` for agents and MCP, at most one console page made of the console's components, routes under `/api/addons/<id>`, job kinds `<id>.<kind>`, a heartbeat check, tasks through the selector. The base never imports an add-on; an add-on never changes the base. Bundled add-ons are listed in the runtime's registry and turned on per company; loading add-ons from npm is FUTURE. Money in minor units, policy on anything that commits the company, people never published. The product catalog is the first (C6) | The founder (2026-10-06): the catalog is an add-on, and more will follow on top of the base model. Without one contract each would reach into core and the base would stop being small; with it, a company carries only what it uses and the base stays the same for everyone |
+| D60 | **Every add-on lives outside the base repository** (2026-10-06). Changes D59's "bundled in `jamot.mjs`": this repository holds only `@jamot/addon-kit` (the contract, its types and a test harness — the one package it publishes for add-ons) and the loader. Each add-on has its own repository and releases: one bundled `addon.mjs` and a manifest, signed with Jamot's release key. A public index lists the reviewed ones; turning one on downloads it into the company's data folder, checks signature, checksum and runtime range, and loads it — so it travels with backups and works offline. Updates are pressed by the owner, never automatic; unsigned code runs only with `--dev-addon` on a company with no real people. A console page is data the console draws, never the add-on's own browser code. Third-party code is signed after review; until then it is a connected service over MCP. **Public** (the founder, 2026-10-06): add-on repositories, their releases and the index are public, so a company downloads with no login; `@jamot/addon-kit` is published publicly; the base repository stays private. The signature, not secrecy, is what keeps altered code out | The founder (2026-10-06): add-ons are external to the base. The base repository and every install stay the same size whatever add-ons exist; each add-on has its own owner, pace and version. The signature and the data-folder copy keep what D59 wanted — the company's data in the company, and no unreviewed code inside it |
 
 ### Open
 

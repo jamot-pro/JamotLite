@@ -43,7 +43,6 @@ look for what, and the code conventions: [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 | `packages/mcp` | The company as an MCP server (`/mcp`), and MCP tools for agents |
 | `apps/runtime` | One company, one process: wires everything, serves `/api`, `/mcp` and the console; the `jamot` CLI |
 | `apps/web` | The web console (Vite + React), served by the runtime. `src/ui`: tokens and components; `src/pages`: screens made of them; [DESIGN.md](apps/web/DESIGN.md) |
-| `addons/` | Add-ons (RUNTIME §8c): packages a company turns on, on top of the base — none yet; the product catalog is the first (C6) |
 | `scripts/` | `build.mjs` (the bundle) and `install.sh` |
 | `templates/` | The company templates, as `company.yaml` files |
 | `jamot.company.yaml` | Jamot itself, run as a Jamot company: its charter, responsibilities and heartbeats |
@@ -115,12 +114,13 @@ prefix; the area's owner in `.github/CODEOWNERS` reviews; squash-merge.
    What a screen shows is decided on the server, not in the page. A new look
    is a change to `src/ui`, never to every page. `pnpm ui-check` enforces
    it; [apps/web/DESIGN.md](apps/web/DESIGN.md) is the guide.
-14. **Add-ons stay outside the base** (RUNTIME.md §8c, D59). Something only
-   some companies need — a catalog, bookings, invoices — is a package in
-   `addons/<id>` made with `defineAddon`, off by default. The base never
-   imports it; it never changes the base's tables, routes or screens, and it
-   reaches the base's data only through the ports. Its tables, tools, jobs and
-   events carry its id. Read §8c before writing one.
+14. **Add-ons live outside this repository** (RUNTIME.md §8c, D59, D60).
+   Something only some companies need — a catalog, bookings, profiles — is
+   its own repository built on `@jamot/addon-kit`, released signed, and
+   downloaded by the companies that turn it on. Never add add-on code here:
+   this repository holds the kit and the loader only. An add-on never changes
+   the base's tables, routes or screens, and reaches the base's data only
+   through the ports. Read §8c before changing the kit or the loader.
 
 ## Building the console with Claude Code
 
