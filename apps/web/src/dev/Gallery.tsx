@@ -1,9 +1,9 @@
+import { LayoutGrid, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	Actions,
 	Badge,
 	Banner,
-	Brand,
 	Bubble,
 	Bullet,
 	Bullets,
@@ -61,18 +61,18 @@ export function Gallery() {
 
 	return (
 		<Shell
+			title="Components"
 			nav={
 				<>
-					<Brand>💓 Jamot</Brand>
-					<NavLink to="/dev/ui" active go={noop}>
+					<NavLink to="/dev/ui" active go={noop} icon={<LayoutGrid />}>
 						Components
 					</NavLink>
-					<NavLink to="/dev/ui" active={false} go={noop}>
+					<NavLink to="/dev/ui" active={false} go={noop} icon={<Users />}>
 						Another page
 					</NavLink>
-					<SignOut onClick={noop} />
 				</>
 			}
+			foot={<SignOut onClick={noop} />}
 		>
 			<Page
 				title="Components"
