@@ -90,6 +90,11 @@ export {
 	startInterview,
 } from "./interviews/interviews.js";
 export {
+	continueWelcome,
+	startWelcome,
+	welcomeKey,
+} from "./interviews/welcome.js";
+export {
 	createWorker,
 	type JobHandler,
 	type Worker,

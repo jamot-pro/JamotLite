@@ -16,6 +16,7 @@ import type { CompanyFile } from "@jamot/contracts";
 import {
 	agentSpecFromNode,
 	budgetForTier,
+	continueWelcome,
 	conversationTaskTools,
 	createSecretBox,
 	createSecrets,
@@ -24,8 +25,10 @@ import {
 	decideTaskApproval,
 	HEARTBEAT_JOB,
 	handleOwnerAction,
+	type Interview,
 	importCompanyFile,
 	isRetired,
+	loadInterview,
 	loadOrCreateSecretKey,
 	planHeartbeats,
 	REPLY_JOB,
@@ -35,6 +38,7 @@ import {
 	runHeartbeat,
 	runTask,
 	type Secrets,
+	startWelcome,
 	TASK_ROUTE_JOB,
 	TASK_RUN_JOB,
 	TASK_SESSION_PREFIX,
@@ -51,6 +55,7 @@ import { createTelegramChannel, type TelegramChannel } from "@jamot/telegram";
 import type { FastifyInstance } from "fastify";
 import { Bot } from "grammy";
 import { applyPendingRestore, backupIfDue } from "./backups.js";
+import { interviewDirs } from "./cli/paths.js";
 import { createHttpServer } from "./http.js";
 import {
 	acquireRunLock,
@@ -208,6 +213,17 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		}
 	}
 
+	/**
+	 * The welcome for people who join (D61): the company's own definition in
+	 * its folder first, then the built-in one. Read on use, so an edit applies
+	 * to the next welcome without a restart.
+	 */
+	const newcomer = (): Interview =>
+		loadInterview("newcomer", [
+			join(opts.dataDir, "interviews"),
+			...interviewDirs(),
+		]);
+
 	// `telegram` and `replyDeps` need each other: approvals go to the owner on
 	// Telegram, and the owner's decisions come back through the brain.
 	let telegram: TelegramChannel;
@@ -224,6 +240,18 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		budget: async () =>
 			budgetForTier(
 				(await store.settings.get<Tier>("survival.tier")) ?? "normal",
+			),
+		// A person whose welcome is open talks with it, not with the agents.
+		interviewReply: (person, text) =>
+			continueWelcome(
+				{
+					store,
+					notifier: telegram,
+					ask: async (input) => complete(await model(), input),
+				},
+				newcomer,
+				person.id,
+				text,
 			),
 		// The founder and the stewards can add tasks and ask where they stand
 		// by talking to an agent (D58); customers can't.
@@ -279,6 +307,16 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			await decide({ approvalId, approved, by });
 		},
 		act: (action, by) => handleOwnerAction(store, action, by),
+		welcome: async (who) => {
+			try {
+				return await startWelcome(store, newcomer(), who);
+			} catch (err) {
+				log(
+					`[runtime] no welcome for ${who.name}: ${err instanceof Error ? err.message : err}`,
+				);
+				return null;
+			}
+		},
 	});
 
 	const worker = createWorker(

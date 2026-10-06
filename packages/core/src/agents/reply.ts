@@ -26,6 +26,11 @@ export interface ReplyDeps {
 	onApprovalNeeded?: (approvalIds: string[]) => Promise<void>;
 	/** More tools for an agent — its MCP tools, for one. */
 	extraTools?: (agentKey: string) => BrainTool[] | Promise<BrainTool[]>;
+	/**
+	 * A conversation that answers this person instead of the agents — their
+	 * welcome, while it's open (D61). Returns the reply, or null.
+	 */
+	interviewReply?: (person: Person, text: string) => Promise<string | null>;
 	/** Tools for talking with this person — tasks, for the founder and the stewards (D58). */
 	personTools?: (person: Person) => Promise<BrainTool[]>;
 	/** What a run may spend right now — survival lowers it when money runs low. */
@@ -72,6 +77,27 @@ export async function replyToMessage(
 		return null;
 	const person = await store.people.get(conversation.personId);
 	if (!person) return null;
+
+	const interviewed = await deps.interviewReply?.(person, inbound.text);
+	if (interviewed) {
+		await store.transaction(async (tx) => {
+			// A job retried after a crash must not send the same answer twice.
+			const { created } = await tx.events.append({
+				type: "interview.replied",
+				source: "interviews",
+				subject: person.id,
+				data: { conversationId: conversation.id },
+				idempotencyKey: `replied:${inbound.id}`,
+			});
+			if (created)
+				await tx.conversations.enqueue({
+					conversationId: conversation.id,
+					text: interviewed,
+					personId: person.id,
+				});
+		});
+		return null;
+	}
 
 	const agent = await conversationAgent(deps, conversation, person);
 	if (!agent) {
