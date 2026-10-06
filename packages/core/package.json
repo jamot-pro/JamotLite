@@ -15,7 +15,9 @@
 		"@jamot/company-file": "workspace:*",
 		"@jamot/contracts": "workspace:*",
 		"@jamot/ports": "workspace:*",
-		"croner": "^9.1.0"
+		"croner": "^9.1.0",
+		"yaml": "^2.8.1",
+		"zod": "^3.25.76"
 	},
 	"devDependencies": {
 		"@jamot/sqlite": "workspace:*"

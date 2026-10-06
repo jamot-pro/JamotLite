@@ -113,5 +113,10 @@ export async function complete(
 	} as unknown as Parameters<StreamFn>[1];
 	const stream = await access.streamFn(access.model, context, {});
 	const reply = await stream.result();
+	// A failed call comes back as a message, not an exception: say why.
+	if (reply.stopReason === "error" || reply.stopReason === "aborted")
+		throw new Error(
+			reply.errorMessage || `the model stopped (${reply.stopReason})`,
+		);
 	return reply.content.map((c) => (c.type === "text" ? c.text : "")).join("");
 }

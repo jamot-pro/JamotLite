@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { connectModel, type ModelAccess } from "@jamot/brain";
+import { complete, connectModel, type ModelAccess } from "@jamot/brain";
 import { stringifyCompanyFile } from "@jamot/company-file";
 import type {
 	ActionResult,
@@ -18,9 +18,19 @@ import type {
 	SetupAnswer,
 	SetupDraft,
 	SetupFinish,
+	SetupSay,
 	SetupState,
 } from "@jamot/contracts";
-import { loadOrCreateSecretKey } from "@jamot/core";
+import {
+	type Interview,
+	InterviewError,
+	type InterviewState,
+	interviewTurn,
+	loadInterview,
+	loadOrCreateSecretKey,
+	missingFacts,
+	startInterview,
+} from "@jamot/core";
 import { openCompanyStore } from "@jamot/sqlite";
 import Fastify, { type FastifyInstance } from "fastify";
 import { type Bot, InlineKeyboard } from "grammy";
@@ -38,6 +48,7 @@ import {
 	setup,
 	TELEGRAM_TOKEN,
 } from "../cli/commands.js";
+import { interviewDirs } from "../cli/paths.js";
 import { serveConsole } from "../http.js";
 import { type Draft, draftCompany } from "./draft.js";
 import { ANSWER_LIMIT, lines, QUESTIONS } from "./questions.js";
@@ -71,6 +82,13 @@ export interface GateOptions {
 	 * none); made from the env when absent.
 	 */
 	model?: ModelAccess | null;
+	/**
+	 * Talk with the founder (D61) instead of asking the questions one by one,
+	 * when there is a model. Default true; tests of the questions turn it off.
+	 */
+	conversation?: boolean;
+	/** Where the interviews are; the built-in ones when absent. */
+	interviewDirs?: string[];
 	log?: (message: string) => void;
 }
 
@@ -95,6 +113,8 @@ interface SetupFile {
 	owner?: Founder;
 	/** The company drafted from these answers (D56); cleared when one changes. */
 	draft?: Draft;
+	/** The conversation with the founder (D61); its facts are the answers. */
+	conversation?: InterviewState;
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -148,6 +168,21 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				`[setup] can't reach the model to draft the company (${err instanceof Error ? err.message : err}); the founder picks a template instead`,
 			);
 		}
+
+	// The founder's interview (D61): a conversation when there is a model and
+	// the definition loads; the questions otherwise.
+	let charter: Interview | null = null;
+	if (drafter && opts.conversation !== false)
+		try {
+			charter = loadInterview("charter", opts.interviewDirs ?? interviewDirs());
+		} catch (err) {
+			log(
+				`[setup] the charter interview can't be used (${err instanceof Error ? err.message : err}); asking the questions instead`,
+			);
+		}
+	const charterRules = charter?.skills.find(
+		(sk) => sk.name === "charter-rules",
+	)?.body;
 
 	const secretKey = loadOrCreateSecretKey(join(stateDir, "secrets.key"));
 	const sessions = createSessions(secretKey);
@@ -208,6 +243,51 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 		});
 	}
 
+	/** The conversation, started on first use with what's known already. */
+	function conversation(): InterviewState | null {
+		if (!charter) return null;
+		if (!state.conversation) {
+			state.conversation = startInterview(charter, { facts: state.answers });
+			save();
+		}
+		return state.conversation;
+	}
+
+	/**
+	 * The founder said something to Jamot: one turn of the conversation. Its
+	 * facts become the answers; a changed answer drops the draft.
+	 */
+	async function talk(text: unknown): Promise<string> {
+		const interview = charter;
+		const model = drafter;
+		if (!interview || !model)
+			throw new GateError("This setup asks its questions one by one.");
+		if (typeof text !== "string") throw new GateError("Say it in words.");
+		return change(async () => {
+			const current = conversation() as InterviewState;
+			let turn: Awaited<ReturnType<typeof interviewTurn>>;
+			try {
+				turn = await interviewTurn(
+					{ ask: (input) => complete(model, input) },
+					interview,
+					current,
+					text,
+				);
+			} catch (err) {
+				if (err instanceof InterviewError) throw new GateError(err.message);
+				throw err;
+			}
+			const answers = { ...turn.state.facts };
+			if (JSON.stringify(answers) !== JSON.stringify(state.answers))
+				delete state.draft;
+			state.conversation = turn.state;
+			state.answers = answers;
+			state.skipped = [];
+			save();
+			return turn.reply;
+		});
+	}
+
 	function view(): SetupState {
 		return {
 			questions: QUESTIONS,
@@ -226,6 +306,16 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			ready: ready(),
 			draft: state.draft?.view ?? null,
 			canDraft: drafter !== null,
+			conversation:
+				charter && state.conversation
+					? {
+							messages: state.conversation.messages,
+							complete: state.conversation.status === "complete",
+							missing: missingFacts(charter, state.conversation).map(
+								(f) => f.label,
+							),
+						}
+					: null,
 		};
 	}
 
@@ -256,6 +346,10 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			answers,
 			listTemplates(),
 			env.JAMOT_TIMEZONE,
+			{
+				...(charterRules ? { rules: charterRules } : {}),
+				log,
+			},
 		)
 			.then((d) =>
 				change(() => {
@@ -388,6 +482,7 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 		"/api/logout",
 		"/api/setup",
 		"/api/setup/answer",
+		"/api/setup/say",
 		"/api/setup/draft",
 		"/api/setup/finish",
 	]);
@@ -453,7 +548,21 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			if (!signedIn(req.headers.cookie))
 				return reply.code(401).send({ error: "sign in first" });
 		});
-		owner.get("/api/setup", async (): Promise<SetupState> => view());
+		owner.get("/api/setup", async (): Promise<SetupState> => {
+			await change(() => conversation());
+			return view();
+		});
+		owner.post<{ Body: SetupSay }>(
+			"/api/setup/say",
+			async (req, reply): Promise<SetupState | undefined> => {
+				try {
+					await talk(req.body?.text);
+					return view();
+				} catch (err) {
+					return refuse(reply, err);
+				}
+			},
+		);
 		owner.put<{ Body: SetupAnswer }>(
 			"/api/setup/answer",
 			async (req, reply): Promise<SetupState | undefined> => {
@@ -520,7 +629,9 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 	async function askNext(): Promise<void> {
 		const owner = state.owner;
 		if (!owner || !bot || finishing) return;
-		const q = nextQuestion();
+		// In a conversation Jamot has already answered; only the draft is left.
+		if (charter && state.conversation?.status !== "complete") return;
+		const q = charter ? null : nextQuestion();
 		if (q) {
 			const n = QUESTIONS.indexOf(q) + 1;
 			await say(
@@ -597,8 +708,18 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 					await change(() => {
 						state.owner = { userId: from, chatId: String(ctx.chat.id), name };
 						if (!state.answers.founder) state.answers.founder = name;
+						const c = state.conversation;
+						if (c && !c.facts.founder) c.facts.founder = name;
 						save();
 					});
+					if (charter) {
+						const c = await change(() => conversation());
+						const said = c?.messages.filter((m) => m.from === "jamot").at(-1);
+						await ctx.reply(
+							`Hi ${ctx.from.first_name}! You can also continue in the console — it's the same conversation.\n\n${said?.text ?? ""}`.trim(),
+						);
+						return askNext();
+					}
 					await ctx.reply(
 						`Hi ${ctx.from.first_name}! Let's set up your company: ${QUESTIONS.length} short questions, about five minutes. Answer in your own words; /skip what you don't know yet, /back to change the last answer. You can also continue in the console — it's the same setup.`,
 					);
@@ -623,6 +744,15 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 				return;
 			}
 			if (finishing) return;
+
+			if (charter) {
+				try {
+					await ctx.reply(await talk(text));
+				} catch (err) {
+					await ctx.reply(err instanceof Error ? err.message : String(err));
+				}
+				return askNext();
+			}
 
 			if (text === "/back") {
 				const answered = QUESTIONS.filter(

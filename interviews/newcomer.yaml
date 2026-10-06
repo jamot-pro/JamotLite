@@ -1,0 +1,36 @@
+# Getting to know someone who just joined the company (RUNTIME D61).
+# The same engine as the founder's charter interview, with its own goal,
+# facts and skills. A company can carry its own copy in its folder's
+# `interviews/` to change it — no code change.
+id: newcomer
+name: Welcome
+goal: >-
+  Get to know someone who just joined the company, so the founder and the
+  agents can work well with them: what they are good at, what they want to
+  do here, how much time they have, how they like to work and be told
+  things, and what would make this worth it for them.
+opening: >-
+  Welcome to {company}, {name}! I'm Jamot, the company's assistant. A few
+  questions so we can work well together — answer in your own words, and
+  say "that's enough" any time. First: what are you best at?
+skills: [interviewing, newcomer]
+maxTurns: 15
+fields:
+  - id: strengths
+    label: What they are good at
+    required: true
+    hint: Skills, experience, what people come to them for.
+  - id: wants
+    label: What they want to do here
+    required: true
+    hint: The work they'd enjoy; what they'd rather not do.
+  - id: time
+    label: How much time they have
+    required: true
+    hint: Hours a week, which days, until when.
+  - id: style
+    label: How they like to work and be told things
+    hint: Messages or calls, mornings or evenings, short or detailed.
+  - id: worth
+    label: What would make this worth it for them
+    hint: Learning, money, credit, the cause — in their words.

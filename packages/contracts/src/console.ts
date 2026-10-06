@@ -425,6 +425,25 @@ export interface SetupState {
 	draft: SetupDraft | null;
 	/** A model is set, so the company can be drafted; otherwise pick a template. */
 	canDraft: boolean;
+	/**
+	 * The conversation that replaces the questions when there is a model
+	 * (D61); null when the setup asks the questions one by one.
+	 */
+	conversation: SetupConversation | null;
+}
+
+/** The founder's conversation with Jamot at setup (D61). */
+export interface SetupConversation {
+	messages: { from: "person" | "jamot"; text: string; at: string }[];
+	/** Jamot has what it needs: the founder reviews the draft. */
+	complete: boolean;
+	/** Required facts still missing, by label. */
+	missing: string[];
+}
+
+/** One message from the founder to Jamot during setup. */
+export interface SetupSay {
+	text: string;
 }
 
 /**
