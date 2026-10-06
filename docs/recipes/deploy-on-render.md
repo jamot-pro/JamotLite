@@ -15,23 +15,23 @@ to run another company (`/app/templates/<id>.yaml`).
 ## 2. Create the service
 
 Render dashboard → **New → Blueprint** → pick this repository. When it asks,
-fill in `JAMOT_OWNER` (your name), `JAMOT_PASSWORD`, `JAMOT_MODEL_KEY` and
-`JAMOT_TELEGRAM_TOKEN`, then **Apply**.
+fill in `JAMOT_PASSWORD`, `JAMOT_MODEL_KEY` and `JAMOT_TELEGRAM_TOKEN`, then
+**Apply**.
 
-The first boot finds no company on the disk and sets it up from those values
-(`jamot start` does this whenever `JAMOT_TEMPLATE` is set and the folder is
-empty). Later boots and deploys just start it.
+The first boot finds no company on the disk and opens the **setup** instead
+(RUNTIME D55). Open the service's `onrender.com` address, sign in with your
+password and answer nine questions — or tap *Continue on Telegram* (or send
+your bot the `/start <code>` from the logs) and answer them there. When you
+press **Start my company**, the company is created and starts on its own;
+if you set it up on Telegram you're already its owner there. Then go to
+step 4. Later boots and deploys just start it.
 
-### A new company, by interview
+### From a company file instead
 
-To set up a company of your own instead of the one in `render.yaml`, leave
-`JAMOT_TEMPLATE` **unset** (delete it from the Blueprint's values) and keep
-`JAMOT_PASSWORD`, `JAMOT_MODEL_KEY` and `JAMOT_TELEGRAM_TOKEN`. The first boot
-opens the setup instead of a company: open the service's address, sign in
-with your password and answer nine questions — or send your bot the
-`/start <code>` from the logs and answer them on Telegram. When you press
-**Start my company**, it's created and starts on its own; you're its owner
-on Telegram already if you set it up there (RUNTIME D55). Then skip to step 4.
+To start from a ready company file — Jamot's own is `/app/jamot.company.yaml`
+— add `JAMOT_TEMPLATE` with its path and `JAMOT_OWNER` with your name before
+the first boot. The company is created from the file, and you pair with the
+code in the logs (step 3).
 
 ## 3. Become the owner
 
