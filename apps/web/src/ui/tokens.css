@@ -1,53 +1,136 @@
 /*
- * Design tokens: every colour, radius and font the console uses. A new look
- * starts here (apps/web/DESIGN.md). Components read these; pages never do.
+ * Design tokens: every colour, radius, shadow and font the console uses. A
+ * new look starts here (apps/web/DESIGN.md). Components read these; pages
+ * never do.
+ *
+ * The look is J-Nesys's Modernist design system (its console's
+ * design-system.css, from the Claude Design export), carried over value for
+ * value (RUNTIME D50): warm greys, near-black ink, one strong accent, Archivo
+ * with heavy headings, flat cards with soft shadows on a grey ground.
+ * Archivo is bundled (@fontsource, OFL) so the console works offline.
  */
 :root {
-	--bg: #f7f6f3;
-	--surface: #ffffff;
-	--text: #1f1d1a;
-	--muted: #6b665e;
-	--line: #e6e2da;
-	--accent: #c2410c;
+	/* The ground the cards sit on, and the cards. */
+	--bg: #eae9e9;
+	--surface: #f3f2f2;
+	--raised: #f8f4f4;
+	--text: #201e1d;
+	--muted: color-mix(in srgb, #201e1d 55%, transparent);
+	--line: color-mix(in srgb, #201e1d 11%, transparent);
+	--hover: color-mix(in srgb, #201e1d 7%, transparent);
+
+	/* The accent is a fill; --accent-ink is its colour for text and links. */
+	--accent: #ff2657;
+	--accent-hover: #db0c3c;
+	/* Buttons: a fill that keeps 4.5:1 with its text (WCAG AA at 14 px). */
+	--accent-fill: #db0c3c;
+	--accent-fill-hover: #a80a2f;
 	--accent-text: #ffffff;
+	--accent-ink: #a80a2f;
+	--accent-soft: #fff0f3;
+	--accent-soft-text: #760a23;
+	--accent-2: #e15b47;
+	--accent-2-soft: #fff2ef;
+	--accent-2-soft-text: #71261b;
+	--neutral-soft: #f8f4f4;
+	--neutral-soft-text: #444141;
+
 	--ok: #15803d;
-	--warn: #b45309;
-	--bad: #b91c1c;
-	--radius: 10px;
-	--radius-small: 7px;
-	--font: 15px / 1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+	--ok-soft: #e8f5ec;
+	--warn: #9e3526;
+	--bad: #a80a2f;
+
+	--radius-sm: 8px;
+	--radius: 12px;
+	--radius-lg: 18px;
+	--radius-small: 8px;
+
+	--shadow-sm:
+		0 1px 2px color-mix(in srgb, #2d2b2b 5%, transparent),
+		0 2px 8px color-mix(in srgb, #2d2b2b 5%, transparent);
+	--shadow-md:
+		0 2px 6px color-mix(in srgb, #2d2b2b 5%, transparent),
+		0 12px 28px color-mix(in srgb, #2d2b2b 7%, transparent);
+	--shadow-lg:
+		0 6px 16px color-mix(in srgb, #2d2b2b 7%, transparent),
+		0 32px 72px color-mix(in srgb, #2d2b2b 12%, transparent);
+
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-6: 24px;
+	--space-8: 32px;
+
+	--font-family: "Archivo", system-ui, sans-serif;
+	--font: 15px / 1.55 var(--font-family);
+	--font-heading-weight: 800;
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-	--nav-width: 220px;
+
+	--rail-width: 60px;
+	--nav-width: 60px;
 	--page-width: 1150px;
 	color-scheme: light;
 }
+
 /* Dark: by the system's setting, or forced with data-theme on <html> (the
-   /dev/ui gallery switches it to check both). */
+   theme switch in the rail, and /dev/ui, set it). */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
-		--bg: #151412;
-		--surface: #1e1c19;
-		--text: #edeae4;
-		--muted: #a39d93;
-		--line: #34312c;
-		--accent: #fb923c;
-		--accent-text: #1a1208;
+		--bg: #141312;
+		--surface: #1f1e1c;
+		--raised: #262422;
+		--text: #f2f0ef;
+		--muted: color-mix(in srgb, #f2f0ef 55%, transparent);
+		--line: color-mix(in srgb, #f2f0ef 14%, transparent);
+		--hover: color-mix(in srgb, #f2f0ef 8%, transparent);
+		--accent-hover: #ff7d95;
+		--accent-fill: #ff2657;
+		--accent-fill-hover: #ff7d95;
+		--accent-text: #141312;
+		--accent-ink: #ff7d95;
+		--accent-soft: #4a0d1a;
+		--accent-soft-text: #ffb8c6;
+		--accent-2-soft: #471d16;
+		--accent-2-soft-text: #ffc4b9;
+		--neutral-soft: #2d2b2b;
+		--neutral-soft-text: #d7d3d3;
 		--ok: #4ade80;
-		--warn: #fbbf24;
-		--bad: #f87171;
+		--ok-soft: #12301d;
+		--warn: #ff9784;
+		--bad: #ff7d95;
+		--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.24);
+		--shadow-md: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.34);
+		--shadow-lg:
+			0 6px 16px rgba(0, 0, 0, 0.34), 0 32px 72px rgba(0, 0, 0, 0.46);
 		color-scheme: dark;
 	}
 }
 :root[data-theme="dark"] {
-	--bg: #151412;
-	--surface: #1e1c19;
-	--text: #edeae4;
-	--muted: #a39d93;
-	--line: #34312c;
-	--accent: #fb923c;
-	--accent-text: #1a1208;
+	--bg: #141312;
+	--surface: #1f1e1c;
+	--raised: #262422;
+	--text: #f2f0ef;
+	--muted: color-mix(in srgb, #f2f0ef 55%, transparent);
+	--line: color-mix(in srgb, #f2f0ef 14%, transparent);
+	--hover: color-mix(in srgb, #f2f0ef 8%, transparent);
+	--accent-hover: #ff7d95;
+	--accent-fill: #ff2657;
+	--accent-fill-hover: #ff7d95;
+	--accent-text: #141312;
+	--accent-ink: #ff7d95;
+	--accent-soft: #4a0d1a;
+	--accent-soft-text: #ffb8c6;
+	--accent-2-soft: #471d16;
+	--accent-2-soft-text: #ffc4b9;
+	--neutral-soft: #2d2b2b;
+	--neutral-soft-text: #d7d3d3;
 	--ok: #4ade80;
-	--warn: #fbbf24;
-	--bad: #f87171;
+	--ok-soft: #12301d;
+	--warn: #ff9784;
+	--bad: #ff7d95;
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.24);
+	--shadow-md: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 28px rgba(0, 0, 0, 0.34);
+	--shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.34), 0 32px 72px rgba(0, 0, 0, 0.46);
 	color-scheme: dark;
 }

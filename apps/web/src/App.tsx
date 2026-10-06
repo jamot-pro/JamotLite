@@ -1,4 +1,14 @@
 import type { Me } from "@jamot/contracts";
+import {
+	Activity,
+	Bot,
+	ClipboardCheck,
+	Contact,
+	LayoutGrid,
+	Network,
+	Settings as SettingsIcon,
+	Users,
+} from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api, SignedOut } from "./api.js";
 import { Agents } from "./pages/Agents.js";
@@ -12,23 +22,29 @@ import { Settings } from "./pages/Settings.js";
 import { Stewards } from "./pages/Stewards.js";
 import {
 	Banner,
-	Brand,
 	Center,
 	NavLink,
 	PageLink,
 	Shell,
 	SignOut,
+	ThemeSwitch,
 } from "./ui/index.js";
 
+// The sections of the rail, each with its icon (lucide, as in J-Nesys).
 const PAGES = [
-	{ path: "/", label: "Overview", Page: OverviewPage },
-	{ path: "/map", label: "Company map", Page: CompanyMap },
-	{ path: "/stewards", label: "Stewards", Page: Stewards },
-	{ path: "/agents", label: "Agents", Page: Agents },
-	{ path: "/people", label: "People", Page: People },
-	{ path: "/approvals", label: "Approvals", Page: Approvals },
-	{ path: "/runs", label: "Agent runs", Page: Runs },
-	{ path: "/settings", label: "Settings", Page: Settings },
+	{ path: "/", label: "Overview", Icon: LayoutGrid, Page: OverviewPage },
+	{ path: "/map", label: "Company map", Icon: Network, Page: CompanyMap },
+	{ path: "/stewards", label: "Stewards", Icon: Users, Page: Stewards },
+	{ path: "/agents", label: "Agents", Icon: Bot, Page: Agents },
+	{ path: "/people", label: "People", Icon: Contact, Page: People },
+	{
+		path: "/approvals",
+		label: "Approvals",
+		Icon: ClipboardCheck,
+		Page: Approvals,
+	},
+	{ path: "/runs", label: "Agent runs", Icon: Activity, Page: Runs },
+	{ path: "/settings", label: "Settings", Icon: SettingsIcon, Page: Settings },
 ] as const;
 
 // Every component in every state, for building and restyling the console.
@@ -89,14 +105,21 @@ export function App() {
 	const { Page } = current;
 	return (
 		<Shell
-			nav={
+			title={current.label}
+			nav={PAGES.map((p) => (
+				<NavLink
+					key={p.path}
+					to={p.path}
+					active={p === current}
+					go={go}
+					icon={<p.Icon />}
+				>
+					{p.label}
+				</NavLink>
+			))}
+			foot={
 				<>
-					<Brand>💓 Jamot</Brand>
-					{PAGES.map((p) => (
-						<NavLink key={p.path} to={p.path} active={p === current} go={go}>
-							{p.label}
-						</NavLink>
-					))}
+					<ThemeSwitch />
 					<SignOut
 						onClick={async () => {
 							await api("/logout", { method: "POST", body: {} });
