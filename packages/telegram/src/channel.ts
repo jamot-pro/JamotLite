@@ -1,14 +1,18 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	acceptInvite,
+	type Candidate,
+	decideInvite,
 	isRetired,
 	type Notifier,
 	OWNER_LAST_SEEN,
 	type OwnerAction,
+	onboardingBrief,
 	receiveMessage,
 	recordSent,
 	SUCCESSION,
 } from "@jamot/core";
-import type { CompanyStore } from "@jamot/ports";
+import type { CompanyPorts, CompanyStore } from "@jamot/ports";
 import { type Bot, GrammyError, InlineKeyboard } from "grammy";
 
 /**
@@ -61,6 +65,18 @@ export interface TelegramChannel extends Notifier {
 	members(): Promise<Record<string, TelegramOwner>>;
 	/** The stewards' group the bot posts to (D49), if one is connected. */
 	group(): Promise<TelegramGroup | null>;
+	/**
+	 * The founder's yes or no to someone who used an invitation (D52): on a
+	 * yes they join owning the role, are linked here and get their welcome.
+	 * Returns what to tell the founder.
+	 */
+	decideInvite(
+		inviteId: string,
+		approved: boolean,
+		by: string,
+	): Promise<string>;
+	/** The bot's @username once connected, for t.me links. */
+	botName(): string | null;
 }
 
 export interface TelegramGroup {
@@ -78,6 +94,9 @@ export const MEMBERS_SETTING = "telegram.members";
 export const GROUP_SETTING = "telegram.group";
 const MEMBER_PAIRING = "telegram.pairing.members";
 type Pending = { codeHash: string; expiresAt: string };
+/** Codes that didn't work, per person, before they must wait (D52). */
+const MAX_FAILED_CODES = 5;
+const FAILED_CODES_WINDOW_MS = 60 * 60 * 1000;
 
 /** Unambiguous characters only: people type this. */
 function newCode(): string {
@@ -92,6 +111,18 @@ export function createTelegramChannel(
 	const { store } = deps;
 	const log = deps.log ?? ((m) => console.log(m));
 	let stopped = false;
+	const failedCodes = new Map<string, { count: number; since: number }>();
+	const tooManyCodes = (userId: string) => {
+		const f = failedCodes.get(userId);
+		if (!f || Date.now() - f.since > FAILED_CODES_WINDOW_MS) return false;
+		return f.count >= MAX_FAILED_CODES;
+	};
+	const codeFailed = (userId: string) => {
+		const f = failedCodes.get(userId);
+		if (!f || Date.now() - f.since > FAILED_CODES_WINDOW_MS)
+			failedCodes.set(userId, { count: 1, since: Date.now() });
+		else f.count++;
+	};
 	const holder = (role: Role) =>
 		store.settings.get<TelegramOwner>(holderKey(role));
 
@@ -165,8 +196,19 @@ export function createTelegramChannel(
 			name: displayName,
 		};
 
-		if (text.startsWith("/start ")) {
-			const code = text.slice(7).trim();
+		const coded = /^\/(start|join)\s+(\S+)/.exec(text);
+		if (coded) {
+			const code = coded[2] as string;
+			if (tooManyCodes(who.userId)) {
+				await ctx.reply(
+					"Too many codes that didn't work. Try again in an hour.",
+				);
+				return;
+			}
+			if (coded[1] === "join") {
+				if (!(await join(code, who, ctx.from.username))) codeFailed(who.userId);
+				return;
+			}
 			for (const role of ["owner", "successor"] as const) {
 				if (await pair(role, code, who)) {
 					const company = await store.graph.getCompany();
@@ -188,6 +230,9 @@ export function createTelegramChannel(
 				);
 				return;
 			}
+			// A t.me/<bot>?start=<code> link carries an invitation code too.
+			if (await join(code, who, ctx.from.username, true)) return;
+			codeFailed(who.userId);
 			// A code that matched nothing is a pairing attempt, not a message
 			// for the agents: say so, instead of answering in silence.
 			await ctx.reply(
@@ -219,6 +264,24 @@ export function createTelegramChannel(
 			});
 		}
 		await seenOwner(person.userId);
+
+		const invite = /^invite:(approve|decline):(\w+)$/.exec(data);
+		if (invite) {
+			await ctx.answerCallbackQuery();
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => undefined);
+			await ctx.reply(
+				await decide(
+					invite[2] as string,
+					invite[1] === "approve",
+					person.name,
+				).catch((err: unknown) =>
+					err instanceof Error ? err.message : String(err),
+				),
+			);
+			return;
+		}
 
 		const decision = /^(approve|decline):(.+)$/.exec(data);
 		if (decision) {
@@ -304,6 +367,126 @@ export function createTelegramChannel(
 		return true;
 	}
 
+	/**
+	 * Someone sent an invitation code (D52). Returns false when the code isn't
+	 * an invitation; `quiet` leaves the "didn't work" reply to the caller.
+	 */
+	async function join(
+		code: string,
+		who: { userId: string; chatId: string; name: string },
+		username: string | undefined,
+		quiet = false,
+	): Promise<boolean> {
+		const company = (await store.graph.getCompany())?.name ?? "the company";
+		const members = Object.values(
+			(await store.settings.get<Record<string, TelegramOwner>>(
+				MEMBERS_SETTING,
+			)) ?? {},
+		);
+		const known = [
+			await holder("owner"),
+			await holder("successor"),
+			...members,
+		];
+		if (known.some((p) => p?.userId === who.userId)) {
+			if (quiet) return false;
+			await replyTo(
+				who.chatId,
+				`You're already part of ${company}. Ask the founder to give you the role in the console (Stewards).`,
+			);
+			return true;
+		}
+		const candidate: Candidate = { ...who, ...(username ? { username } : {}) };
+		const accepted = await acceptInvite(store, code, candidate);
+		if (!accepted) {
+			if (!quiet)
+				await replyTo(
+					who.chatId,
+					"That invitation didn't work — it may have expired or been used (an invitation works once, for 24 hours). Ask the founder for a new one.",
+				);
+			return false;
+		}
+		await replyTo(who.chatId, accepted.reply);
+		const role = (await store.graph.listNodes()).find(
+			(n) => n.key === accepted.invite.responsibilityKey,
+		);
+		const handle = username ? ` (@${username})` : "";
+		for (const p of await deciders())
+			await send(
+				p,
+				`${who.name}${handle} used your invitation and wants to take ${role?.name ?? "the role"}. Let them in?`,
+				[
+					{
+						label: "✅ Yes, welcome them",
+						action: `invite:approve:${accepted.invite.id}`,
+					},
+					{ label: "❌ No", action: `invite:decline:${accepted.invite.id}` },
+				],
+			);
+		return true;
+	}
+
+	const replyTo = (chatId: string, text: string) =>
+		bot.api.sendMessage(chatId, text).then(() => undefined);
+
+	/** Carries out the founder's yes or no on an invitation; tells the candidate. */
+	async function decide(
+		inviteId: string,
+		approved: boolean,
+		by: string,
+	): Promise<string> {
+		const { message, invite } = await decideInvite(
+			store,
+			inviteId,
+			approved,
+			by,
+			(tx, nodeKey, who) => linkMember(tx, nodeKey, who.name, who),
+		);
+		const chatId = invite.candidate?.chatId;
+		if (chatId) {
+			const text =
+				approved && invite.nodeKey
+					? await onboardingBrief(store, invite.nodeKey)
+					: "Thank you for your interest. The founder has decided not to go ahead this time.";
+			await replyTo(chatId, text).catch((err: unknown) =>
+				log(
+					`[telegram] couldn't reach ${invite.candidate?.name}: ${err instanceof Error ? err.message : err}`,
+				),
+			);
+		}
+		return message;
+	}
+
+	/** Links a Telegram account to a person of the map, inside a transaction. */
+	async function linkMember(
+		tx: CompanyPorts,
+		nodeKey: string,
+		name: string,
+		who: { userId: string; chatId: string },
+	): Promise<void> {
+		let person = await tx.people.findByIdentity("telegram", who.userId);
+		if (!person) {
+			person = await tx.people.create({ displayName: name });
+			await tx.people.addIdentity(person.id, {
+				provider: "telegram",
+				value: who.userId,
+				verified: true,
+			});
+		}
+		const members =
+			(await tx.settings.get<Record<string, TelegramOwner>>(MEMBERS_SETTING)) ??
+			{};
+		await tx.settings.set(MEMBERS_SETTING, {
+			...members,
+			[nodeKey]: {
+				userId: who.userId,
+				chatId: who.chatId,
+				name,
+				personId: person.id,
+			},
+		});
+	}
+
 	/** Links a steward's Telegram to their node; returns their name, or null. */
 	async function pairMember(
 		code: string,
@@ -323,23 +506,7 @@ export function createTelegramChannel(
 		);
 		if (!node) return null;
 		await store.transaction(async (tx) => {
-			let person = await tx.people.findByIdentity("telegram", who.userId);
-			if (!person) {
-				person = await tx.people.create({ displayName: node.name });
-				await tx.people.addIdentity(person.id, {
-					provider: "telegram",
-					value: who.userId,
-					verified: true,
-				});
-			}
-			const members =
-				(await tx.settings.get<Record<string, TelegramOwner>>(
-					MEMBERS_SETTING,
-				)) ?? {};
-			await tx.settings.set(MEMBERS_SETTING, {
-				...members,
-				[nodeKey]: { ...who, name: node.name, personId: person.id },
-			});
+			await linkMember(tx, nodeKey, node.name, who);
 			const left =
 				(await tx.settings.get<Record<string, Pending>>(MEMBER_PAIRING)) ?? {};
 			delete left[nodeKey]; // one use only
@@ -572,6 +739,14 @@ export function createTelegramChannel(
 		},
 
 		group: () => store.settings.get<TelegramGroup>(GROUP_SETTING),
+		decideInvite: decide,
+		botName() {
+			try {
+				return bot.botInfo.username;
+			} catch {
+				return null; // not connected yet
+			}
+		},
 		owner: () => holder("owner"),
 		successor: () => holder("successor"),
 		members: async () =>

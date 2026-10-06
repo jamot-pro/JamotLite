@@ -13,6 +13,7 @@ import type {
 	PairingCode,
 	PersonProfile,
 	PersonRow,
+	RoleInviteCode,
 	RunsView,
 	SettingsView,
 	StewardInput,
@@ -27,6 +28,7 @@ import {
 	agentsView,
 	type Connection,
 	computeVitals,
+	createRoleInvite,
 	exportCompanyFile,
 	handleOwnerAction,
 	isRetired,
@@ -360,6 +362,42 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 				try {
 					return {
 						message: await retireMember(store, "human", req.params.key, by),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		// Open roles (D52): an invitation code for a role nobody owns, and the
+		// owner's yes or no to whoever used it. Joining itself is on Telegram.
+		owner.post<{ Params: { key: string } }>(
+			"/api/roles/:key/invite",
+			async (req, reply): Promise<RoleInviteCode | FastifyReply> => {
+				try {
+					const { code, expiresAt } = await createRoleInvite(
+						store,
+						req.params.key,
+						by,
+					);
+					return { code, expiresAt, bot: deps.telegram.botName() };
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Params: { id: string; answer: string } }>(
+			"/api/invites/:id/:answer",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				const { answer } = req.params;
+				if (answer !== "approve" && answer !== "decline")
+					return reply.code(404).send({ error: "Not found." });
+				try {
+					return {
+						message: await deps.telegram.decideInvite(
+							req.params.id,
+							answer === "approve",
+							by,
+						),
 					};
 				} catch (err) {
 					return refused(reply, err);
