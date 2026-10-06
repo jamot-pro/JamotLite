@@ -109,6 +109,9 @@ export interface Runtime {
 /** Setting and secret names the runtime reads. */
 export const MODEL_SETTING = "model";
 export const MODEL_KEY_SECRET = "model.apiKey";
+/** The backup model, used when the first is down or rate-limited (D57). */
+export const FALLBACK_MODEL_SETTING = "model.fallback";
+export const FALLBACK_KEY_SECRET = "model.fallback.apiKey";
 export const BOT_TOKEN_SECRET = "telegram.botToken";
 export const MCP_TOKEN_SECRET = "mcp.token";
 export const VERSION = "0.1.0";
@@ -158,6 +161,22 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 			return connectModel({ ...choice, ...(apiKey ? { apiKey } : {}) });
 		});
 
+	const fallbackModel = async (): Promise<ModelAccess | null> => {
+		const choice = await store.settings.get<Omit<ModelChoice, "apiKey">>(
+			FALLBACK_MODEL_SETTING,
+		);
+		if (!choice) return null;
+		const apiKey = await secrets.get(FALLBACK_KEY_SECRET);
+		try {
+			return connectModel({ ...choice, ...(apiKey ? { apiKey } : {}) });
+		} catch (err) {
+			log(
+				`[runtime] the backup model can't be used: ${err instanceof Error ? err.message : err}`,
+			);
+			return null;
+		}
+	};
+
 	let bot = opts.bot;
 	if (!bot) {
 		const token = await secrets.get(BOT_TOKEN_SECRET);
@@ -185,6 +204,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 		store,
 		brain,
 		model,
+		fallbackModel,
 		extraTools: async (agentKey) => [
 			...(opts.extraTools?.(agentKey) ?? []),
 			...(await mcpToolsForAgent(store, secrets, agentKey, { log })),
@@ -211,6 +231,9 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 				await replyToMessage(
 					replyDeps,
 					job.payload as { conversationId: string; messageId: string },
+					// On the last attempt a model that's still down is recorded
+					// as a failed answer (the Overview counts it).
+					{ lastTry: job.attempts >= job.maxAttempts },
 				);
 			},
 			[HEARTBEAT_JOB]: async (job) => {

@@ -12,6 +12,8 @@ export {
 export { memoryTools } from "./agents/memory-tools.js";
 export {
 	decideApproval,
+	isTransientModelError,
+	ModelUnavailable,
 	type ReplyDeps,
 	replyToMessage,
 	sessionIdFor,

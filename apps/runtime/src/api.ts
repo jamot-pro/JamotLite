@@ -592,6 +592,10 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 			async (): Promise<SettingsView> => ({
 				model: await store.settings.get("model"),
 				modelKeySet: (await deps.secrets.list()).includes("model.apiKey"),
+				fallback: await store.settings.get("model.fallback"),
+				fallbackKeySet: (await deps.secrets.list()).includes(
+					"model.fallback.apiKey",
+				),
 				owner: await deps.telegram.owner(),
 				successor: await deps.telegram.successor(),
 				group: await deps.telegram
@@ -628,6 +632,40 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 				...(baseUrl ? { baseUrl } : {}),
 			});
 			if (apiKey) await deps.secrets.set("model.apiKey", apiKey);
+			return { ok: true };
+		});
+
+		// The backup model (D57): answers when the first is down or rate-limited.
+		owner.put<{
+			Body: {
+				provider?: string;
+				modelId?: string;
+				apiKey?: string;
+				baseUrl?: string;
+			};
+		}>("/api/settings/model/fallback", async (req, reply) => {
+			const { provider, modelId, apiKey, baseUrl } = req.body ?? {};
+			if (
+				!provider ||
+				!(MODEL_PROVIDERS as readonly string[]).includes(provider) ||
+				typeof modelId !== "string" ||
+				!modelId.trim()
+			)
+				return reply.code(400).send({
+					error: `choose a provider (${MODEL_PROVIDERS.join(", ")}) and a model`,
+				});
+			await store.settings.set("model.fallback", {
+				provider,
+				modelId: modelId.trim(),
+				...(typeof baseUrl === "string" && baseUrl ? { baseUrl } : {}),
+			});
+			if (typeof apiKey === "string" && apiKey)
+				await deps.secrets.set("model.fallback.apiKey", apiKey);
+			return { ok: true };
+		});
+		owner.delete("/api/settings/model/fallback", async () => {
+			await store.settings.delete("model.fallback");
+			await deps.secrets.delete("model.fallback.apiKey");
 			return { ok: true };
 		});
 

@@ -13,7 +13,11 @@ import { openCompanyStore } from "@jamot/sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { receiveMessage } from "../channels/intake.js";
 import { importCompanyFile } from "../company/import.js";
-import { replyToMessage } from "./reply.js";
+import {
+	isTransientModelError,
+	ModelUnavailable,
+	replyToMessage,
+} from "./reply.js";
 import { pickChannelAgent } from "./spec.js";
 
 const restaurant = () => {
@@ -211,5 +215,74 @@ describe("an agent replies to a customer", () => {
 		expect((await store.events.listUndelivered()).map((e) => e.type)).toContain(
 			"agent.reply_failed",
 		);
+	});
+
+	describe("when the model is down or busy (D57)", () => {
+		const busy = () =>
+			fakeModel(() =>
+				fauxAssistantMessage([], {
+					stopReason: "error",
+					errorMessage: "429 Too Many Requests: rate limit exceeded",
+				}),
+			);
+
+		it("knows a passing outage from a real refusal", () => {
+			for (const m of [
+				"429 rate limit",
+				"overloaded_error",
+				"503 Service Unavailable",
+				"fetch failed",
+				"Request timed out",
+			])
+				expect(isTransientModelError(m)).toBe(true);
+			for (const m of [
+				"401 invalid x-api-key",
+				"provider down",
+				"content refused",
+				undefined,
+			])
+				expect(isTransientModelError(m)).toBe(false);
+		});
+
+		it("answers with the backup model instead", async () => {
+			const backup = fakeModel(() =>
+				fauxAssistantMessage([fauxText("We open at 7!")]),
+			);
+			const intake = await customerWrites("When do you open?");
+			const outcome = await replyToMessage(
+				{
+					store,
+					brain: createPiBrain(store),
+					model: async () => busy(),
+					fallbackModel: async () => backup,
+				},
+				intake,
+			);
+			expect(outcome?.status).toBe("done");
+			expect(
+				(await store.conversations.listPending()).map((m) => m.text),
+			).toEqual(["We open at 7!"]);
+			expect(
+				(await store.events.listUndelivered()).map((e) => e.type),
+			).toContain("model.fallback_used");
+		});
+
+		it("tries again later when there's no backup, and records it on the last try", async () => {
+			const intake = await customerWrites("Hello?");
+			const deps = {
+				store,
+				brain: createPiBrain(store),
+				model: async () => busy(),
+			};
+			await expect(replyToMessage(deps, intake)).rejects.toBeInstanceOf(
+				ModelUnavailable,
+			);
+			const types = async () =>
+				(await store.events.listUndelivered()).map((e) => e.type);
+			expect(await types()).not.toContain("agent.reply_failed");
+			const last = await replyToMessage(deps, intake, { lastTry: true });
+			expect(last?.status).toBe("error");
+			expect(await types()).toContain("agent.reply_failed");
+		});
 	});
 });

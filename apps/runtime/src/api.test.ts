@@ -630,3 +630,52 @@ describe("the contribution record (D54)", () => {
 		).toBe(404);
 	});
 });
+
+describe("the backup model (D57)", () => {
+	it("is set and removed by the owner, and its key never comes back", async () => {
+		expect(
+			(
+				await fetch(`${base}/api/settings/model/fallback`, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: "{}",
+				})
+			).status,
+		).toBe(401);
+		const cookie = await signIn();
+		expect(
+			(
+				await send(
+					"PUT",
+					"/api/settings/model/fallback",
+					{ provider: "nope", modelId: "x" },
+					cookie,
+				)
+			).status,
+		).toBe(400);
+		await send(
+			"PUT",
+			"/api/settings/model/fallback",
+			{
+				provider: "openrouter",
+				modelId: "openai/gpt-5-mini",
+				apiKey: "sk-test-fallback",
+			},
+			cookie,
+		);
+		const view = await body(await get("/api/settings", cookie));
+		expect(view.fallback).toEqual({
+			provider: "openrouter",
+			modelId: "openai/gpt-5-mini",
+		});
+		expect(view.fallbackKeySet).toBe(true);
+		expect(JSON.stringify(view)).not.toContain("sk-test-fallback");
+		// The console sends a DELETE with no body.
+		await fetch(`${base}/api/settings/model/fallback`, {
+			method: "DELETE",
+			headers: { cookie },
+		});
+		const after = await body(await get("/api/settings", cookie));
+		expect(after).toMatchObject({ fallback: null, fallbackKeySet: false });
+	});
+});

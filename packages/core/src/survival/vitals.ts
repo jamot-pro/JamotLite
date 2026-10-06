@@ -39,6 +39,8 @@ export interface Vitals {
 	runtime: {
 		lastBackupAt: string | null;
 		diskFreeBytes: number | null;
+		/** Telegram stopped receiving messages (D57): when, and why. */
+		telegramStopped: { at: string; reason: string } | null;
 	};
 }
 
@@ -189,6 +191,10 @@ export async function computeVitals(
 			lastBackupAt:
 				(await store.settings.get<string>("runtime.lastBackupAt")) ?? null,
 			diskFreeBytes,
+			telegramStopped:
+				(await store.settings.get<{ at: string; reason: string }>(
+					"telegram.stopped",
+				)) ?? null,
 		},
 	};
 }

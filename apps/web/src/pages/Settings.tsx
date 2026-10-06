@@ -6,6 +6,7 @@ import {
 	Button,
 	ButtonLink,
 	Card,
+	ErrorText,
 	Field,
 	Form,
 	Input,
@@ -106,6 +107,14 @@ export function Settings() {
 				</Form>
 			</Card>
 
+			<FallbackCard
+				settings={s}
+				onSaved={(m) => {
+					setNotice(m);
+					load();
+				}}
+			/>
+
 			<Card title="Telegram">
 				<List>
 					<Item>
@@ -196,5 +205,101 @@ export function Settings() {
 				</ButtonLink>
 			</Card>
 		</Page>
+	);
+}
+
+/**
+ * The backup model (D57): when the first is down or rate-limited, agents
+ * answer with this one instead of leaving a customer waiting.
+ */
+function FallbackCard({
+	settings: s,
+	onSaved,
+}: {
+	settings: SettingsView;
+	onSaved: (message: string) => void;
+}) {
+	const [provider, setProvider] = useState(
+		s.fallback?.provider ?? "openrouter",
+	);
+	const [modelId, setModelId] = useState(s.fallback?.modelId ?? "");
+	const [apiKey, setApiKey] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	return (
+		<Card title="Backup model">
+			<Muted small block>
+				{s.fallback
+					? `When your model is down or busy, agents answer with ${s.fallback.provider}/${s.fallback.modelId}.`
+					: "None yet. When your model is down or busy, customers wait until it's back. A model from another provider keeps them answered."}
+			</Muted>
+			<Form
+				onSubmit={async () => {
+					setError(null);
+					try {
+						await api("/settings/model/fallback", {
+							method: "PUT",
+							body: { provider, modelId, ...(apiKey ? { apiKey } : {}) },
+						});
+						setApiKey("");
+						onSaved("Backup model saved.");
+					} catch (err) {
+						setError(err instanceof Error ? err.message : String(err));
+					}
+				}}
+			>
+				<Field label="Provider">
+					<Select
+						value={provider}
+						onChange={(e) => setProvider(e.target.value)}
+					>
+						<option value="openrouter">OpenRouter</option>
+						<option value="anthropic">Anthropic</option>
+						<option value="openai">OpenAI</option>
+						<option value="ollama">Ollama (on this machine)</option>
+					</Select>
+				</Field>
+				<Field label="Model">
+					<Input
+						value={modelId}
+						onChange={(e) => setModelId(e.target.value)}
+						placeholder="openai/gpt-5-mini"
+					/>
+				</Field>
+				{provider !== "ollama" && (
+					<Field
+						label="API key"
+						hint={
+							s.fallbackKeySet
+								? "(one is stored — leave empty to keep it)"
+								: undefined
+						}
+					>
+						<Input
+							type="password"
+							value={apiKey}
+							onChange={(e) => setApiKey(e.target.value)}
+							autoComplete="off"
+						/>
+					</Field>
+				)}
+				{error && <ErrorText>{error}</ErrorText>}
+				<Actions>
+					<Button type="submit" disabled={!modelId.trim()}>
+						Save
+					</Button>
+					{s.fallback && (
+						<Button
+							variant="secondary"
+							onClick={async () => {
+								await api("/settings/model/fallback", { method: "DELETE" });
+								onSaved("Backup model removed.");
+							}}
+						>
+							Remove
+						</Button>
+					)}
+				</Actions>
+			</Form>
+		</Card>
 	);
 }
