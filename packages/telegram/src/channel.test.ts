@@ -19,6 +19,9 @@ let refuse: Map<string, { error_code: number; description: string }>;
 let decisions: [string, boolean, string][];
 let acts: [string, string][];
 let channel: TelegramChannel;
+/** What the welcome opens with (D61); null: no welcome. */
+let opening: string | null;
+let welcomed: { nodeKey: string; personId: string; name: string }[];
 
 beforeEach(() => {
 	store = openCompanyStore(":memory:");
@@ -26,6 +29,8 @@ beforeEach(() => {
 	refuse = new Map();
 	decisions = [];
 	acts = [];
+	opening = null;
+	welcomed = [];
 	let nextId = 500;
 	bot = new Bot("123:TEST", {
 		botInfo: {
@@ -62,6 +67,10 @@ beforeEach(() => {
 		act: async (action, by) => {
 			acts.push([action, by]);
 			return `did ${action}`;
+		},
+		welcome: async (who) => {
+			welcomed.push(who);
+			return opening;
 		},
 		log: () => {},
 	});
@@ -523,6 +532,25 @@ describe("Telegram", () => {
 		expect(
 			calls.find((c) => c.method === "answerCallbackQuery")?.payload,
 		).toMatchObject({ text: "This isn't for you." });
+	});
+
+	it("starts a steward's welcome once they're linked (D61)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		await store.graph.addNode({ key: "nadya", kind: "human", name: "Nadya" });
+		opening = "Welcome to the company, Nadya! What are you best at?";
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+		expect(sent().map((m) => m.text)).toEqual([
+			expect.stringMatching(/^You're now linked to/),
+			"Welcome to the company, Nadya! What are you best at?",
+		]);
+		expect(welcomed).toEqual([
+			{
+				nodeKey: "nadya",
+				personId: (await store.people.findByIdentity("telegram", "300"))?.id,
+				name: "Nadya",
+			},
+		]);
 	});
 
 	it("doesn't pair anyone with a wrong code", async () => {

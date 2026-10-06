@@ -339,6 +339,16 @@ founder reviews the draft and can go back to the conversation to change
 anything. Without a model the setup asks its questions one by one, as
 before.
 
+For someone who joins, the `newcomer` interview starts as soon as they are
+linked on Telegram (an invitation the founder approved, or a pairing code):
+Jamot asks what they're good at, what they want to do, how much time they
+have, how they like to work and what would make it worth it. While it's
+open, their messages go to the interview instead of the agents; when it's
+complete, each fact becomes their memory (kind `profile`, so the agents
+know who they work with) and the founder gets a short summary. A company
+changes it by putting its own `interviews/newcomer.yaml` (and skills) in
+its folder; it applies from the next welcome, without a restart.
+
 ## 9. Growing up, out and across
 
 - **Up** — one company gets big: SQLite → Postgres, in-process jobs →

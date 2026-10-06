@@ -45,6 +45,15 @@ export interface TelegramDeps {
 	decide(approvalId: string, approved: boolean, by: string): Promise<void>;
 	/** Carries out a one-tap fix a heartbeat proposed; returns what to tell them. */
 	act?(action: string, by: string): Promise<string>;
+	/**
+	 * Starts someone's welcome conversation once they're linked (D61);
+	 * returns its first question, or null when there's none.
+	 */
+	welcome?(who: {
+		nodeKey: string;
+		personId: string;
+		name: string;
+	}): Promise<string | null>;
 	log?: (message: string) => void;
 }
 
@@ -260,6 +269,8 @@ export function createTelegramChannel(
 				await ctx.reply(
 					`You're now linked to ${company?.name ?? "the company"} as ${member}. Your team's heartbeats will reach you here.`,
 				);
+				const key = await memberKey(who.userId);
+				if (key) await welcome(key, who.chatId);
 				return;
 			}
 			// A t.me/<bot>?start=<code> link carries an invitation code too.
@@ -679,8 +690,30 @@ export function createTelegramChannel(
 					`[telegram] couldn't reach ${invite.candidate?.name}: ${err instanceof Error ? err.message : err}`,
 				),
 			);
+			if (approved && invite.nodeKey) await welcome(invite.nodeKey, chatId);
 		}
 		return message;
+	}
+
+	/** Starts a newly linked person's welcome conversation, if the company has one. */
+	async function welcome(nodeKey: string, chatId: string): Promise<void> {
+		if (!deps.welcome) return;
+		const member = (
+			await store.settings.get<Record<string, TelegramOwner>>(MEMBERS_SETTING)
+		)?.[nodeKey];
+		if (!member) return;
+		try {
+			const opening = await deps.welcome({
+				nodeKey,
+				personId: member.personId,
+				name: member.name,
+			});
+			if (opening) await replyTo(chatId, opening);
+		} catch (err) {
+			log(
+				`[telegram] couldn't start ${member.name}'s welcome: ${err instanceof Error ? err.message : err}`,
+			);
+		}
 	}
 
 	/** Links a Telegram account to a person of the map, inside a transaction. */
