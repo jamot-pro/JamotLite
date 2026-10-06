@@ -23,7 +23,7 @@ S0  merge v0.1 + onboarding (#1, #2) ──────────────�
  │                               ├─ S7 fleet & isolation (#12)     │
  ├─ S5 web chat ─────────────────┴─ S6 jamot demo                  │
  ├─ S8 bring your own agent                                        │
- └─ S9 founder's business, 30 days  (starts after S2 + S4) ────────┤
+ └─ S9 founder's business, 90 days  (starts after S2 + S4) ────────┤
                                                    S10 release v0.2┘
 ```
 
@@ -42,7 +42,7 @@ and S4 are merged and runs for 30 days alongside everything else.
 | S6 `jamot demo` | Templates and first companies | M | default | S3, S5 |
 | S7 Two companies, one machine | Fleet and isolation | M | **strongest** | S3, S4 |
 | S8 Bring your own agent | Runtime and brain | M | **strongest** | S0 |
-| S9 The founder's business, 30 days | Templates and first companies | M, mostly not code | — | S2, S4 |
+| S9 The founder's business, 90 days | Templates and first companies | M, mostly not code | — | S2, S4 |
 | S10 Release v0.2 | Quality and releases | S | default | all |
 
 *Strongest* = the step touches a public endpoint or authentication; use the
@@ -208,7 +208,7 @@ refused; `propose` creates an approval and nothing else.
 **Exit.** "Claude, as our Ops agent" shows up in the company with its own name
 and history.
 
-## S9 · The founder's business, 30 days
+## S9 · The founder's business, 90 days
 
 **Status: running since 2026-10-03 — Jamot runs as a Jamot company, until
 2026-11-02. Journal: [S9-JOURNAL.md](S9-JOURNAL.md).**
@@ -222,7 +222,7 @@ on it (brief §4). It runs on charter-aware Lite (S2) with backups on (S4).
   web chat on once S5 lands.
 - Every Friday: what broke becomes an issue labelled `from: real company`; a
   short note in the weekly update.
-**Exit.** 30 days of real conversations and heartbeats; the issues filed; a
+**Exit.** 90 days of real conversations and heartbeats; the issues filed; a
 `help` ledger line for each person who helped; brief §4 re-scored.
 
 ## S10 · Release v0.2
@@ -289,3 +289,4 @@ one pull request is split before it's started, not halfway.
 | 2026-10-03 | Plan written | From PRODUCT-BRIEF.md §6 |
 | 2026-10-03 | S3–S6, S8 opened as GitHub #14–#18; S2, S3 (with #9) and S7 labelled `v0.2` | So stewards can pick steps up on GitHub |
 | 2026-10-05 | v0.3 (C1–C5) added after S10 | The founder chose option C, the founder's operating system (VISION.md, D51) |
+| 2026-10-06 | S9 restarted, 90 days from the setup gate | The founder reset the live company so the test starts the way every founder starts (D55) |

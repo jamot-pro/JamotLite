@@ -1,13 +1,18 @@
-# S9 — Jamot runs on Jamot, 30 days
+# S9 — a real company on Jamot, 90 days
 
 [BLUEPRINT S9](BLUEPRINT.md#s9--the-founders-business-30-days): a real business
 runs on Jamot Lite for 30 days, and what breaks becomes work. The business is
 **Jamot itself** — `jamot.company.yaml`, the company that builds Jamot.
 
-- **Started:** 2026-10-03, on Render ([deploy recipe](recipes/deploy-on-render.md)),
-  Telegram bot `@MissionJamot_bot`, daily backups on.
-- **Ends:** 2026-11-02.
-- **Exit:** 30 days of real conversations and heartbeats; the issues filed; a
+- **Restarted 2026-10-06** (the founder's decision): the live service was
+  reset so the company is set up the way every new founder will set theirs
+  up, through the setup gate (RUNTIME D55). The first run (from 2026-10-03,
+  `jamot.company.yaml` as a template) is archived on the disk, not deleted.
+- **Starts:** the day the founder presses *Start my company* in the gate, on
+  Render ([deploy recipe](recipes/deploy-on-render.md)), Telegram bot
+  `@MissionJamot_bot`. Write the date here: ____
+- **Ends:** 90 days later. Write the date here: ____
+- **Exit:** 90 days of real conversations and heartbeats; the issues filed; a
   `help` ledger line for each person who helped; [PRODUCT-BRIEF §4](PRODUCT-BRIEF.md)
   re-scored.
 
