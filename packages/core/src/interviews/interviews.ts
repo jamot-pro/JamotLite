@@ -71,6 +71,11 @@ export interface InterviewDeps {
 	/** One question to the model; its text answer. */
 	ask: (input: { system: string; prompt: string }) => Promise<string>;
 	now?: () => Date;
+	/**
+	 * Told why a turn fell back to a plain question: the model's error, or
+	 * the shape of a bad answer — never what the person said.
+	 */
+	log?: (message: string) => void;
 }
 
 export class InterviewError extends Error {}
@@ -330,10 +335,23 @@ async function modelTurn(
 						? prompt
 						: `${prompt}\n\nYour last answer wasn't the JSON object asked for. Reply with the JSON object only.`,
 			});
-			const parsed = Reply.safeParse(jsonIn(text));
+			const json = jsonIn(text);
+			const parsed = Reply.safeParse(json);
 			if (parsed.success) return parsed.data;
-		} catch {
-			// the model is down or refused: plain questions carry on
+			deps.log?.(
+				json === null
+					? `[interview] ${interview.definition.id}: the model's answer wasn't JSON (${text.length} characters)`
+					: `[interview] ${interview.definition.id}: the model's answer didn't fit: ${parsed.error.issues
+							.slice(0, 3)
+							.map((i) => `${i.path.join(".") || "(top)"} ${i.message}`)
+							.join("; ")}`,
+			);
+		} catch (err) {
+			// The model is down or refused: plain questions carry on, and the
+			// log says why.
+			deps.log?.(
+				`[interview] ${interview.definition.id}: the model failed: ${err instanceof Error ? err.message : err}`,
+			);
 			return null;
 		}
 	}

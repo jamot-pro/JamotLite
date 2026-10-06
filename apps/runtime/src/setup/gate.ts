@@ -268,7 +268,7 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			let turn: Awaited<ReturnType<typeof interviewTurn>>;
 			try {
 				turn = await interviewTurn(
-					{ ask: (input) => complete(model, input) },
+					{ ask: (input) => complete(model, input), log },
 					interview,
 					current,
 					text,

@@ -248,6 +248,7 @@ export async function createRuntime(opts: RuntimeOptions): Promise<Runtime> {
 					store,
 					notifier: telegram,
 					ask: async (input) => complete(await model(), input),
+					log,
 				},
 				newcomer,
 				person.id,

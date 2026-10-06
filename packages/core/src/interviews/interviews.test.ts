@@ -184,12 +184,17 @@ describe("interviews (D61)", () => {
 	it("carries on with plain questions when the model fails", async () => {
 		const c = charter();
 		const { deps } = scripted([new Error("503 overloaded")]);
+		const logged: string[] = [];
 		const { state, reply } = await interviewTurn(
-			deps,
+			{ ...deps, log: (m) => logged.push(m) },
 			c,
 			startInterview(c),
 			"A bakery",
 		);
+		// The log says why, never what the person said.
+		expect(logged).toEqual([
+			"[interview] charter: the model failed: 503 overloaded",
+		]);
 		expect(reply).toBe("The company's name? (A working name is fine.)");
 		expect(state.turns).toBe(1);
 		const { deps: garbled } = scripted(["no json here", "still none"]);
