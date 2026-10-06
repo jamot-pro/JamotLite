@@ -98,3 +98,4 @@ Each step is one pull request, in this order (BLUEPRINT, "v0.3").
 | C3 | Noticing a dropped role: last activity per person, a kind check-in, caretaker mode, back to open | done (#44, D53) |
 | C4 | The contribution record in the runtime: automatic and `/did` contributions, the founder's rewards, `/ledger`, and the experiment's numbers on a Contributions page | done (#45, D54) |
 | C5 | Tasks and the selector: `/task`, agents first, then the owner of the responsibility; Done and the founder's confirmation; a daily summary | done (#50, D58) |
+| C6 | Add-ons (RUNTIME §8c, D59): the add-on kit and loader, then the product catalog as the first add-on — products, orders that become tasks — and customers asking the company for work over MCP | planned |
