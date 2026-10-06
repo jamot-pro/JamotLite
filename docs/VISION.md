@@ -93,8 +93,8 @@ Each step is one pull request, in this order (BLUEPRINT, "v0.3").
 
 | Step | What | Status |
 |---|---|---|
-| C1 | This vision, the decision (D51) and the plan | this PR |
-| C2 | Open roles and invites over Telegram: `/join CODE`, the founder approves, the newcomer is paired and briefed | next |
-| C3 | Noticing a dropped role: last activity per person, a kind check-in, caretaker mode, back to open | |
-| C4 | The contribution record in the runtime: automatic and `/did` contributions, the founder's rewards, `/ledger`, and the experiment's numbers on the Overview | |
-| C5 | Tasks and the orchestrator: agents first, then the owner of the responsibility | after C4 |
+| C1 | This vision, the decision (D51) and the plan | done (#42) |
+| C2 | Open roles and invites over Telegram: `/join CODE`, the founder approves, the newcomer is paired and briefed | done (#43, D52) |
+| C3 | Noticing a dropped role: last activity per person, a kind check-in, caretaker mode, back to open | done (#44, D53) |
+| C4 | The contribution record in the runtime: automatic and `/did` contributions, the founder's rewards, `/ledger`, and the experiment's numbers on a Contributions page | done (#45, D54) |
+| C5 | Tasks and the orchestrator: agents first, then the owner of the responsibility | next |

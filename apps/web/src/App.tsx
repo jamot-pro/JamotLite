@@ -4,6 +4,7 @@ import {
 	Bot,
 	ClipboardCheck,
 	Contact,
+	HandHeart,
 	LayoutGrid,
 	Network,
 	Settings as SettingsIcon,
@@ -14,6 +15,7 @@ import { api, SignedOut } from "./api.js";
 import { Agents } from "./pages/Agents.js";
 import { Approvals } from "./pages/Approvals.js";
 import { CompanyMap } from "./pages/CompanyMap.js";
+import { Contributions } from "./pages/Contributions.js";
 import { Login } from "./pages/Login.js";
 import { OverviewPage } from "./pages/Overview.js";
 import { People } from "./pages/People.js";
@@ -36,6 +38,12 @@ const PAGES = [
 	{ path: "/map", label: "Company map", Icon: Network, Page: CompanyMap },
 	{ path: "/stewards", label: "Stewards", Icon: Users, Page: Stewards },
 	{ path: "/agents", label: "Agents", Icon: Bot, Page: Agents },
+	{
+		path: "/contributions",
+		label: "Contributions",
+		Icon: HandHeart,
+		Page: Contributions,
+	},
 	{ path: "/people", label: "People", Icon: Contact, Page: People },
 	{
 		path: "/approvals",

@@ -79,6 +79,14 @@ export {
 } from "./jobs/worker.js";
 export { assertSafeUrl } from "./net/ssrf.js";
 export {
+	CONTRIBUTION_LIMIT,
+	contributionsView,
+	decideContribution,
+	giveReward,
+	ledgerText,
+	recordContribution,
+} from "./people/contributions.js";
+export {
 	answerCheckin,
 	CHECKINS,
 	checkDroppedRoles,

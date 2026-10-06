@@ -418,6 +418,66 @@ describe("Telegram", () => {
 		expect(await store.graph.listEdges()).toHaveLength(0);
 	});
 
+	it("records /did for the founder to confirm, and shows /ledger (D54)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		await store.graph.addNode({ key: "nadya", kind: "human", name: "Nadya" });
+		await pairLucia();
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+
+		calls = [];
+		await bot.handleUpdate(text(nadya, "/did"));
+		expect(sent().at(-1)?.text).toMatch(/^Say what you did after \/did/);
+		calls = [];
+		await bot.handleUpdate(text(nadya, "/did Wrote the opening menu"));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "200",
+				text: "Nadya says they did: Wrote the opening menu\nConfirm it?",
+			},
+			{
+				chat_id: 300,
+				text: "Noted. The founder will confirm it: Wrote the opening menu",
+			},
+		]);
+		const yes = /did:yes:[\w-]+/.exec(
+			JSON.stringify(sent()[0]?.reply_markup),
+		)?.[0] as string;
+		// It's the record, not a message for the agents.
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		// Only the founder confirms.
+		calls = [];
+		await bot.handleUpdate(press(nadya, yes));
+		expect(
+			calls.find((c) => c.method === "answerCallbackQuery")?.payload,
+		).toMatchObject({
+			text: "Only the company's owner can decide this.",
+		});
+		calls = [];
+		await bot.handleUpdate(press(lucia, yes));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "300",
+				text: "✅ The founder confirmed: Wrote the opening menu",
+			},
+			{ chat_id: 200, text: "Confirmed for Nadya: Wrote the opening menu" },
+		]);
+
+		calls = [];
+		await bot.handleUpdate(text(nadya, "/ledger"));
+		expect(sent().at(-1)?.text).toMatch(
+			/^Your record:\n• .* Wrote the opening menu$/,
+		);
+
+		// A customer has no record to keep.
+		calls = [];
+		await bot.handleUpdate(text(rossi, "/did Ate a pizza"));
+		expect(sent().at(-1)?.text).toBe(
+			"Only the people who run the company keep a record here.",
+		);
+	});
+
 	it("doesn't pair anyone with a wrong code", async () => {
 		await channel.createPairingCode();
 		await bot.handleUpdate(text(rossi, "/start WRONGCODE"));

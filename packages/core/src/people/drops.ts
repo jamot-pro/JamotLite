@@ -66,6 +66,17 @@ async function setEntry<T>(
 const entry = async <T>(store: CompanyStore, setting: string, key: string) =>
 	(await store.settings.get<Record<string, T>>(setting))?.[key];
 
+/** The keys of the responsibilities a node owns. */
+async function ownedKeys(store: CompanyStore, nodeId: string) {
+	const nodes = await store.graph.listNodes();
+	const byId = new Map(nodes.map((n) => [n.id, n]));
+	return (await store.graph.listEdges())
+		.filter((e) => e.fromNodeId === nodeId && owning(e.relation))
+		.map((e) => byId.get(e.toNodeId))
+		.filter((r): r is StoredNode => r?.kind === "responsibility")
+		.map((r) => r.key);
+}
+
 /** What each live person owns, by node key. */
 async function ownership(store: CompanyStore) {
 	const nodes = await store.graph.listNodes();
@@ -186,6 +197,7 @@ export async function handOver(
 	const person = people.find((p) => p.key === nodeKey);
 	if (!person) return [];
 	const roles = owns(person);
+	const roleKeys = await ownedKeys(store, person.id);
 	if (roles.length)
 		await setStewardResponsibilities(
 			store,
@@ -202,7 +214,7 @@ export async function handOver(
 		type: "steward.handed_over",
 		source: why === "they chose" ? "channel/telegram" : "survival",
 		subject: nodeKey,
-		data: { why, roles },
+		data: { why, roles, roleKeys },
 		idempotencyKey: `handed-over:${nodeKey}:${now.toISOString()}`,
 	});
 	if (roles.length === 0) return roles;
