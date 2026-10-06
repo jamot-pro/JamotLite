@@ -256,8 +256,13 @@ commands) and don't change how the live company runs today.
   rewards (notes, never payments); `/ledger` shows a person their own record;
   the Overview shows the experiment's numbers (VISION.md). **Exit.** The
   numbers on the live company match a hand count.
-- **C5 · Tasks and the orchestrator.** Agents first, then the responsibility's
-  owner. Planned after C4.
+- **C5 · Tasks and the selector** — done (#50, D58). `/task` from the founder
+  (at once) or a steward (after the founder's yes), or by telling an agent; the
+  selector picks the responsibility and gives the task to an agent first, then
+  to the responsibility's owner, else the founder; Done and Can't for people,
+  the founder confirms, confirmed work goes on the record; `/tasks`, `/answer`
+  and a daily summary. **Exit.** A task added on Telegram reaches an agent,
+  then a person, and ends on the record, on the live company.
 
 ---
 

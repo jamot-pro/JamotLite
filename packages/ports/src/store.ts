@@ -8,6 +8,7 @@ import type { MemoryStore } from "./memory.js";
 import type { PeopleStore } from "./people.js";
 import type { SecretStore } from "./secrets.js";
 import type { SettingsStore } from "./settings.js";
+import type { TaskStore } from "./tasks.js";
 
 /** Every port of one company's storage. */
 export interface CompanyPorts {
@@ -23,6 +24,7 @@ export interface CompanyPorts {
 	transcripts: TranscriptStore;
 	approvals: ApprovalStore;
 	secrets: SecretStore;
+	tasks: TaskStore;
 }
 
 /**

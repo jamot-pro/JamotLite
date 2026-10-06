@@ -478,6 +478,53 @@ describe("Telegram", () => {
 		);
 	});
 
+	it("takes /task from a steward for the founder's yes, and lists /tasks (D58)", async () => {
+		const nadya = { id: 300, first_name: "Nadya" };
+		await store.graph.addNode({ key: "nadya", kind: "human", name: "Nadya" });
+		await pairLucia();
+		const code = await channel.createMemberPairingCode("nadya");
+		await bot.handleUpdate(text(nadya, `/start ${code}`));
+
+		calls = [];
+		await bot.handleUpdate(text(nadya, "/task Reprint the menus"));
+		expect(sent()).toMatchObject([
+			{
+				chat_id: "200",
+				text: "📋 Nadya asks the company to: Reprint the menus\nGo ahead?",
+			},
+			{
+				chat_id: 300,
+				text: expect.stringMatching(/^Got it: #1 Reprint the menus\./),
+			},
+		]);
+		// It's a task, not a message for the agents.
+		expect(await store.jobs.list({ kind: "agent.reply" })).toHaveLength(0);
+
+		// Only the founder says yes.
+		calls = [];
+		await bot.handleUpdate(press(nadya, "task:go:1"));
+		expect(sent().at(-1)?.text).toBe("Only the founder decides this.");
+		calls = [];
+		await bot.handleUpdate(press(lucia, "task:go:1"));
+		expect((await store.tasks.byNumber(1))?.status).toBe("open");
+		expect(sent().map((m) => m.text)).toContain(
+			"Going ahead with #1 Reprint the menus.",
+		);
+
+		calls = [];
+		await bot.handleUpdate(text(lucia, "/tasks"));
+		expect(sent().at(-1)?.text).toContain("#1 Reprint the menus");
+
+		// A customer has no tasks to give.
+		calls = [];
+		await bot.handleUpdate(text(rossi, "/task Bring me a pizza"));
+		expect(sent().at(-1)?.text).toMatch(/^Only the people who run the company/);
+		await bot.handleUpdate(press(rossi, "task:go:1"));
+		expect(
+			calls.find((c) => c.method === "answerCallbackQuery")?.payload,
+		).toMatchObject({ text: "This isn't for you." });
+	});
+
 	it("doesn't pair anyone with a wrong code", async () => {
 		await channel.createPairingCode();
 		await bot.handleUpdate(text(rossi, "/start WRONGCODE"));

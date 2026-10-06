@@ -13,6 +13,7 @@ import { peopleOps } from "./people.js";
 import { secretOps } from "./secrets.js";
 import { settingsOps } from "./settings.js";
 import type { Sync } from "./sync.js";
+import { taskOps } from "./tasks.js";
 
 type SyncPorts = { [K in keyof CompanyPorts]: Sync<CompanyPorts[K]> };
 
@@ -39,6 +40,7 @@ export function createSqliteStore(db: DatabaseSync): CompanyStore {
 		transcripts: transcriptOps(db),
 		approvals: approvalOps(db),
 		secrets: secretOps(db),
+		tasks: taskOps(db),
 	};
 
 	const insideTransaction = new AsyncLocalStorage<true>();

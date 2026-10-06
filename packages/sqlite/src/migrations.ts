@@ -280,4 +280,32 @@ export const MIGRATIONS: readonly {
       CREATE INDEX conversations_person ON conversations (person_id);
     `,
 	},
+	{
+		// Tasks (RUNTIME D58): work someone asked for, who has it, where it stands.
+		id: "0006_tasks",
+		sql: `
+      CREATE TABLE tasks (
+        seq                INTEGER PRIMARY KEY AUTOINCREMENT,
+        id                 TEXT NOT NULL UNIQUE,
+        title              TEXT NOT NULL,
+        details            TEXT,
+        status             TEXT NOT NULL CHECK (status IN ('proposed','open','working','review','blocked','done','cancelled')),
+        responsibility_key TEXT,
+        assignee_kind      TEXT CHECK (assignee_kind IN ('agent','human')),
+        assignee_key       TEXT,
+        requester_kind     TEXT NOT NULL CHECK (requester_kind IN ('founder','member','agent','customer')),
+        requester_key      TEXT,
+        requester_name     TEXT NOT NULL,
+        result             TEXT,
+        note               TEXT,
+        due_at             TEXT,
+        nudged_at          TEXT,
+        created_at         TEXT NOT NULL,
+        updated_at         TEXT NOT NULL,
+        done_at            TEXT
+      );
+      CREATE INDEX tasks_status ON tasks (status, seq);
+      CREATE INDEX tasks_assignee ON tasks (assignee_key, status);
+    `,
+	},
 ];

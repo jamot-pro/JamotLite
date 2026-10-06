@@ -6,6 +6,7 @@ import {
 	survivalSettings,
 	type Tier,
 } from "../survival/vitals.js";
+import { followUpTasks } from "../tasks/tasks.js";
 import {
 	type Notifier,
 	OWNER_LAST_SEEN,
@@ -116,6 +117,7 @@ export async function runHeartbeat(
 			await trackTier(store, vitals.tier, vitals);
 			await checkSuccession(deps, now, company.name);
 			await checkDroppedRoles(deps, now);
+			await followUpTasks(deps, now);
 		} else if (target.kind === "team") {
 			const members = edges
 				.filter((e) => e.toNodeId === target.id && e.relation === "member_of")
