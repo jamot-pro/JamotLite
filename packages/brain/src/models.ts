@@ -90,3 +90,21 @@ export function connectModel(choice: ModelChoice): ModelAccess {
 		streamFn,
 	};
 }
+
+/**
+ * One question, one answer, outside an agent run — for the setup's draft of
+ * a new company (RUNTIME D56). Returns the model's text.
+ */
+export async function complete(
+	access: ModelAccess,
+	input: { system: string; prompt: string },
+): Promise<string> {
+	// streamSimple takes a plain context and normalizes it itself.
+	const context = {
+		systemPrompt: input.system,
+		messages: [{ role: "user", content: input.prompt, timestamp: Date.now() }],
+	} as unknown as Parameters<StreamFn>[1];
+	const stream = await access.streamFn(access.model, context, {});
+	const reply = await stream.result();
+	return reply.content.map((c) => (c.type === "text" ? c.text : "")).join("");
+}
