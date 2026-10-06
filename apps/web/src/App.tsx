@@ -4,6 +4,7 @@ import { api, SignedOut } from "./api.js";
 import { Agents } from "./pages/Agents.js";
 import { Approvals } from "./pages/Approvals.js";
 import { CompanyMap } from "./pages/CompanyMap.js";
+import { Contributions } from "./pages/Contributions.js";
 import { Login } from "./pages/Login.js";
 import { OverviewPage } from "./pages/Overview.js";
 import { People } from "./pages/People.js";
@@ -25,6 +26,7 @@ const PAGES = [
 	{ path: "/map", label: "Company map", Page: CompanyMap },
 	{ path: "/stewards", label: "Stewards", Page: Stewards },
 	{ path: "/agents", label: "Agents", Page: Agents },
+	{ path: "/contributions", label: "Contributions", Page: Contributions },
 	{ path: "/people", label: "People", Page: People },
 	{ path: "/approvals", label: "Approvals", Page: Approvals },
 	{ path: "/runs", label: "Agent runs", Page: Runs },

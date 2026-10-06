@@ -3,14 +3,17 @@ import {
 	acceptInvite,
 	answerCheckin,
 	type Candidate,
+	decideContribution,
 	decideInvite,
 	isRetired,
+	ledgerText,
 	type Notifier,
 	noteStewardActivity,
 	OWNER_LAST_SEEN,
 	type OwnerAction,
 	onboardingBrief,
 	receiveMessage,
+	recordContribution,
 	recordSent,
 	SUCCESSION,
 } from "@jamot/core";
@@ -262,6 +265,20 @@ export function createTelegramChannel(
 
 		await seenOwner(who.userId);
 		await seenMember(who.userId);
+		// The contribution record (D54): a person's own, never the agents'.
+		const record = /^\/(did|ledger)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(
+			text.trim(),
+		);
+		if (record) {
+			await ctx.reply(
+				await contribute(
+					record[1] as "did" | "ledger",
+					record[2]?.trim() ?? "",
+					who,
+				),
+			);
+			return;
+		}
 		await receiveMessage(store, {
 			channel: "telegram",
 			threadId: who.chatId,
@@ -306,6 +323,33 @@ export function createTelegramChannel(
 			});
 		}
 		await seenOwner(person.userId);
+
+		const claim = /^did:(yes|no):([\w-]+)$/.exec(data);
+		if (claim) {
+			await ctx.answerCallbackQuery();
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => undefined);
+			const yes = claim[1] === "yes";
+			try {
+				const { message, nodeKey, what } = await decideContribution(
+					store,
+					claim[2] as string,
+					yes,
+					person.name,
+					await memberKey(person.userId),
+				);
+				await self.toMember?.(nodeKey, {
+					text: yes
+						? `✅ The founder confirmed: ${what}`
+						: `The founder didn't confirm: ${what}. Ask them if you're unsure why.`,
+				});
+				await ctx.reply(message);
+			} catch (err) {
+				await ctx.reply(err instanceof Error ? err.message : String(err));
+			}
+			return;
+		}
 
 		const invite = /^invite:(approve|decline):(\w+)$/.exec(data);
 		if (invite) {
@@ -407,6 +451,41 @@ export function createTelegramChannel(
 			});
 		});
 		return true;
+	}
+
+	/** `/did …` and `/ledger` from the founder or a steward (D54). */
+	async function contribute(
+		command: "did" | "ledger",
+		what: string,
+		who: { userId: string; chatId: string; name: string },
+	): Promise<string> {
+		const isOwner = (await holder("owner"))?.userId === who.userId;
+		const founderKey = (await store.graph.getCompany())?.founderKey ?? null;
+		const key = isOwner ? founderKey : await memberKey(who.userId);
+		if (!key && !isOwner)
+			return "Only the people who run the company keep a record here.";
+		if (command === "ledger") return ledgerText(store, isOwner ? null : key);
+		if (!key)
+			return "Your place in the company map isn't set, so there's nothing to record against. Add yourself in the console (Stewards).";
+		if (!what)
+			return "Say what you did after /did — for example: /did Wrote the opening menu.";
+		try {
+			const { id, message } = await recordContribution(
+				store,
+				{ nodeKey: key, what },
+				isOwner ? "the owner (Telegram)" : who.name,
+				isOwner,
+			);
+			if (!isOwner)
+				for (const p of await deciders())
+					await send(p, `${who.name} says they did: ${what}\nConfirm it?`, [
+						{ label: "✅ Confirm", action: `did:yes:${id}` },
+						{ label: "Not this", action: `did:no:${id}` },
+					]);
+			return message;
+		} catch (err) {
+			return err instanceof Error ? err.message : String(err);
+		}
 	}
 
 	/**

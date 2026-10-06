@@ -76,6 +76,7 @@ reads; it's the **charter** (AGENTS.md, Words).
 | Overview | `/` | How the company is doing and what needs the owner now |
 | Company map | `/map` | Teams, who's in them, who owns what, heartbeats, tools |
 | Stewards | `/stewards` | The people who run the company: handles, team, what they own, Telegram pairing, retire (D48); open roles, invitations and who's waiting for an answer (D52) |
+| Contributions | `/contributions` | What everyone did (joined, took on, `/did`), claims to confirm, rewards as notes, and the experiment's numbers (D54) |
 | Agents | `/agents` | Each agent: what it does, where, with what, at what cost; edit, tools, add, retire (D47) |
 | People | `/people` | Everyone the company talks to, and what it remembers |
 | Approvals | `/approvals` | What agents wait for a person to decide |

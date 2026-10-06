@@ -570,3 +570,63 @@ describe("open roles and invitations (D52)", () => {
 		).toBe(400);
 	});
 });
+
+describe("the contribution record (D54)", () => {
+	it("is the owner's only", async () => {
+		expect((await get("/api/contributions")).status).toBe(401);
+		for (const path of ["/api/contributions", "/api/rewards"])
+			expect(
+				(
+					await fetch(`${base}${path}`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: "{}",
+					})
+				).status,
+			).toBe(401);
+	});
+
+	it("records work and rewards, and shows the experiment", async () => {
+		const cookie = await signIn();
+		const view = await body(await get("/api/contributions", cookie));
+		const founder = view.people[0].key;
+		expect(
+			await body(
+				await send(
+					"POST",
+					"/api/contributions",
+					{ nodeKey: founder, what: "Opened the doors" },
+					cookie,
+				),
+			),
+		).toEqual({ message: expect.stringMatching(/: Opened the doors$/) });
+		expect(
+			await body(
+				await send(
+					"POST",
+					"/api/rewards",
+					{ nodeKey: founder, note: "A day off" },
+					cookie,
+				),
+			),
+		).toEqual({ message: expect.stringMatching(/: A day off$/) });
+		const after = await body(await get("/api/contributions", cookie));
+		expect(after.contributions[0]).toMatchObject({
+			what: "Opened the doors",
+			status: "confirmed",
+		});
+		expect(after.rewards).toMatchObject([{ note: "A day off" }]);
+		expect(after.experiment).toMatchObject({ invited: 0, joined: 0 });
+
+		expect(
+			(await send("POST", "/api/rewards", { nodeKey: founder }, cookie)).status,
+		).toBe(400);
+		expect(
+			(await send("POST", "/api/contributions/nope/confirm", {}, cookie))
+				.status,
+		).toBe(400);
+		expect(
+			(await send("POST", "/api/contributions/nope/maybe", {}, cookie)).status,
+		).toBe(404);
+	});
+});

@@ -5,6 +5,8 @@ import type {
 	AgentsView,
 	AgentToolsInput,
 	ApprovalsView,
+	ContributionInput,
+	ContributionsView,
 	MapView,
 	McpInfo,
 	Me,
@@ -13,6 +15,7 @@ import type {
 	PairingCode,
 	PersonProfile,
 	PersonRow,
+	RewardInput,
 	RoleInviteCode,
 	RunsView,
 	SettingsView,
@@ -28,11 +31,15 @@ import {
 	agentsView,
 	type Connection,
 	computeVitals,
+	contributionsView,
 	createRoleInvite,
+	decideContribution,
 	exportCompanyFile,
+	giveReward,
 	handleOwnerAction,
 	isRetired,
 	listConnections,
+	recordContribution,
 	retireAgent,
 	retireMember,
 	revokeConnection,
@@ -368,6 +375,68 @@ export function registerApi(app: FastifyInstance, deps: ApiDeps): void {
 				}
 			},
 		);
+		// The contribution record (D54): owner only; people add to it with
+		// /did on Telegram, and only the owner confirms and rewards.
+		owner.get(
+			"/api/contributions",
+			async (): Promise<ContributionsView> => contributionsView(store),
+		);
+		owner.post<{ Body: ContributionInput }>(
+			"/api/contributions",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					const { message } = await recordContribution(
+						store,
+						{ nodeKey: req.body?.nodeKey, what: req.body?.what },
+						by,
+						true,
+					);
+					return { message };
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Params: { id: string; answer: string } }>(
+			"/api/contributions/:id/:answer",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				const { answer } = req.params;
+				if (answer !== "confirm" && answer !== "decline")
+					return reply.code(404).send({ error: "Not found." });
+				try {
+					const { message } = await decideContribution(
+						store,
+						req.params.id,
+						answer === "confirm",
+						by,
+					);
+					return { message };
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+		owner.post<{ Body: RewardInput }>(
+			"/api/rewards",
+			async (req, reply): Promise<ActionResult | FastifyReply> => {
+				try {
+					return {
+						message: await giveReward(
+							store,
+							{
+								nodeKey: req.body?.nodeKey,
+								note: req.body?.note,
+								contributionId: req.body?.contributionId,
+							},
+							by,
+						),
+					};
+				} catch (err) {
+					return refused(reply, err);
+				}
+			},
+		);
+
 		// Open roles (D52): an invitation code for a role nobody owns, and the
 		// owner's yes or no to whoever used it. Joining itself is on Telegram.
 		owner.post<{ Params: { key: string } }>(

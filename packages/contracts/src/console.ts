@@ -318,3 +318,63 @@ export interface StewardResponsibilitiesInput {
 export interface PairingCode {
 	code: string;
 }
+
+/**
+ * Something a person did for the company, on the record (VISION.md, D54):
+ * joining, taking on a role, or work they reported with /did and the founder
+ * confirmed.
+ */
+export interface ContributionRow {
+	id: string;
+	who: { key: string; name: string };
+	what: string;
+	at: string;
+	kind: "joined" | "took" | "did";
+	/** A /did waits for the founder's confirmation ("claimed"). */
+	status: "confirmed" | "claimed" | "declined";
+}
+
+/** A reward the founder recorded — a note, never a payment (D54). */
+export interface RewardRow {
+	id: string;
+	who: { key: string; name: string };
+	note: string;
+	at: string;
+	contributionId: string | null;
+}
+
+/** The numbers VISION.md's experiment watches. */
+export interface ExperimentView {
+	invited: number;
+	joined: number;
+	/** Of those who joined: confirmed work within two weeks of joining. */
+	firstWorkIn2Weeks: number;
+	/** People who joined at least six weeks ago, and how many are still active. */
+	joinedSixWeeksAgo: number;
+	activeAfterSixWeeks: number;
+	/** The last 30 days: agent runs, and people's confirmed contributions. */
+	agentRuns30d: number;
+	peopleContributions30d: number;
+	/** Roles handed over (or opened for no answer), and how many have an owner again. */
+	handedOver: number;
+	pickedUpAgain: number;
+}
+
+export interface ContributionsView {
+	contributions: ContributionRow[];
+	rewards: RewardRow[];
+	people: { key: string; name: string }[];
+	experiment: ExperimentView;
+}
+
+/** The owner records something someone did. */
+export interface ContributionInput {
+	nodeKey: string;
+	what: string;
+}
+
+export interface RewardInput {
+	nodeKey: string;
+	note: string;
+	contributionId?: string | null;
+}
