@@ -5,7 +5,7 @@ How Jamot learns what it needs from a person: by talking with them
 
 | File | Who | What it's for |
 |---|---|---|
-| `charter.yaml` | The founder, at setup | Their idea becomes the company's charter and first plan |
+| `charter.yaml` | The founder, at setup | Their business, new or running, becomes the company's charter and first plan |
 | `newcomer.yaml` | Someone who just joined | What they're good at, want, have time for; how to work with them |
 
 ## Changing an interview — no code

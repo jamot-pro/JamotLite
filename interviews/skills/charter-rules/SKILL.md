@@ -25,5 +25,8 @@ acting. It must be short, concrete and the founder's own.
 - **What the founder won't do goes to agents first** when an agent can do
   it — answering, drafting, reminding, research. Money, contracts, hiring
   and physical work stay with people.
+- **A business that already runs keeps what works.** Ask what it does today,
+  for whom, and who already does what; the charter describes that business,
+  not a new one, and goals start from where it is.
 - **Small beats complete.** Three good goals and three real rules are better
   than ten of each.

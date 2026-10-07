@@ -458,11 +458,11 @@ export function Bubble({
 	direction,
 	meta,
 	children,
-}: Children & { direction: "in" | "out"; meta: ReactNode }) {
+}: Children & { direction: "in" | "out"; meta?: ReactNode }) {
 	return (
 		<div className={cx("bubble", direction)}>
 			<div>{children}</div>
-			<div className="muted small">{meta}</div>
+			{meta !== undefined && <div className="muted small">{meta}</div>}
 		</div>
 	);
 }
