@@ -1,19 +1,20 @@
-# The founder's interview: from an idea to a charter a company can run on.
+# The founder's interview: from a business — new or already running — to a
+# charter a company can run on.
 # Used by the setup (RUNTIME D55, D61). Change the goal, the facts or the
 # skills here — no code change. A deploy can point JAMOT_INTERVIEWS at a
 # folder with its own copy to override this one.
 id: charter
 name: Your company's charter
 goal: >-
-  Help a founder put their idea into words a company can run on: why it
-  exists, what it does and for whom, what success looks like in the next
+  Help a founder put their business into words a company can run on — a
+  new one or one that already runs; if it runs, learn what works today and
+  keep it. Why it exists, what it does and for whom, what success looks like in the next
   three months, and the rules it never breaks — then who is already in it,
   who is missing, and what the founder would rather not do themselves.
   The answers become the company's charter and its first plan.
 opening: >-
-  Hi! I'm Jamot. Let's put your idea into words your company can run on —
-  a short conversation, and you can say "that's enough" any time.
-  To start: what are you building, and for whom?
+  Hi, I'm Jamot. Tell me about your business — new or already running.
+  What does it do, and for whom?
 skills: [interviewing, charter-rules]
 maxTurns: 25
 fields:
@@ -25,9 +26,9 @@ fields:
     label: The founder's name
     required: true
   - id: what
-    label: What it does and for whom (the mission)
+    label: What the business does and for whom (the mission)
     required: true
-    hint: Who it serves, what it gives them, how.
+    hint: Who it serves, what it gives them, how; whether it already runs.
   - id: why
     label: Why it matters (the vision)
     hint: The world it builds toward, in one sentence.

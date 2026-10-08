@@ -647,7 +647,7 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 			return;
 		}
 		if (drafter) {
-			await say(owner.chatId, "That's everything. Drafting your company…");
+			await say(owner.chatId, "Drafting your company…");
 			try {
 				const d = await draft();
 				// An answer changed while drafting: draft from the new answers.
@@ -715,13 +715,11 @@ export async function createSetupGate(opts: GateOptions): Promise<Gate> {
 					if (charter) {
 						const c = await change(() => conversation());
 						const said = c?.messages.filter((m) => m.from === "jamot").at(-1);
-						await ctx.reply(
-							`Hi ${ctx.from.first_name}! You can also continue in the console — it's the same conversation.\n\n${said?.text ?? ""}`.trim(),
-						);
+						await ctx.reply(said?.text ?? `Hi ${ctx.from.first_name}!`);
 						return askNext();
 					}
 					await ctx.reply(
-						`Hi ${ctx.from.first_name}! Let's set up your company: ${QUESTIONS.length} short questions, about five minutes. Answer in your own words; /skip what you don't know yet, /back to change the last answer. You can also continue in the console — it's the same setup.`,
+						`Hi ${ctx.from.first_name}! ${QUESTIONS.length} short questions about your business. /skip what you don't know yet, /back to change an answer.`,
 					);
 					return askNext();
 				}

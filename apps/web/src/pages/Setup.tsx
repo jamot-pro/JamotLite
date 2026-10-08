@@ -80,9 +80,7 @@ export function Setup({ onStarted }: { onStarted: () => void }) {
 		return (
 			<Center>
 				<Card title={starting}>
-					<Muted block>
-						Your agents are getting ready. This takes a moment.
-					</Muted>
+					<Muted block>Getting ready…</Muted>
 				</Card>
 			</Center>
 		);
@@ -144,18 +142,14 @@ function Question({
 			setBusy(false);
 		}
 	};
-	const t = state.telegram;
-
 	return (
 		<Center>
 			<Form card onSubmit={() => send(value)}>
 				<Muted small>
-					Setting up your company · question {index + 1} of{" "}
-					{state.questions.length}
+					{index + 1}/{state.questions.length}
 				</Muted>
 				<h1>{q.title}</h1>
-				<Muted block>{q.hint}</Muted>
-				<Field label={q.kind === "lines" ? "One per line" : "Your answer"}>
+				<Field label={q.kind === "lines" ? "One per line" : ""}>
 					{q.kind === "short" ? (
 						<Input
 							autoFocus
@@ -189,7 +183,7 @@ function Question({
 							disabled={busy}
 							onClick={() => send("")}
 						>
-							I don't know yet
+							Skip
 						</Button>
 					)}
 					{onBack && (
@@ -198,79 +192,9 @@ function Question({
 						</Button>
 					)}
 				</Actions>
-				{index === 0 && t.bot && t.code && (
-					<Notice>
-						Rather answer on your phone?{" "}
-						<a
-							href={`https://t.me/${t.bot}?start=${t.code}`}
-							target="_blank"
-							rel="noreferrer"
-						>
-							Continue on Telegram
-						</a>{" "}
-						— it's the same setup.
-					</Notice>
-				)}
-				{t.owner && (
-					<Muted small block>
-						Also open on Telegram as {t.owner}: answers made there show here.
-					</Muted>
-				)}
+				{index === 0 && <OnTelegram state={state} />}
 			</Form>
-			<SoFar state={state} />
 		</Center>
-	);
-}
-
-/** The company taking shape as the founder answers (D56). */
-function SoFar({ state }: { state: SetupState }) {
-	const a = state.answers;
-	const list = (v: string | undefined) =>
-		(v ?? "")
-			.split("\n")
-			.map((l) => l.replace(/^[-•*\s]+/, "").trim())
-			.filter(Boolean);
-	if (!a.name && !a.what) return null;
-	return (
-		<Card muted title={a.name ? `${a.name}, so far` : "Your company, so far"}>
-			{a.why && (
-				<>
-					<Label>Why it exists</Label>
-					<p>{a.why}</p>
-				</>
-			)}
-			{a.what && (
-				<>
-					<Label>Its mission</Label>
-					<p>{a.what}</p>
-				</>
-			)}
-			{list(a.never).length > 0 && (
-				<>
-					<Label>What it holds to</Label>
-					<Bullets>
-						{list(a.never).map((v) => (
-							<Bullet key={v}>{v}</Bullet>
-						))}
-					</Bullets>
-				</>
-			)}
-			{list(a.goals).length > 0 && (
-				<>
-					<Label>Three months from now</Label>
-					<Bullets>
-						{list(a.goals).map((g) => (
-							<Bullet key={g}>{g}</Bullet>
-						))}
-					</Bullets>
-				</>
-			)}
-			{a.founder && (
-				<Muted small block>
-					Founded by {a.founder}
-				</Muted>
-			)}
-		</Card>
 	);
 }
 
@@ -306,8 +230,6 @@ function Conversation({
 			setBusy(false);
 		}
 	};
-	const t = state.telegram;
-
 	if (!talking)
 		return (
 			<Review
@@ -320,73 +242,68 @@ function Conversation({
 	return (
 		<Center>
 			<Form card="wide" onSubmit={() => send(text)}>
-				<Muted small>Setting up your company · a conversation with Jamot</Muted>
-				<h1>Tell Jamot about your idea</h1>
+				<h1>Your business</h1>
 				<Chat follow>
 					{c.messages.map((m) => (
 						<Bubble
 							key={`${m.at}-${m.from}-${m.text.slice(0, 16)}`}
 							direction={m.from === "person" ? "out" : "in"}
-							meta={m.from === "person" ? "You" : "Jamot"}
 						>
 							{m.text}
 						</Bubble>
 					))}
+					{busy && <Bubble direction="in">…</Bubble>}
 				</Chat>
-				{busy && (
-					<Muted small block>
-						Jamot is thinking…
-					</Muted>
-				)}
-				<Field label="Your answer">
-					<TextArea
-						autoFocus
-						rows={3}
-						value={text}
-						maxLength={2000}
-						onChange={(e) => setText(e.target.value)}
-					/>
-				</Field>
+				<TextArea
+					autoFocus
+					rows={2}
+					value={text}
+					maxLength={2000}
+					placeholder="Write to Jamot"
+					onChange={(e) => setText(e.target.value)}
+					onKeyDown={(e) => {
+						// Enter sends, as in a chat; Shift+Enter is a new line.
+						if (e.key === "Enter" && !e.shiftKey) {
+							e.preventDefault();
+							if (!busy) send(text);
+						}
+					}}
+				/>
 				{error && <ErrorText>{error}</ErrorText>}
 				<Actions>
 					<Button type="submit" disabled={busy || !text.trim()}>
-						{busy ? "Sending…" : "Send"}
+						Send
 					</Button>
-					<Button
-						variant="secondary"
-						disabled={busy || c.missing.length > 0}
-						onClick={() => send("That's enough")}
-					>
-						That's enough — draft it
-					</Button>
-				</Actions>
-				{c.missing.length > 0 && (
-					<Muted small block>
-						Still needed: {c.missing.join(", ").toLowerCase()}.
-					</Muted>
-				)}
-				{t.bot && t.code && (
-					<Notice>
-						Rather talk on your phone?{" "}
-						<a
-							href={`https://t.me/${t.bot}?start=${t.code}`}
-							target="_blank"
-							rel="noreferrer"
+					{c.missing.length === 0 && (
+						<Button
+							variant="secondary"
+							disabled={busy}
+							onClick={() => send("That's enough")}
 						>
-							Continue on Telegram
-						</a>{" "}
-						— it's the same conversation.
-					</Notice>
-				)}
-				{t.owner && (
-					<Muted small block>
-						Also open on Telegram as {t.owner}: reload to see what you said
-						there.
-					</Muted>
-				)}
+							Done
+						</Button>
+					)}
+				</Actions>
+				<OnTelegram state={state} />
 			</Form>
-			<SoFar state={state} />
 		</Center>
+	);
+}
+
+/** One line: the same setup continues on Telegram. */
+function OnTelegram({ state }: { state: SetupState }) {
+	const t = state.telegram;
+	if (!t.bot || !t.code) return null;
+	return (
+		<Muted small block>
+			<a
+				href={`https://t.me/${t.bot}?start=${t.code}`}
+				target="_blank"
+				rel="noreferrer"
+			>
+				Continue on Telegram
+			</a>
+		</Muted>
 	);
 }
 
@@ -460,20 +377,12 @@ function Review({
 	return (
 		<Center>
 			<Form card="wide" onSubmit={start}>
-				<Muted small>Setting up your company · review</Muted>
-				<h1>Here's your company</h1>
-				{drafting && (
-					<Notice>
-						Drafting your company from your answers… about half a minute.
-					</Notice>
-				)}
+				<h1>Your company</h1>
+				{drafting && <Notice>Drafting… about half a minute.</Notice>}
 				{d && !pick && <DraftView draft={d} />}
 				{pick && (
 					<>
-						<Field
-							label="Closest starting point"
-							hint="(Jamot starts from it and fits it to your answers; you can change everything later)"
-						>
+						<Field label="Closest starting point">
 							<Select
 								value={template}
 								onChange={(e) => setTemplate(e.target.value)}
@@ -518,7 +427,7 @@ function Review({
 				{onTalk ? (
 					<Actions>
 						<Button variant="link" disabled={busy} onClick={onTalk}>
-							Change something — tell Jamot
+							Change something
 						</Button>
 					</Actions>
 				) : (

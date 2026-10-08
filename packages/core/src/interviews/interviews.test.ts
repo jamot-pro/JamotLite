@@ -100,7 +100,7 @@ describe("interviews (D61)", () => {
 			facts: { founder: "Andrea", x: "y" },
 		});
 		expect(s.facts).toEqual({ founder: "Andrea" });
-		expect(s.messages[0]?.text).toMatch(/^Hi! I'm Jamot/);
+		expect(s.messages[0]?.text).toMatch(/^Hi, I'm Jamot/);
 		const n = startInterview(loadInterview("newcomer", [BUILT_IN]), {
 			context: { company: "Sunrise Bakery", name: "Rio" },
 		});
@@ -170,7 +170,9 @@ describe("interviews (D61)", () => {
 		});
 		const early = await interviewTurn(deps, c, s, "that's enough");
 		expect(early.state.status).toBe("asking");
-		expect(early.reply).toMatch(/still need: what it does and for whom/);
+		expect(early.reply).toMatch(
+			/still need: what the business does and for whom/,
+		);
 		const done = await interviewTurn(
 			deps,
 			c,
