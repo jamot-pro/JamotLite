@@ -8,6 +8,7 @@ import {
 	Form,
 	Input,
 	Muted,
+	Wordmark,
 } from "../ui/index.js";
 
 export function Login({ onSignedIn }: { onSignedIn: () => void }) {
@@ -31,7 +32,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
 					}
 				}}
 			>
-				<h1>💓 Jamot</h1>
+				<Wordmark />
 				<Muted block>
 					The organization that doesn't die when people leave.
 				</Muted>

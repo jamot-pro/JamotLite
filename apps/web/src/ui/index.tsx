@@ -518,6 +518,22 @@ export function Brand() {
 	);
 }
 
+/** The J mark and the name, as a page title. */
+export function Wordmark() {
+	return (
+		<h1 className="wordmark">
+			<img className="brand-mark on-light" src="/brand/jamot-logo.png" alt="" />
+			<img
+				className="brand-mark on-dark"
+				src="/brand/jamot-logo-white.webp"
+				alt=""
+				aria-hidden="true"
+			/>
+			Jamot
+		</h1>
+	);
+}
+
 /** A section in the rail: its icon, and its name as a tooltip. */
 export function NavLink({
 	to,
