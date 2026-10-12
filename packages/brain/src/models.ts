@@ -1,4 +1,3 @@
-import type { StreamFn } from "@earendil-works/pi-agent-core";
 import {
 	type Api,
 	createModels,
@@ -10,7 +9,7 @@ import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
-import type { ModelAccess } from "./types.js";
+import type { ModelAccess, StreamFn } from "./types.js";
 
 export type ModelProvider =
 	| "anthropic"
