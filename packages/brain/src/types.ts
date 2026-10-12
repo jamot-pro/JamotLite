@@ -1,10 +1,14 @@
-import type { StreamFn } from "@earendil-works/pi-agent-core";
-import type { Model } from "@earendil-works/pi-ai";
+import type {
+	AssistantMessageEventStream,
+	Model,
+	SimpleStreamOptions,
+	TranscriptContext,
+} from "@earendil-works/pi-ai";
 
 /**
  * The Brain port. Everything outside `packages/brain` talks to agents through
- * these types only; pi's own types stay inside this package (RUNTIME D17), so
- * a pi upgrade — or replacing pi — touches one place.
+ * these types only; internal types stay inside this package (RUNTIME D17), so
+ * an engine update touches one place.
  */
 
 /** What decides whether a tool call may run. */
@@ -42,6 +46,12 @@ export interface BrainTool {
 	timeoutMs?: number;
 	execute(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
+
+export type StreamFn = (
+	model: Model<never>,
+	context: TranscriptContext,
+	options?: SimpleStreamOptions,
+) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>;
 
 /** A model the brain can call. Build one with `connectModel` (or `fakeModel` in tests). */
 export interface ModelAccess {

@@ -206,13 +206,13 @@ describe("the setup gate (D55)", () => {
 		await bot.handleUpdate(text(andrea, `/start ${code}`));
 		expect(said().slice(-2)).toEqual([
 			expect.stringMatching(
-				/^Hi Andrea! Let's set up your company: 9 short questions/,
+				/^Hi Andrea! 9 short questions about your business/,
 			),
 			expect.stringMatching(/^1\/9 · What's it called\?/),
 		]);
 		// The founder's name came from Telegram: question 2 is skipped.
 		await bot.handleUpdate(text(andrea, "Sunrise Bakery"));
-		expect(said().at(-1)).toMatch(/^3\/9 · What are you building/);
+		expect(said().at(-1)).toMatch(/^3\/9 · What does your business do/);
 		await bot.handleUpdate(text(andrea, "Fresh bread for the neighbourhood"));
 		await bot.handleUpdate(text(andrea, "/skip"));
 		await bot.handleUpdate(text(andrea, "/back"));
@@ -422,7 +422,7 @@ describe("the setup gate (D55)", () => {
 			await bot.handleUpdate(text(andrea, "/skip"));
 			await bot.handleUpdate(text(andrea, "Rio"));
 			expect(said().slice(-2)).toEqual([
-				"That's everything. Drafting your company…",
+				"Drafting your company…",
 				expect.stringMatching(
 					/^Here's your company:[\s\S]*• Deliveries — open — invite someone[\s\S]*Takes over if you go quiet: Rio/,
 				),
@@ -500,7 +500,7 @@ describe("a conversation with the founder (D61)", () => {
 		expect(view.json().conversation).toMatchObject({
 			complete: false,
 			messages: [
-				{ from: "jamot", text: expect.stringMatching(/^Hi! I'm Jamot/) },
+				{ from: "jamot", text: expect.stringMatching(/^Hi, I'm Jamot/) },
 			],
 		});
 		const say = (text: string) =>
@@ -564,7 +564,9 @@ describe("a conversation with the founder (D61)", () => {
 			await gate.app.inject({ url: "/api/setup", headers: { cookie } })
 		).json().telegram.code;
 		await bot.handleUpdate(text(andrea, `/start ${code}`));
-		expect(said().at(-1)).toMatch(/^Hi Andrea![\s\S]*what are you building/);
+		expect(said().at(-1)).toMatch(
+			/^Hi, I'm Jamot\. Tell me about your business/,
+		);
 		await bot.handleUpdate(text(stranger, "hello"));
 		expect(said().at(-1)).toBe("This company isn't open yet. Check back soon!");
 		await bot.handleUpdate(text(andrea, "A bakery for our street"));
@@ -576,7 +578,7 @@ describe("a conversation with the founder (D61)", () => {
 		await bot.handleUpdate(text(andrea, "Yes"));
 		expect(said().slice(-3)).toEqual([
 			"Perfect — drafting your company.",
-			"That's everything. Drafting your company…",
+			"Drafting your company…",
 			expect.stringMatching(/^Here's your company:/),
 		]);
 		expect(JSON.stringify(calls.at(-1)?.payload.reply_markup)).toContain(

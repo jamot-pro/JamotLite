@@ -26,8 +26,8 @@ export const QUESTIONS: SetupQuestion[] = [
 	},
 	{
 		id: "what",
-		title: "What are you building, and for whom?",
-		hint: "A sentence or two. This becomes the company's mission.",
+		title: "What does your business do, and for whom?",
+		hint: "New or already running: a sentence or two.",
 		kind: "text",
 		required: true,
 		placeholder:

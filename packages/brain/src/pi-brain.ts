@@ -1,13 +1,15 @@
 import {
-	Agent,
-	type AgentMessage,
-	type AgentTool,
-} from "@earendil-works/pi-agent-core";
-import type {
-	AssistantMessage,
-	JsonObject,
-	ToolResultMessage,
-	TSchema,
+	type AssistantMessage,
+	getCurrentTools,
+	getToolStateChanges,
+	type JsonObject,
+	type Message,
+	normalizeContext,
+	type SystemMessage,
+	type Tool,
+	type ToolCall,
+	type ToolResultMessage,
+	toToolDeclaration,
 } from "@earendil-works/pi-ai";
 import type {
 	ApprovalStore,
@@ -40,15 +42,21 @@ Never invent facts about people or the company. Be brief and kind.`;
 const TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
 
+interface ActiveSession {
+	abort(): void;
+}
+
 /**
- * The Brain, on pi (RUNTIME D17). pi runs the model loop; this adapter adds
- * what a company needs around it: the policy gate and human approvals, a
- * transcript in the company's own database that survives restarts, token and
- * cost accounting on every run, budgets, tool timeouts, and an audit event for
- * every tool call.
+ * The native Brain runtime. A lightweight, native turn loop:
+ * - Direct turn loop (model call -> tool execution -> model call).
+ * - Policy gate (allow, approve, deny) and human approval suspension.
+ * - Transcript persistence in the company's database that survives restarts.
+ * - Token and cost accounting on every run.
+ * - Budgets (turns and cost) and tool timeouts.
+ * - Audit event for every tool call.
  */
 export function createPiBrain(ports: BrainPorts): Brain {
-	const active = new Map<string, Agent>();
+	const active = new Map<string, ActiveSession>();
 	const sessionQueue = new Map<string, Promise<unknown>>();
 
 	// One run at a time per session, so two messages never write one transcript at once.
@@ -94,6 +102,11 @@ export function createPiBrain(ports: BrainPorts): Brain {
 		const runId = runRow.id;
 		const approvalIds: string[] = [];
 		let stoppedBecause: string | null = null;
+		const controller = new AbortController();
+
+		active.set(sessionId, {
+			abort: () => controller.abort(),
+		});
 
 		try {
 			// A decision on a waiting tool call rewrites the transcript first, and may
@@ -101,112 +114,218 @@ export function createPiBrain(ports: BrainPorts): Brain {
 			const note = before ? await before(runId) : null;
 
 			const rows = await ports.transcripts.load(sessionId);
-			const messages = rows.map((r) => r.message as AgentMessage);
+			const messages = rows.map((r) => r.message as Message);
 			let persisted = messages.length;
+
+			messages.push(...repairInterruptedToolCalls(messages));
 			messages.push(
-				...repairInterruptedToolCalls(messages),
-				...instructionsUpdate(messages, spec.instructions),
+				...syncSystemAndTools(messages, spec.instructions, spec.tools),
 			);
 
-			const tools = spec.tools.map((t) =>
-				toPiTool(t, { runId, sessionId, agentKey: spec.key }),
-			);
+			const last = messages.at(-1);
+			if (input !== null) {
+				messages.push({
+					role: "user",
+					content: input,
+					timestamp: Date.now(),
+				} as Message);
+			} else if (last?.role === "toolResult" || last?.role === "user") {
+				// Continue from existing transcript without adding a user message.
+			} else {
+				messages.push({
+					role: "user",
+					content: note ?? "Carry on.",
+					timestamp: Date.now(),
+				} as Message);
+			}
+
+			const flush = async () => {
+				if (messages.length > persisted) {
+					await ports.transcripts.append(sessionId, messages.slice(persisted));
+					persisted = messages.length;
+				}
+			};
+
+			let turns = 0;
+			let costMicroUsd = 0;
 			const byName = new Map(spec.tools.map((t) => [t.name, t]));
 
-			const agent = new Agent({
-				initialState: { messages, model: spec.model.model, tools },
-				streamFn: spec.model.streamFn,
-				beforeToolCall: async ({ toolCall, args }) => {
+			while (!controller.signal.aborted) {
+				const maxTurns = spec.budget?.maxTurns;
+				if (maxTurns !== undefined && turns >= maxTurns) {
+					stoppedBecause = `budget reached: ${turns} turns`;
+					break;
+				}
+
+				await flush();
+
+				const stream = await spec.model.streamFn(
+					spec.model.model,
+					normalizeContext({ messages }),
+					{ signal: controller.signal },
+				);
+				const assistantMessage = await stream.result();
+				messages.push(assistantMessage);
+				await flush();
+
+				const u = assistantMessage.usage;
+				const cost = Math.round((u?.cost?.total ?? 0) * 1_000_000);
+				costMicroUsd += cost;
+				await ports.runs.addUsage(runId, {
+					inputTokens: u?.input ?? 0,
+					outputTokens: u?.output ?? 0,
+					cacheReadTokens: u?.cacheRead ?? 0,
+					cacheWriteTokens: u?.cacheWrite ?? 0,
+					costMicroUsd: cost,
+				});
+
+				const maxCost = spec.budget?.maxCostMicroUsd;
+				if (
+					maxCost !== undefined &&
+					costMicroUsd >= maxCost &&
+					!stoppedBecause
+				) {
+					stoppedBecause = `budget reached: this run cost ${costMicroUsd} of ${maxCost} micro-USD`;
+					break;
+				}
+
+				if (assistantMessage.stopReason === "error") {
+					break;
+				}
+				if (
+					assistantMessage.stopReason === "aborted" ||
+					controller.signal.aborted
+				) {
+					break;
+				}
+
+				const toolCalls = (assistantMessage.content ?? []).filter(
+					(c): c is ToolCall => c.type === "toolCall",
+				);
+				if (toolCalls.length === 0) {
+					break;
+				}
+
+				if (assistantMessage.stopReason === "length") {
+					for (const tc of toolCalls) {
+						messages.push({
+							role: "toolResult",
+							toolCallId: tc.id,
+							toolName: tc.name,
+							content: [
+								{
+									type: "text",
+									text: "Interrupted: tool call arguments truncated.",
+								},
+							],
+							details: {},
+							isError: true,
+							timestamp: Date.now(),
+						} as ToolResultMessage);
+					}
+					break;
+				}
+
+				for (const toolCall of toolCalls) {
 					const policy = byName.get(toolCall.name)?.policy ?? "allow";
 					if (policy === "deny") {
-						return {
-							block: true,
-							reason: `The company does not allow ${toolCall.name}. Don't try it again.`,
-						};
-					}
-					if (policy === "approve") {
+						messages.push({
+							role: "toolResult",
+							toolCallId: toolCall.id,
+							toolName: toolCall.name,
+							content: [
+								{
+									type: "text",
+									text: `The company does not allow ${toolCall.name}. Don't try it again.`,
+								},
+							],
+							details: {},
+							isError: true,
+							timestamp: Date.now(),
+						} as ToolResultMessage);
+						await ports.events.append({
+							type: "agent.tool_called",
+							source: `agent/${spec.key}`,
+							subject: runId,
+							data: { tool: toolCall.name, isError: true },
+							idempotencyKey: `tool:${runId}:${toolCall.id}`,
+						});
+					} else if (policy === "approve") {
 						const approval = await ports.approvals.create({
 							runId,
 							sessionId,
 							agentKey: spec.key,
 							tool: toolCall.name,
 							toolCallId: toolCall.id,
-							args: (args ?? {}) as Record<string, unknown>,
+							args: (toolCall.arguments ?? {}) as Record<string, unknown>,
 						});
 						approvalIds.push(approval.id);
-						// No `terminate`: the agent gets one more turn to tell the person
-						// it's waiting, in its own words. The decision comes later.
-						return {
-							block: true,
-							reason: `Waiting for a person to approve ${toolCall.name} (approval ${approval.id}). Say it is waiting; don't retry it.`,
-						};
-					}
-					return undefined;
-				},
-				afterToolCall: async ({ toolCall, isError }) => {
-					await ports.events.append({
-						type: "agent.tool_called",
-						source: `agent/${spec.key}`,
-						subject: runId,
-						data: { tool: toolCall.name, isError },
-						idempotencyKey: `tool:${runId}:${toolCall.id}`,
-					});
-					return undefined;
-				},
-			});
-			active.set(sessionId, agent);
-
-			// Save whatever the transcript gained. pi keeps system messages in the
-			// transcript without announcing them, so compare lengths, not events.
-			const flush = async () => {
-				const all = agent.state.messages;
-				if (all.length > persisted) {
-					await ports.transcripts.append(sessionId, all.slice(persisted));
-					persisted = all.length;
-				}
-			};
-
-			let turns = 0;
-			let costMicroUsd = 0;
-			agent.subscribe(async (event) => {
-				if (event.type === "message_end") {
-					await flush();
-					if (event.message.role === "assistant") {
-						const u = (event.message as AssistantMessage).usage;
-						const cost = Math.round((u?.cost?.total ?? 0) * 1_000_000);
-						costMicroUsd += cost;
-						await ports.runs.addUsage(runId, {
-							inputTokens: u?.input ?? 0,
-							outputTokens: u?.output ?? 0,
-							cacheReadTokens: u?.cacheRead ?? 0,
-							cacheWriteTokens: u?.cacheWrite ?? 0,
-							costMicroUsd: cost,
+						messages.push({
+							role: "toolResult",
+							toolCallId: toolCall.id,
+							toolName: toolCall.name,
+							content: [
+								{
+									type: "text",
+									text: `Waiting for a person to approve ${toolCall.name} (approval ${approval.id}). Say it is waiting; don't retry it.`,
+								},
+							],
+							details: { waitingApproval: true, approvalId: approval.id },
+							isError: true,
+							timestamp: Date.now(),
+						} as ToolResultMessage);
+						await ports.events.append({
+							type: "agent.tool_called",
+							source: `agent/${spec.key}`,
+							subject: runId,
+							data: { tool: toolCall.name, isError: false },
+							idempotencyKey: `tool:${runId}:${toolCall.id}`,
 						});
-						const max = spec.budget?.maxCostMicroUsd;
-						if (max !== undefined && costMicroUsd >= max && !stoppedBecause) {
-							stoppedBecause = `budget reached: this run cost ${costMicroUsd} of ${max} micro-USD`;
-							agent.abort();
+					} else {
+						const tool = byName.get(toolCall.name);
+						let result: ToolResult;
+						if (!tool) {
+							result = {
+								text: `Tool ${toolCall.name} not found.`,
+								isError: true,
+							};
+						} else {
+							result = await runWithTimeout(
+								tool,
+								(toolCall.arguments ?? {}) as Record<string, unknown>,
+								{ runId, sessionId, agentKey: spec.key },
+								controller.signal,
+							);
 						}
+						messages.push({
+							role: "toolResult",
+							toolCallId: toolCall.id,
+							toolName: toolCall.name,
+							content: [{ type: "text", text: result.text }],
+							details: (result.details ?? {}) as JsonObject,
+							isError: result.isError ?? false,
+							timestamp: Date.now(),
+						} as ToolResultMessage);
+						await ports.events.append({
+							type: "agent.tool_called",
+							source: `agent/${spec.key}`,
+							subject: runId,
+							data: { tool: toolCall.name, isError: result.isError ?? false },
+							idempotencyKey: `tool:${runId}:${toolCall.id}`,
+						});
 					}
 				}
-				if (event.type === "turn_end") {
-					turns++;
-					const max = spec.budget?.maxTurns;
-					if (max !== undefined && turns >= max && !stoppedBecause) {
-						stoppedBecause = `budget reached: ${turns} turns`;
-						agent.abort();
-					}
-				}
-			});
 
-			const last = agent.state.messages.at(-1);
-			if (input !== null) await agent.prompt(input);
-			else if (last?.role === "toolResult" || last?.role === "user")
-				await agent.continue();
-			else await agent.prompt(note ?? "Carry on.");
+				turns++;
+				if (maxTurns !== undefined && turns >= maxTurns && !stoppedBecause) {
+					stoppedBecause = `budget reached: ${turns} turns`;
+					break;
+				}
+			}
+
 			await flush();
 
-			const final = [...agent.state.messages]
+			const final = [...messages]
 				.reverse()
 				.find((m) => m.role === "assistant") as AssistantMessage | undefined;
 			const text = final ? textOf(final) : "";
@@ -216,7 +335,11 @@ export function createPiBrain(ports: BrainPorts): Brain {
 					pending.push(id);
 			}
 
-			if (stoppedBecause || final?.stopReason === "aborted") {
+			if (
+				stoppedBecause ||
+				final?.stopReason === "aborted" ||
+				controller.signal.aborted
+			) {
 				const message = stoppedBecause ?? "stopped by a person";
 				await ports.runs.finish(runId, {
 					status: "aborted",
@@ -267,7 +390,6 @@ export function createPiBrain(ports: BrainPorts): Brain {
 		async decide({ agent, approvalId, approved, by, note }) {
 			const waiting = await ports.approvals.get(approvalId);
 			if (!waiting) throw new Error(`no approval ${approvalId}`);
-			// Checked again when recording it, in case two people decide at once.
 			if (waiting.status !== "pending")
 				throw new Error(`approval ${approvalId} was already ${waiting.status}`);
 			return serialize(waiting.sessionId, () =>
@@ -302,11 +424,10 @@ export function createPiBrain(ports: BrainPorts): Brain {
 							});
 						}
 
-						// Put the real outcome where the "waiting for approval" placeholder was.
 						const rows = await ports.transcripts.load(approval.sessionId);
 						const row = rows.find(
 							(r) =>
-								(r.message as AgentMessage).role === "toolResult" &&
+								(r.message as Message).role === "toolResult" &&
 								(r.message as ToolResultMessage).toolCallId ===
 									approval.toolCallId,
 						);
@@ -326,7 +447,6 @@ export function createPiBrain(ports: BrainPorts): Brain {
 							data: { tool: approval.tool, by },
 							idempotencyKey: `approval:${approvalId}`,
 						});
-						// If the conversation moved on since, tell the agent what was decided.
 						return approved
 							? `${by} approved ${approval.tool}. Result: ${result.text}`
 							: result.text;
@@ -355,6 +475,9 @@ export function createPiBrain(ports: BrainPorts): Brain {
 	};
 }
 
+export const createNativeBrain = createPiBrain;
+export const createBrain = createPiBrain;
+
 function checkTools(tools: BrainTool[]): void {
 	const seen = new Set<string>();
 	for (const t of tools) {
@@ -371,9 +494,7 @@ function checkTools(tools: BrainTool[]): void {
 /** A process that died mid-tool left calls without results. The model must see an
  *  answer for each before it can go on; we don't re-run them, since we can't
  *  know whether they already took effect. */
-function repairInterruptedToolCalls(
-	messages: AgentMessage[],
-): ToolResultMessage[] {
+function repairInterruptedToolCalls(messages: Message[]): ToolResultMessage[] {
 	const lastAssistant = messages.findLastIndex((m) => m.role === "assistant");
 	if (lastAssistant < 0) return [];
 	if (messages.slice(lastAssistant + 1).some((m) => m.role !== "toolResult"))
@@ -383,9 +504,9 @@ function repairInterruptedToolCalls(
 			.slice(lastAssistant + 1)
 			.map((m) => (m as ToolResultMessage).toolCallId),
 	);
-	const calls = (messages[lastAssistant] as AssistantMessage).content.filter(
-		(c) => c.type === "toolCall",
-	);
+	const calls = (
+		(messages[lastAssistant] as AssistantMessage).content ?? []
+	).filter((c): c is ToolCall => c.type === "toolCall");
 	return calls
 		.filter((c) => !answered.has(c.id))
 		.map((c) => ({
@@ -407,10 +528,12 @@ function repairInterruptedToolCalls(
 /** The leading system message on a new session; a replacement "instructions"
  *  section when the agent's instructions changed since. */
 function instructionsUpdate(
-	messages: AgentMessage[],
+	messages: Message[],
 	instructions: string,
-): AgentMessage[] {
-	const systems = messages.filter((m) => m.role === "system");
+): SystemMessage[] {
+	const systems = messages.filter(
+		(m): m is SystemMessage => m.role === "system",
+	);
 	if (systems.length === 0) {
 		return [
 			{
@@ -418,7 +541,7 @@ function instructionsUpdate(
 				content: PREAMBLE,
 				sections: { instructions },
 				timestamp: Date.now(),
-			} as AgentMessage,
+			} as SystemMessage,
 		];
 	}
 	const current = systems
@@ -436,38 +559,41 @@ function instructionsUpdate(
 			content: "",
 			sections: { instructions },
 			timestamp: Date.now(),
-		} as AgentMessage,
+		} as SystemMessage,
 	];
 }
 
-function toPiTool(
-	tool: BrainTool,
-	ctx: { runId: string; sessionId: string; agentKey: string },
-): AgentTool {
-	return {
-		name: tool.name,
-		label: tool.name,
-		description: tool.description,
-		// pi accepts plain JSON Schema here and validates the model's arguments against it.
-		parameters: tool.parameters as unknown as TSchema,
-		execute: async (_id, params, signal) => {
-			const result = await runWithTimeout(
-				tool,
-				(params ?? {}) as Record<string, unknown>,
-				ctx,
-				signal,
-			);
-			return {
-				content: [{ type: "text", text: result.text }],
-				details: result.details ?? {},
-				isError: result.isError ?? false,
-			};
-		},
-	};
+function syncSystemAndTools(
+	messages: Message[],
+	instructions: string,
+	tools: BrainTool[],
+): Message[] {
+	const newSys = instructionsUpdate(messages, instructions);
+	const targetTools = tools.map((t) => toToolDeclaration(t as unknown as Tool));
+	const currentTools = getCurrentTools(messages);
+	const changes = getToolStateChanges(currentTools, targetTools);
+
+	const added: Message[] = [];
+	const sys = newSys[0];
+	if (sys) {
+		if (changes.toolsAdded.length > 0 || changes.toolsRemoved.length > 0) {
+			sys.toolsAdded = changes.toolsAdded;
+			sys.toolsRemoved = changes.toolsRemoved;
+		}
+		added.push(sys);
+	} else if (changes.toolsAdded.length > 0 || changes.toolsRemoved.length > 0) {
+		added.push({
+			role: "system",
+			content: "",
+			toolsAdded: changes.toolsAdded,
+			toolsRemoved: changes.toolsRemoved,
+			timestamp: Date.now(),
+		} as Message);
+	}
+	return added;
 }
 
-/** pi has no per-tool timeout (O1 spike, item 8). A normal timer, not
- *  AbortSignal.timeout, whose timer doesn't keep the process alive. */
+/** Per-tool timeout. A normal timer, not AbortSignal.timeout, whose timer doesn't keep the process alive. */
 async function runWithTimeout(
 	tool: BrainTool,
 	args: Record<string, unknown>,
@@ -504,7 +630,7 @@ async function runWithTimeout(
 }
 
 function textOf(message: AssistantMessage): string {
-	return message.content
+	return (message.content ?? [])
 		.filter((c) => c.type === "text")
 		.map((c) => (c as { text: string }).text)
 		.join("")

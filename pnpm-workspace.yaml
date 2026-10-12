@@ -15,6 +15,5 @@ allowBuilds:
 # is pinned. Remove these once the release is older than the window.
 minimumReleaseAgeExclude:
   - "@earendil-works/chord@0.99.1"
-  - "@earendil-works/pi-agent-core@0.99.1"
   - "@earendil-works/pi-ai@0.99.1"
   - "@earendil-works/pi-telemetry@0.99.1"
